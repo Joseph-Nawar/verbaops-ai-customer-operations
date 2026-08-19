@@ -6,6 +6,7 @@ from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from relayai.api.dependencies import RuntimeResourceUnavailableError
 from relayai.auth.provider import AuthenticationError
 from relayai.observability.context import get_request_context
 
@@ -64,4 +65,16 @@ async def http_exception_handler(request: Request, error: Any) -> JSONResponse:
         status_code=status_code,
         content=_error_payload("http_error", str(detail)),
         headers=dict(getattr(error, "headers", None) or {}),
+    )
+
+
+async def runtime_resource_error_handler(
+    _request: Request,
+    _error: RuntimeResourceUnavailableError,
+) -> JSONResponse:
+    """Return a safe application-owned response for unavailable resources."""
+
+    return JSONResponse(
+        status_code=503,
+        content=_error_payload("resource_unavailable", "required runtime resource unavailable"),
     )

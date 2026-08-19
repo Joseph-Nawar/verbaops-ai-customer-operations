@@ -7,12 +7,14 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from relayai import __version__
-from relayai.api.dependencies import ApplicationDependencies
+from relayai.api.dependencies import ApplicationDependencies, RuntimeResourceUnavailableError
 from relayai.api.errors import (
     authentication_error_handler,
     http_exception_handler,
+    runtime_resource_error_handler,
     validation_error_handler,
 )
+from relayai.api.lifespan import lifespan
 from relayai.api.middleware import RequestContextMiddleware
 from relayai.api.routes.operations import router as operations_router
 from relayai.auth.provider import AuthenticationError, AuthProvider
@@ -28,6 +30,7 @@ def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
         title="RelayAI",
         version=__version__,
         description="RelayAI multilingual customer-operations application foundation.",
+        lifespan=lifespan,
     )
     app.state.relayai_dependencies = ApplicationDependencies(
         settings=settings,
@@ -35,6 +38,10 @@ def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
     )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(AuthenticationError, cast(Any, authentication_error_handler))
+    app.add_exception_handler(
+        RuntimeResourceUnavailableError,
+        cast(Any, runtime_resource_error_handler),
+    )
     app.add_exception_handler(RequestValidationError, cast(Any, validation_error_handler))
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.include_router(operations_router)

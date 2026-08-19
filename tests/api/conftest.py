@@ -77,7 +77,11 @@ async def request(
     *,
     headers: Mapping[str, str] | None = None,
     json: object | None = None,
+    lifespan: bool = True,
 ) -> httpx.Response:
     transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        return await client.request(method, path, headers=headers, json=json)
+        if not lifespan:
+            return await client.request(method, path, headers=headers, json=json)
+        async with app.router.lifespan_context(app):
+            return await client.request(method, path, headers=headers, json=json)

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Establish the reproducible Python 3.12/uv foundation, validated configuration, trusted identity boundary, and FastAPI request infrastructure for RelayAI without implementing later Stage 1 application capabilities.
+**Goal:** Establish the reproducible Python 3.12/uv foundation, validated configuration, trusted identity boundary, FastAPI request infrastructure, and local persistence/runtime foundation for RelayAI without implementing later-stage application capabilities.
 
-**Architecture:** M1A creates the installable `src/relayai` package and repository tooling. M1B adds validated configuration, an authentication-provider abstraction, and immutable server-derived identity context. M1C adds only the FastAPI application/request context, dependency injection, operational endpoints, and structured logging; persistence, AI, voice, and commerce behavior remain outside the active milestone.
+**Architecture:** M1A creates the installable `src/relayai` package and repository tooling. M1B adds validated configuration, an authentication-provider abstraction, and immutable server-derived identity context. M1C adds the FastAPI application/request context, dependency injection, operational endpoints, and structured logging. M1D adds only application-owned async PostgreSQL/Redis resource lifecycles, Alembic extension setup, and local Docker composition; persistence models, AI, voice, and commerce behavior remain outside the active milestone.
 
-**Tech Stack:** Python 3.12, uv, Hatchling, Pydantic, pydantic-settings, FastAPI, Starlette, httpx, pytest, pytest-asyncio, pytest-cov, Ruff, mypy, pre-commit, and GNU Make as an optional convenience wrapper.
+**Tech Stack:** Python 3.12, uv, Hatchling, Pydantic, pydantic-settings, FastAPI, Starlette, SQLAlchemy async, asyncpg, Alembic, redis-py asyncio, Uvicorn, Docker Compose, httpx, pytest, pytest-asyncio, pytest-cov, Ruff, mypy, pre-commit, and GNU Make as an optional convenience wrapper.
 
-**Spec:** Locked Phase 0 documentation at commit `1446bed` plus the M1A request.
+**Spec:** Locked Phase 0 architecture at commit `1446bed` plus the M1A–M1D milestone requests.
 
 ## Global Constraints
 
@@ -18,9 +18,9 @@
 - Import package: `relayai`.
 - Use `uv` for project and dependency management and commit `uv.lock`.
 - Do not add application/runtime dependencies unless strictly required to build/install the package.
-- Do not add Uvicorn/Gunicorn, databases, Redis clients, Docker, LangGraph, AI/provider SDKs, RAG, voice, AWS, frontend code, NovaCommerce models, or empty future package directories.
+- Do not add domain tables, NovaCommerce models, LangGraph, AI/provider SDKs, RAG, voice, AWS/cloud infrastructure, frontend code, worker services, or later-stage automation.
 - Do not modify locked Phase 0 product or architecture decisions.
-- M1A and M1B are accepted/complete; M1C is the active milestone. M1D through M1F remain not started.
+- M1A, M1B, and M1C are accepted/complete; M1D is the active milestone. M1E and M1F remain not started.
 
 ## Locked Stage 1 sequence
 
@@ -28,49 +28,26 @@
 |---|---|---|
 | M1A Python Toolchain & Repository Foundation | Python/uv package, tooling, smoke test, and developer commands only | Accepted/complete |
 | M1B Configuration & Trusted Identity Boundary | Configuration, authentication-provider abstraction, and immutable trusted context | Accepted/complete |
-| M1C FastAPI Application & Request Infrastructure | FastAPI application, request context, dependency injection, operational routes, and structured logging | Active milestone |
-| M1D Persistence & Runtime Infrastructure | Recorded boundary only; not implemented | Not started |
+| M1C FastAPI Application & Request Infrastructure | FastAPI application, request context, dependency injection, operational routes, and structured logging | Accepted/complete |
+| M1D Persistence & Runtime Infrastructure | Async SQLAlchemy/asyncpg resources, Redis lifecycle, Alembic pgvector extension migration, real readiness, Uvicorn composition, and local Docker stack; no domain tables | Active milestone |
 | M1E Engineering Automation | Recorded boundary only; not implemented | Not started |
 | M1F Stage 1 Final Gate | Recorded boundary only; not implemented | Not started |
 
-### Task 1: Package smoke behavior
+### Accepted milestone record
 
-**Files:**
-- Create: `tests/__init__.py`
-- Create: `tests/test_package.py`
+- [x] M1A Python/uv foundation, installable package, tooling, smoke test, and developer commands accepted at `4654700`.
+- [x] M1B configuration, authentication-provider abstraction, and immutable trusted context accepted at `0206840`.
+- [x] M1C FastAPI request infrastructure, operational routes, dependency injection, and structured logging accepted at `e39168f`.
 
-- [ ] Write tests proving that the installed project imports `relayai`, exposes version `0.1.0` from distribution metadata, and resolves to `src/relayai` without a repository-root package hack.
-- [ ] Run the test through the uv-managed environment and confirm it fails because the package foundation does not yet exist.
+### Active M1D boundary
 
-### Task 2: Python/uv foundation
+- [x] Add only application-owned async SQLAlchemy/asyncpg and Redis resources, without domain models or tables.
+- [x] Own resources through FastAPI lifespan with controlled readiness checks and cleanup, without automatic migrations at startup.
+- [x] Add an extension-only Alembic migration enabling pgvector, plus Uvicorn factory composition and the local four-service Docker Compose stack.
+- [x] Add ignored local secret bootstrap and `make dev`, `make down`, and `make migrate`; keep static/test checks independent of Docker.
+- [x] Verify the disposable local stack, migration reversibility, PostgreSQL 16/vector, Redis, secret hygiene, and the complete static/test suite.
 
-**Files:**
-- Create: `.python-version`
-- Create: `pyproject.toml`
-- Create: `src/relayai/__init__.py`
-- Create: `src/relayai/py.typed`
-- Create: `uv.lock`
+### Future milestone boundaries
 
-- [ ] Configure Python 3.12, project name `relay-ai`, version `0.1.0`, `src` layout, Hatchling build metadata, empty runtime dependencies, and the requested development tools.
-- [ ] Implement only distribution-backed `relayai.__version__` metadata.
-- [ ] Run `uv sync` to create the lockfile and environment.
-- [ ] Re-run the package tests and confirm they pass.
-
-### Task 3: Developer command interface
-
-**Files:**
-- Create: `Makefile`
-- Create: `.pre-commit-config.yaml`
-
-- [ ] Add `sync`, `lint`, `format-check`, `typecheck`, `test`, and `check` wrappers around canonical uv commands.
-- [ ] Keep `make dev` and `make down` absent because the local runtime stack is not part of M1A.
-- [ ] Configure Ruff, mypy, pytest/coverage, and simple pre-commit repository hygiene without adding Black, isort, or Flake8.
-
-### Task 4: Verification and lock
-
-**Files:**
-- Modify: only M1A files if verification identifies a concrete issue.
-
-- [ ] Run uv sync, pytest, coverage, Ruff check, Ruff format check, mypy, pre-commit, Makefile checks, Mermaid-independent repository scans, and `git diff --check`.
-- [ ] Confirm no Stage 1 later-milestone files or runtime dependencies exist.
-- [ ] Commit the verified milestone as `chore: establish RelayAI Python engineering foundation`.
+- [ ] M1E Engineering Automation remains not started and retains its existing boundary.
+- [ ] M1F Stage 1 Final Gate remains not started and retains its existing boundary.

@@ -1,15 +1,22 @@
-"""Typed FastAPI dependencies for application state and authentication."""
+"""Typed FastAPI dependencies for application and runtime state."""
 
+from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from relayai.auth.context import TrustedContext
 from relayai.auth.provider import AuthenticationError, AuthProvider, OpaqueCredential
 from relayai.config.settings import Settings
+from relayai.db.resources import DatabaseResources
 from relayai.observability.context import bind_tenant_id
+
+if TYPE_CHECKING:
+    from relayai.api.lifespan import RuntimeResources
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +25,41 @@ class ApplicationDependencies:
 
     settings: Settings
     auth_provider: AuthProvider
+
+
+class RuntimeResourceUnavailableError(RuntimeError):
+    """Raised when a request asks for a resource not installed by lifespan."""
+
+
+def get_runtime_resources(request: Request) -> "RuntimeResources":
+    """Retrieve the lifespan-owned resource container."""
+
+    from relayai.api.lifespan import RuntimeResources
+
+    resources = getattr(request.app.state, "relayai_runtime_resources", None)
+    if not isinstance(resources, RuntimeResources):
+        raise RuntimeResourceUnavailableError("runtime resources are unavailable")
+    return resources
+
+
+async def get_database_session(request: Request) -> AsyncGenerator[AsyncSession, None]:
+    """Yield one request-scoped session without implicit transaction commit."""
+
+    resources = get_runtime_resources(request)
+    database: DatabaseResources | None = resources.database
+    if database is None:
+        raise RuntimeResourceUnavailableError("database resource is unavailable")
+    async with database.session_factory() as session:
+        yield session
+
+
+def get_redis_client(request: Request) -> Redis:
+    """Retrieve the lifespan-owned Redis client."""
+
+    resources = get_runtime_resources(request)
+    if resources.redis is None:
+        raise RuntimeResourceUnavailableError("redis resource is unavailable")
+    return resources.redis
 
 
 def get_application_dependencies(request: Request) -> ApplicationDependencies:

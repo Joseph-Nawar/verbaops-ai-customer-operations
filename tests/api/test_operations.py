@@ -15,11 +15,11 @@ async def test_health_is_liveness_only(app: FastAPI) -> None:
 
 
 @pytest.mark.asyncio
-async def test_ready_reports_no_external_checks_yet(app: FastAPI) -> None:
+async def test_ready_reports_missing_external_checks(app: FastAPI) -> None:
     response = await request(app, "GET", "/ready")
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "ready", "checks": []}
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
 
 
 @pytest.mark.asyncio
