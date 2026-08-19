@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Establish the reproducible Python 3.12/uv package foundation for RelayAI without implementing Stage 1 application capabilities.
+**Goal:** Establish the reproducible Python 3.12/uv foundation, validated configuration, and trusted identity boundary for RelayAI without implementing later Stage 1 application capabilities.
 
-**Architecture:** M1A creates only an installable `src/relayai` package and the repository tooling needed to test and maintain it. The package exposes distribution metadata only; trusted identity, request infrastructure, persistence, AI, voice, and commerce behavior remain outside this milestone.
+**Architecture:** M1A creates the installable `src/relayai` package and repository tooling. M1B adds only validated configuration, an authentication-provider abstraction, and immutable server-derived identity context; request infrastructure, persistence, AI, voice, and commerce behavior remain outside the active milestone.
 
-**Tech Stack:** Python 3.12, uv, Hatchling, pytest, pytest-cov, Ruff, mypy, pre-commit, and GNU Make as an optional convenience wrapper.
+**Tech Stack:** Python 3.12, uv, Hatchling, Pydantic, pydantic-settings, pytest, pytest-cov, Ruff, mypy, pre-commit, and GNU Make as an optional convenience wrapper.
 
 **Spec:** Locked Phase 0 documentation at commit `1446bed` plus the M1A request.
 
@@ -18,16 +18,16 @@
 - Import package: `relayai`.
 - Use `uv` for project and dependency management and commit `uv.lock`.
 - Do not add application/runtime dependencies unless strictly required to build/install the package.
-- Do not add FastAPI, Pydantic, databases, Redis, Docker, LangGraph, AI/provider SDKs, RAG, voice, AWS, frontend code, NovaCommerce models, or empty future package directories.
+- Do not add FastAPI, databases, Redis clients, Docker, LangGraph, AI/provider SDKs, RAG, voice, AWS, frontend code, NovaCommerce models, or empty future package directories.
 - Do not modify locked Phase 0 product or architecture decisions.
-- M1A is the only milestone implemented by this plan.
+- M1A is accepted/complete; M1B is the active milestone. M1C through M1F remain not started.
 
 ## Locked Stage 1 sequence
 
 | Milestone | Boundary | Status |
 |---|---|---|
-| M1A Python Toolchain & Repository Foundation | Python/uv package, tooling, smoke test, and developer commands only | In progress for this task |
-| M1B Configuration & Trusted Identity Boundary | Recorded boundary only; not implemented | Not started |
+| M1A Python Toolchain & Repository Foundation | Python/uv package, tooling, smoke test, and developer commands only | Accepted/complete |
+| M1B Configuration & Trusted Identity Boundary | Configuration, authentication-provider abstraction, and immutable trusted context | Active milestone |
 | M1C FastAPI Application & Request Infrastructure | Recorded boundary only; not implemented | Not started |
 | M1D Persistence & Runtime Infrastructure | Recorded boundary only; not implemented | Not started |
 | M1E Engineering Automation | Recorded boundary only; not implemented | Not started |
