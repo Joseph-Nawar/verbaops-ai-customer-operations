@@ -1,0 +1,70 @@
+flowchart LR
+    %% RelayAI Phase 0 logical architecture. NovaCommerce is the only demo tenant.
+    subgraph Clients[Clients]
+        Web[Web / text client]
+        Admin[Admin / approval UI]
+    end
+
+    subgraph Voice[Voice ingress]
+        LiveKit[LiveKit]
+        VoiceWorker[Voice Worker]
+    end
+
+    subgraph Trusted[Trusted application boundary]
+        API[FastAPI API / session / trusted identity]
+        Runtime[Shared Agent Runtime]
+        Tools[Typed Tool Registry]
+        Policy[Deterministic Policy Engine]
+    end
+
+    subgraph Intelligence[Untrusted intelligence and evidence]
+        Gateway[LLM Gateway / model abstraction]
+        Retrieval[Retrieval Layer]
+        Knowledge[(Versioned knowledge)]
+    end
+
+    subgraph Commerce[NovaCommerce boundary]
+        CommerceAPI[Authenticated Commerce Sandbox / API]
+        CommerceData[(NovaCommerce domain data)]
+    end
+
+    subgraph Durable[Durable and asynchronous state]
+        Postgres[(PostgreSQL durable state)]
+        Redis[(Redis later: cache / coordination)]
+        Worker[Background worker]
+        ObjectStore[(Object storage later)]
+    end
+
+    subgraph Quality[Operations and quality]
+        Observe[Observability]
+        Eval[Evaluation systems]
+    end
+
+    Web --> API
+    Admin --> API
+    LiveKit --> VoiceWorker --> API
+    API -->|trusted identity + tenant context| Runtime
+    Runtime --> Gateway
+    Runtime --> Retrieval --> Knowledge
+    Runtime --> Tools --> Policy
+    Policy -->|authorized reads / approved writes| CommerceAPI --> CommerceData
+    Runtime --> Postgres
+    API --> Postgres
+    Tools --> Postgres
+    Policy --> Postgres
+    Runtime -. async work .-> Worker --> Postgres
+    Runtime -. later ephemeral state .-> Redis
+    Worker -. later artifacts .-> ObjectStore
+    API --> Observe
+    Runtime --> Observe
+    Tools --> Observe
+    CommerceAPI --> Observe
+    Runtime --> Eval
+    Observe --> Eval
+
+    classDef boundary fill:#eef2ff,stroke:#3730a3,stroke-width:1px;
+    classDef untrusted fill:#fff7ed,stroke:#c2410c,stroke-width:1px;
+    classDef data fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class Trusted boundary;
+    class Gateway,Retrieval,Knowledge untrusted;
+    class Postgres,Redis,ObjectStore,CommerceData data;
