@@ -71,6 +71,27 @@ def test_deployed_environment_requires_database_and_redis(
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
+@pytest.mark.parametrize("field", ["RELAYAI_DATABASE__URL", "RELAYAI_REDIS__URL"])
+@pytest.mark.parametrize("value", ["", "   "])
+def test_deployed_environment_rejects_blank_infrastructure_urls(
+    monkeypatch: pytest.MonkeyPatch,
+    environment: str,
+    field: str,
+    value: str,
+) -> None:
+    clear_relayai_environment(monkeypatch)
+    monkeypatch.setenv("RELAYAI_ENVIRONMENT", environment)
+    monkeypatch.setenv(field, value)
+    if field == "RELAYAI_DATABASE__URL":
+        monkeypatch.setenv("RELAYAI_REDIS__URL", "redis://:valid@cache/0")
+    else:
+        monkeypatch.setenv("RELAYAI_DATABASE__URL", "postgresql://valid@db/app")
+
+    with pytest.raises(ValidationError):
+        make_settings()
+
+
+@pytest.mark.parametrize("environment", ["staging", "production"])
 def test_deployed_environment_with_database_and_redis_is_valid(
     monkeypatch: pytest.MonkeyPatch,
     environment: str,

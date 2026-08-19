@@ -78,7 +78,7 @@ class Settings(BaseSettings):
                     ("database.url", self.database.url),
                     ("redis.url", self.redis.url),
                 )
-                if value is None
+                if value is None or not value.get_secret_value().strip()
             ]
             if missing:
                 raise ValueError(
