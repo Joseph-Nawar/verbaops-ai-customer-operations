@@ -3,7 +3,7 @@
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     environment: Environment = Environment.DEVELOPMENT
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
+    service_token: SecretStr | None = None
 
     @classmethod
     def settings_customise_sources(
@@ -91,4 +92,21 @@ class Settings(BaseSettings):
             self.database.url is None or not self.database.url.get_secret_value().strip()
         ):
             raise ValueError("database.url is required in staging and production")
+        if (
+            self.environment in (Environment.STAGING, Environment.PRODUCTION)
+            and self.service_token is None
+        ):
+            raise ValueError("service token is required in staging and production")
         return self
+
+    @field_validator("service_token")
+    @classmethod
+    def validate_service_token(cls, value: SecretStr | None) -> SecretStr | None:
+        """Reject blank or short tokens while keeping values secret."""
+
+        if value is None:
+            return None
+        token = value.get_secret_value()
+        if len(token) < 32 or not token.strip():
+            raise ValueError("service token must be at least 32 non-blank characters")
+        return value
