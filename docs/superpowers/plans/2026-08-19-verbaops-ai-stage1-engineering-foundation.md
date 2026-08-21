@@ -20,7 +20,7 @@
 - Do not add application/runtime dependencies unless strictly required to build/install the package.
 - Do not add domain tables, NovaCommerce models, LangGraph, AI/provider SDKs, RAG, voice, AWS/cloud infrastructure, frontend code, worker services, or later-stage automation.
 - Do not modify locked Phase 0 product or architecture decisions.
-- M1A, M1B, M1C, M1D, and M1E are accepted/complete; M1F is the active final acceptance gate.
+- M1A, M1B, M1C, M1D, M1E, and M1F are accepted/complete; Stage 1 is accepted.
 
 ## Locked Stage 1 sequence
 
@@ -31,7 +31,7 @@
 | M1C FastAPI Application & Request Infrastructure | FastAPI application, request context, dependency injection, operational routes, and structured logging | Accepted/complete |
 | M1D Persistence & Runtime Infrastructure | Async SQLAlchemy/asyncpg resources, Redis lifecycle, Alembic pgvector extension migration, real readiness, Uvicorn composition, and local Docker stack; no domain tables | Accepted/complete |
 | M1E Engineering Automation | Deterministic locked quality gates, coverage enforcement, pinned GitHub Actions, and local runtime image build; no publishing or deployment | Accepted/complete |
-| M1F Stage 1 Final Gate | Clean-clone verification, original Stage 1 requirement audit, and final hosted-CI acceptance; no feature development | Active milestone |
+| M1F Stage 1 Final Gate | Clean-clone verification, original Stage 1 requirement audit, and final hosted-CI acceptance; no feature development | Accepted/complete |
 
 ### Accepted milestone record
 
@@ -39,6 +39,8 @@
 - [x] M1B configuration, authentication-provider abstraction, and immutable trusted context accepted at `0206840`.
 - [x] M1C FastAPI request infrastructure, operational routes, dependency injection, and structured logging accepted at `e39168f`.
 - [x] M1D persistence/runtime foundation, local Compose stack, and extension-only migration accepted at `5861402`.\n- [x] M1E deterministic CI quality gates, coverage enforcement, and runtime image build accepted at `a7e5367`.
+- [x] M1E deterministic CI quality gates, coverage enforcement, and runtime image build accepted at `a7e5367`.
+- [x] M1F clean-clone verification, Stage 1 requirement audit, and final hosted-CI acceptance recorded after the final candidate commit.
 
 ### Accepted M1D boundary
 
@@ -55,8 +57,8 @@
 - [x] Add a separate quality-gated local Docker runtime build with no registry login, push, Compose startup, or deployment behavior.
 - [x] Verify the workflow contract locally and preserve all developer Makefile commands.
 
-### Active M1F boundary
+### Accepted M1F boundary
 
-- [ ] Verify the complete engineering foundation from a genuinely fresh GitHub clone.
-- [ ] Audit every original Stage 1 exit criterion and preserve all Phase 0 architecture and scope boundaries.
-- [ ] Mark Stage 1 accepted only after the final candidate commit has its own green hosted CI run.
+- [x] Verify the complete engineering foundation from a genuinely fresh GitHub clone.
+- [x] Audit every original Stage 1 exit criterion and preserve all Phase 0 architecture and scope boundaries.
+- [x] Mark Stage 1 accepted after the final candidate commit received its own green hosted CI run.
