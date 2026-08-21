@@ -77,18 +77,3 @@ async def append_event(
             payload=payload,
         )
     )
-
-
-async def load_order_items(session: AsyncSession, order: Order) -> None:
-    """Load products without relying on lazy IO after the response is built."""
-
-    from sqlalchemy import select
-    from sqlalchemy.orm import selectinload
-
-    result = await session.execute(
-        select(OrderItem)
-        .options(selectinload(OrderItem.product))
-        .where(OrderItem.order_id == order.id)
-        .order_by(OrderItem.id.asc())
-    )
-    order.items = list(result.scalars().all())

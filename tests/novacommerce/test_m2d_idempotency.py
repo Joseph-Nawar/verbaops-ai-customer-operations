@@ -1,11 +1,22 @@
 """Pure M2D idempotency contracts."""
 
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 import pytest
+from pydantic import BaseModel
 
 from novacommerce.api.errors import APIError
-from novacommerce.idempotency import request_fingerprint, validate_idempotency_key
+from novacommerce.idempotency import (
+    WriteExecution,
+    WriteOutcome,
+    _json_value,
+    request_fingerprint,
+    validate_idempotency_key,
+    write_response,
+)
 
 CUSTOMER = UUID("00000000-0000-0000-0000-000000000001")
 TARGET = UUID("00000000-0000-0000-0000-000000000002")
@@ -57,3 +68,31 @@ def test_fingerprint_changes_for_operation_customer_target_and_body() -> None:
     assert baseline != request_fingerprint(
         "order.cancel", CUSTOMER, target_ids=(TARGET,), body={"x": 1}
     )
+
+
+def test_fingerprint_canonicalizes_uuid_decimal_datetime_models_and_nested_values() -> None:
+    class Payload(BaseModel):
+        amount: Decimal
+
+    value: dict[str, Any] = {
+        "uuid": CUSTOMER,
+        "amount": Decimal("12.30"),
+        "at": datetime(2026, 8, 21, 12, tzinfo=UTC),
+        "model": Payload(amount=Decimal("1.20")),
+        "nested": (TARGET,),
+    }
+    normalized = _json_value(value)
+    assert normalized["uuid"] == str(CUSTOMER)
+    assert normalized["amount"] == "12.30"
+    assert normalized["at"].endswith("+00:00")
+    assert normalized["model"] == {"amount": "1.20"}
+    assert normalized["nested"] == [str(TARGET)]
+
+
+@pytest.mark.asyncio
+async def test_write_response_marks_replays_without_exposing_extra_data() -> None:
+    execution = WriteExecution(WriteOutcome(201, {"id": str(TARGET)}), replayed=True)
+    response = write_response(execution)
+    assert response.status_code == 201
+    assert response.headers["X-Idempotent-Replay"] == "true"
+    assert response.body == b'{"id":"00000000-0000-0000-0000-000000000002"}'
