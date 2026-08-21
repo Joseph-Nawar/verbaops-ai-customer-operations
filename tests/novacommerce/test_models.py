@@ -1,6 +1,8 @@
 """NovaCommerce ORM metadata and constraint contracts."""
 
+from datetime import time
 from decimal import Decimal
+from typing import get_args
 
 from sqlalchemy import CheckConstraint, Numeric, UniqueConstraint
 
@@ -35,6 +37,12 @@ def test_metadata_contains_exact_commerce_tables() -> None:
         "idempotency_records",
         "commerce_events",
     }
+
+
+def test_delivery_slot_time_annotations_use_datetime_time() -> None:
+    for field_name in ("window_start", "window_end"):
+        annotation = DeliverySlot.__annotations__[field_name]
+        assert get_args(annotation) == (time,)
 
 
 def test_all_status_enums_are_string_backed_with_expected_values() -> None:

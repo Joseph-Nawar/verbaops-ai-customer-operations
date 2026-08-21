@@ -1,6 +1,6 @@
 """Delivery-slot model."""
 
-from datetime import date, datetime
+from datetime import date, time
 from uuid import UUID
 
 from sqlalchemy import CheckConstraint, Date, Integer, Time, UniqueConstraint
@@ -24,8 +24,8 @@ class DeliverySlot(Base):
 
     id: Mapped[UUID] = uuid_column()
     service_date: Mapped[date] = mapped_column(Date, nullable=False)
-    window_start: Mapped[datetime] = mapped_column(Time(timezone=True), nullable=False)
-    window_end: Mapped[datetime] = mapped_column(Time(timezone=True), nullable=False)
+    window_start: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
+    window_end: Mapped[time] = mapped_column(Time(timezone=True), nullable=False)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False)
     reserved_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
