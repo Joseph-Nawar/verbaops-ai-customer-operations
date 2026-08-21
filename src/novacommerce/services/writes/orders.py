@@ -92,7 +92,6 @@ async def create_order(
         delivered_at=None,
     )
     session.add(shipment)
-    order.items = items
     await session.flush()
     await append_event(
         session,
@@ -108,7 +107,7 @@ async def create_order(
         },
     )
     body = CreateOrderResponse(
-        order=order_response(order),
+        order=order_response(order, items=items),
         shipment=shipment_response(shipment),
     )
     return WriteOutcome(201, body.model_dump(mode="json"))
@@ -183,7 +182,6 @@ async def cancel_order(
     order.cancelled_at = utc_now()
     if shipment is not None:
         shipment.status = ShipmentStatus.CANCELLED
-    order.items = items
     await session.flush()
     await append_event(
         session,
@@ -195,7 +193,7 @@ async def cancel_order(
         payload={"order_id": str(order.id), "status": order.status.value},
     )
     body = CancelOrderResponse(
-        order=order_response(order),
+        order=order_response(order, items=items),
         shipment=shipment_response(shipment) if shipment is not None else None,
     )
     return WriteOutcome(200, body.model_dump(mode="json"))

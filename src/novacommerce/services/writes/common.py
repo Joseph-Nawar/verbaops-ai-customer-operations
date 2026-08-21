@@ -18,8 +18,9 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def order_response(order: Order) -> OrderResponse:
-    items = [
+def order_response(order: Order, *, items: list[OrderItem] | None = None) -> OrderResponse:
+    response_items = order.items if items is None else items
+    response_items_list = [
         OrderItemResponse(
             order_item_id=item.id,
             product_id=item.product_id,
@@ -29,7 +30,7 @@ def order_response(order: Order) -> OrderResponse:
             unit_price=item.unit_price,
             line_total=item.unit_price * item.quantity,
         )
-        for item in order.items
+        for item in response_items
     ]
     return OrderResponse(
         id=order.id,
@@ -38,7 +39,7 @@ def order_response(order: Order) -> OrderResponse:
         total=order.total,
         created_at=order.created_at,
         updated_at=order.updated_at,
-        items=items,
+        items=response_items_list,
     )
 
 

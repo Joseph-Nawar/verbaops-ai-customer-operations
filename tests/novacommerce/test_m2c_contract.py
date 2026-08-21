@@ -1,4 +1,4 @@
-"""Contract-first tests for the authenticated, read-only M2C boundary."""
+"""Contract-first tests for the authenticated M2C boundary."""
 
 from collections.abc import Callable
 from datetime import date, time
@@ -158,7 +158,7 @@ def test_delivery_dates_use_injected_utc_clock_and_validate_ranges() -> None:
 
 
 @pytest.mark.asyncio
-async def test_query_validation_is_normalized_and_openapi_is_read_only() -> None:
+async def test_query_validation_is_normalized_and_openapi_has_locked_read_write_surface() -> None:
     app = make_app()
 
     async def fake_session() -> object:
@@ -183,6 +183,29 @@ async def test_query_validation_is_normalized_and_openapi_is_read_only() -> None
         "/v1/orders/{order_id}/refunds",
         "/v1/products/search",
         "/v1/delivery-slots",
+        "/v1/orders",
+        "/v1/orders/{order_id}/cancel",
+        "/v1/orders/{order_id}/reschedule",
+        "/v1/returns",
+        "/v1/support-tickets",
     }
-    assert all(set(methods) <= {"get"} for methods in business_paths.values())
+    read_paths = {
+        "/v1/customers/{customer_id}",
+        "/v1/orders/{order_id}",
+        "/v1/orders/{order_id}/shipment",
+        "/v1/orders/{order_id}/refunds",
+        "/v1/products/search",
+        "/v1/delivery-slots",
+    }
+    write_paths = {
+        "/v1/orders",
+        "/v1/orders/{order_id}/cancel",
+        "/v1/orders/{order_id}/reschedule",
+        "/v1/returns",
+        "/v1/orders/{order_id}/refunds",
+        "/v1/support-tickets",
+    }
+    assert all("get" in business_paths[path] for path in read_paths)
+    assert all("post" in business_paths[path] for path in write_paths)
+    assert all(set(methods) <= {"get", "post"} for methods in business_paths.values())
     assert "NovaCommerceServiceBearer" in schema["components"]["securitySchemes"]
