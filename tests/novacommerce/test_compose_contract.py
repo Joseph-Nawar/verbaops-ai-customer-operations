@@ -8,7 +8,7 @@ def compose_text() -> str:
     return Path("docker-compose.yml").read_text(encoding="utf-8")
 
 
-def test_compose_adds_only_the_three_m2a_services() -> None:
+def test_compose_keeps_m2a_services_and_adds_profile_gated_seed_service() -> None:
     text = compose_text()
     for service in ("commerce-postgres:", "commerce-migrate:", "commerce-api:"):
         assert len(re.findall(rf"^  {re.escape(service)}$", text, re.MULTILINE)) == 1
@@ -21,6 +21,11 @@ def test_compose_adds_only_the_three_m2a_services() -> None:
     assert "service_completed_successfully" in text
     assert "alembic-commerce.ini" in text
     assert "novacommerce.api.runtime:create_runtime_app" in text
+    seed_start = text.index("  commerce-seed:")
+    seed_block = text[seed_start : text.index("\nsecrets:", seed_start)]
+    assert 'profiles: ["seed"]' in seed_block
+    assert "target: seed" in seed_block
+    assert "commerce-migrate:" in seed_block
 
 
 def test_compose_does_not_publish_commerce_database_port_or_add_later_infrastructure() -> None:
