@@ -162,3 +162,17 @@ def test_dataset_validation_is_explicit() -> None:
         assert "total" in str(error)
     else:
         raise AssertionError("dataset mutation should violate a declared invariant")
+
+
+def test_refund_manual_approval_follows_amount_threshold() -> None:
+    dataset = generate_dataset(SeedConfig())
+
+    assert all(
+        row["requires_manual_approval"] is (row["amount"] > Decimal("500.00"))
+        for row in dataset.refunds
+    )
+    assert all(
+        row["amount"] > Decimal("500.00") and row["requires_manual_approval"] is True
+        for row in dataset.refunds
+        if row["status"] == "pending_manual_approval"
+    )

@@ -214,6 +214,11 @@ class SeedDataset:
                 raise ValueError("invalid refund")
             if refund["amount"] > order_by_id[refund["order_id"]]["total"]:
                 raise ValueError("refund exceeds order total")
+            expected_manual = refund["amount"] > Decimal("500.00")
+            if refund["requires_manual_approval"] is not expected_manual:
+                raise ValueError("refund manual-approval threshold invariant failed")
+            if refund["status"] == "pending_manual_approval" and not expected_manual:
+                raise ValueError("pending manual-approval refund must exceed $500")
         returns_by_id = {row["id"]: row for row in self.returns}
         return_item_keys: set[tuple[UUID, UUID]] = set()
         for item in self.return_items:
@@ -565,18 +570,33 @@ def _refunds(config: SeedConfig, orders: list[Row]) -> list[Row]:
     statuses = _status_values(
         REFUND_STATUS_COUNTS, random.Random(_derived_seed(config.seed, "refund-statuses"))
     )
-    return [
-        {
-            "id": _uuid(config.seed, "refund", index),
-            "order_id": order["id"],
-            "amount": Decimal("1.00"),
-            "status": statuses[index],
-            "reason": "Deterministic development refund scenario.",
-            "requires_manual_approval": statuses[index] == "pending_manual_approval",
-            "created_at": config.anchor - timedelta(days=index % 30),
-        }
-        for index, order in enumerate(candidates[:800])
-    ]
+    manual_orders = [order for order in candidates if order["total"] > Decimal("500.00")][:200]
+    if len(manual_orders) != 200:
+        raise ValueError("canonical refund dataset lacks enough orders above $500")
+    remaining_orders = [order for order in candidates if order not in manual_orders][:600]
+    manual_index = 0
+    remaining_index = 0
+    rows: list[Row] = []
+    for index, status in enumerate(statuses):
+        is_manual = status == "pending_manual_approval"
+        order = manual_orders[manual_index] if is_manual else remaining_orders[remaining_index]
+        if is_manual:
+            manual_index += 1
+        else:
+            remaining_index += 1
+        amount = Decimal("500.01") if is_manual else Decimal("1.00")
+        rows.append(
+            {
+                "id": _uuid(config.seed, "refund", index),
+                "order_id": order["id"],
+                "amount": amount,
+                "status": status,
+                "reason": "Deterministic development refund scenario.",
+                "requires_manual_approval": amount > Decimal("500.00"),
+                "created_at": config.anchor - timedelta(days=index % 30),
+            }
+        )
+    return rows
 
 
 def _returns(
