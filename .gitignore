@@ -30,6 +30,7 @@ Desktop.ini
 .env.*
 !.env.example
 .secrets/
+.secrets/commerce_postgres_password
 *.pem
 *.key
 *.p12

@@ -1,0 +1,1 @@
+"""NovaCommerce Alembic migration environment."""
