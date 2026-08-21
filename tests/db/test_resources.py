@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import FastAPI, Request
 
-from relayai.api.dependencies import get_database_session
-from relayai.api.lifespan import RuntimeResources
-from relayai.config.settings import Settings
-from relayai.db.resources import (
+from verbaops.api.dependencies import get_database_session
+from verbaops.api.lifespan import RuntimeResources
+from verbaops.config.settings import Settings
+from verbaops.db.resources import (
     DatabaseResourceError,
     create_database_resources,
     dispose_database_resources,
@@ -21,7 +21,7 @@ def database_settings() -> Settings:
     construct = cast(Callable[..., Settings], Settings)
     return construct(
         _env_file=None,
-        database={"url": "postgresql+asyncpg://relayai:secret@localhost/relayai"},
+        database={"url": "postgresql+asyncpg://verbaops:secret@localhost/verbaops"},
     )
 
 
@@ -36,7 +36,7 @@ def test_database_resources_use_asyncpg_and_non_expiring_sessions() -> None:
 
 def test_non_async_database_url_is_rejected_without_secret() -> None:
     construct = cast(Callable[..., Settings], Settings)
-    settings = construct(_env_file=None, database={"url": "postgresql://relayai:secret@db/app"})
+    settings = construct(_env_file=None, database={"url": "postgresql://verbaops:secret@db/app"})
 
     with pytest.raises(DatabaseResourceError) as error:
         create_database_resources(settings)
@@ -74,7 +74,7 @@ async def test_database_session_dependency_closes_session_after_success() -> Non
             return session
 
     app = FastAPI()
-    app.state.relayai_runtime_resources = RuntimeResources(
+    app.state.verbaops_runtime_resources = RuntimeResources(
         database=type("Database", (), {"session_factory": Factory()})(),
         redis=None,
     )
@@ -106,7 +106,7 @@ async def test_database_session_dependency_closes_session_after_downstream_failu
             return session
 
     app = FastAPI()
-    app.state.relayai_runtime_resources = RuntimeResources(
+    app.state.verbaops_runtime_resources = RuntimeResources(
         database=type("Database", (), {"session_factory": Factory()})(),
         redis=None,
     )

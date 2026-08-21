@@ -1,4 +1,4 @@
-"""Async Alembic environment using runtime RelayAI configuration."""
+"""Async Alembic environment using runtime VerbaOps AI configuration."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from relayai.config.settings import Settings
-from relayai.db.base import Base
+from verbaops.config.settings import Settings
+from verbaops.db.base import Base
 
 config = context.config
 if config.config_file_name is not None:

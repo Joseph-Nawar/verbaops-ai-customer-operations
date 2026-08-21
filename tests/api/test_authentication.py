@@ -5,8 +5,8 @@ from typing import Annotated
 import pytest
 from fastapi import Depends, FastAPI
 
-from relayai.api.dependencies import get_trusted_context
-from relayai.auth.context import TrustedContext
+from verbaops.api.dependencies import get_trusted_context
+from verbaops.auth.context import TrustedContext
 
 from .conftest import request
 

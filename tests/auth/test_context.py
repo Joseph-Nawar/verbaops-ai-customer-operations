@@ -7,7 +7,7 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from relayai.auth.context import Role, TrustedContext
+from verbaops.auth.context import Role, TrustedContext
 
 PRINCIPAL_ID = UUID("00000000-0000-0000-0000-000000000001")
 TENANT_ID = UUID("00000000-0000-0000-0000-000000000002")

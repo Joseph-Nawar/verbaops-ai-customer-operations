@@ -1,6 +1,6 @@
-# RelayAI Conceptual Data Model
+# VerbaOps AI Conceptual Data Model
 
-This Phase 0 model defines ownership, scope, and relationships rather than a physical schema. Most RelayAI domain and AI records are tenant-scoped. NovaCommerce commerce data is conceptually owned by the Commerce Sandbox/API even if future local development shares infrastructure.
+This Phase 0 model defines ownership, scope, and relationships rather than a physical schema. Most VerbaOps AI domain and AI records are tenant-scoped. NovaCommerce commerce data is conceptually owned by the Commerce Sandbox/API even if future local development shares infrastructure.
 
 ## Mermaid ERD
 

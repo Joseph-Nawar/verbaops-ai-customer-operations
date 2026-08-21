@@ -30,9 +30,7 @@ def bootstrap_dev_environment(root: Path) -> tuple[Path, Path]:
         raise BootstrapError("local development configuration is incomplete")
     if env_exists and password_exists:
         password = password_path.read_text(encoding="utf-8").strip()
-        expected = (
-            f"RELAYAI_DATABASE__URL=postgresql+asyncpg://relayai:{password}@postgres:5432/relayai"
-        )
+        expected = f"VERBAOPS_DATABASE__URL=postgresql+asyncpg://verbaops:{password}@postgres:5432/verbaops"
         if not password or expected not in env_path.read_text(encoding="utf-8"):
             raise BootstrapError("local development configuration has mismatched credentials")
         return env_path, password_path
@@ -42,10 +40,10 @@ def bootstrap_dev_environment(root: Path) -> tuple[Path, Path]:
     _restrictive_write(password_path, password + "\n")
     env_content = "\n".join(
         [
-            "RELAYAI_ENVIRONMENT=development",
-            f"RELAYAI_DATABASE__URL=postgresql+asyncpg://relayai:{password}@postgres:5432/relayai",
-            "RELAYAI_REDIS__URL=redis://redis:6379/0",
-            "RELAYAI_OBSERVABILITY__LOG_LEVEL=INFO",
+            "VERBAOPS_ENVIRONMENT=development",
+            f"VERBAOPS_DATABASE__URL=postgresql+asyncpg://verbaops:{password}@postgres:5432/verbaops",
+            "VERBAOPS_REDIS__URL=redis://redis:6379/0",
+            "VERBAOPS_OBSERVABILITY__LOG_LEVEL=INFO",
             "",
         ]
     )

@@ -8,10 +8,10 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from relayai.auth.context import Role, TrustedContext
-from relayai.auth.development import DevelopmentAuthProvider
-from relayai.auth.provider import OpaqueCredential
-from relayai.config.settings import Environment, Settings
+from verbaops.auth.context import Role, TrustedContext
+from verbaops.auth.development import DevelopmentAuthProvider
+from verbaops.auth.provider import OpaqueCredential
+from verbaops.config.settings import Environment, Settings
 
 
 def build_settings() -> Settings:
@@ -65,7 +65,7 @@ def app(
     settings: Settings,
     auth_provider: DevelopmentAuthProvider,
 ) -> FastAPI:
-    from relayai.api.app import create_app
+    from verbaops.api.app import create_app
 
     return create_app(settings=settings, auth_provider=auth_provider)
 

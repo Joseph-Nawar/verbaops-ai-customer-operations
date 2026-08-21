@@ -1,12 +1,12 @@
-# RelayAI Phase 0 Requirements
+# VerbaOps AI Phase 0 Requirements
 
 Status: Approved Phase 0 product and architecture specification
-Product: RelayAI reusable multilingual customer-operations platform
+Product: VerbaOps AI — Production-Grade Multilingual Agentic Customer Operations Platform
 Implemented demo tenant: NovaCommerce only
 
 ## Product boundaries
 
-RelayAI is tenant-aware even though NovaCommerce is the sole implemented demo tenant. NovaCommerce is a fictional MENA-oriented retailer selling consumer electronics, accessories, and small home-technology products. English and Arabic are first-class languages. Egyptian Arabic and Arabic-English code-switching are Tier-1 capabilities; MSA is Tier-1; Gulf and Levantine are later evaluation slices.
+VerbaOps AI is tenant-aware even though NovaCommerce is the sole implemented demo tenant. NovaCommerce is a fictional MENA-oriented retailer selling consumer electronics, accessories, and small home-technology products. English and Arabic are first-class languages. Egyptian Arabic and Arabic-English code-switching are Tier-1 capabilities; MSA is Tier-1; Gulf and Levantine are later evaluation slices.
 
 ### Personas
 

@@ -10,16 +10,16 @@ from uuid import UUID
 import pytest
 from fastapi import Depends, FastAPI
 
-from relayai.api.app import create_app
-from relayai.api.dependencies import get_trusted_context
-from relayai.auth.context import TrustedContext
-from relayai.observability.context import (
+from tests.api.conftest import build_provider, build_settings, request
+from verbaops.api.app import create_app
+from verbaops.api.dependencies import get_trusted_context
+from verbaops.auth.context import TrustedContext
+from verbaops.observability.context import (
     bind_request_context,
     bind_tenant_id,
     clear_request_context,
 )
-from relayai.observability.logging import JsonFormatter
-from tests.api.conftest import build_provider, build_settings, request
+from verbaops.observability.logging import JsonFormatter
 
 
 def test_json_formatter_emits_context_and_request_metadata() -> None:
@@ -31,7 +31,7 @@ def test_json_formatter_emits_context_and_request_metadata() -> None:
 
     try:
         record = logging.LogRecord(
-            name="relayai.test",
+            name="verbaops.test",
             level=logging.INFO,
             pathname=__file__,
             lineno=1,
@@ -72,11 +72,11 @@ def add_authenticated_log_route(app: FastAPI) -> None:
 async def test_actual_request_log_is_json_sanitized_and_correlated() -> None:
     app = create_app(settings=build_settings(), auth_provider=build_provider())
     add_authenticated_log_route(app)
-    logger = logging.getLogger("relayai")
+    logger = logging.getLogger("verbaops")
     handlers = [
         cast(logging.StreamHandler[Any], handler)
         for handler in logger.handlers
-        if getattr(handler, "_relayai_json_handler", False)
+        if getattr(handler, "_verbaops_json_handler", False)
     ]
     assert len(handlers) == 1
     stream = StringIO()
@@ -116,15 +116,15 @@ def test_repeated_application_creation_does_not_duplicate_handlers() -> None:
     first = create_app(settings=build_settings(), auth_provider=build_provider())
     before = [
         handler
-        for handler in logging.getLogger("relayai").handlers
-        if getattr(handler, "_relayai_json_handler", False)
+        for handler in logging.getLogger("verbaops").handlers
+        if getattr(handler, "_verbaops_json_handler", False)
     ]
 
     create_app(settings=build_settings(), auth_provider=build_provider())
     after = [
         handler
-        for handler in logging.getLogger("relayai").handlers
-        if getattr(handler, "_relayai_json_handler", False)
+        for handler in logging.getLogger("verbaops").handlers
+        if getattr(handler, "_verbaops_json_handler", False)
     ]
 
     assert first is not None

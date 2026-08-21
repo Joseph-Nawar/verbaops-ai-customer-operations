@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from relayai.cache.redis import (
+from verbaops.cache.redis import (
     RedisResourceError,
     close_redis,
     create_redis_client,
     ping_redis,
 )
-from relayai.config.settings import Settings
+from verbaops.config.settings import Settings
 
 
 def redis_settings(url: str = "redis://:secret@localhost:6379/0") -> Settings:

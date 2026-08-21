@@ -15,7 +15,7 @@ def test_fresh_bootstrap_creates_matching_ignored_artifacts(
     password = password_path.read_text(encoding="utf-8").strip()
     assert password
     assert (
-        f"RELAYAI_DATABASE__URL=postgresql+asyncpg://relayai:{password}@postgres:5432/relayai"
+        f"VERBAOPS_DATABASE__URL=postgresql+asyncpg://verbaops:{password}@postgres:5432/verbaops"
         in env_text
     )
     assert capsys.readouterr().out == ""
@@ -32,7 +32,7 @@ def test_bootstrap_does_not_overwrite_existing_valid_configuration(tmp_path: Pat
 
 
 def test_partial_bootstrap_state_fails_without_repairing_it(tmp_path: Path) -> None:
-    (tmp_path / ".env").write_text("RELAYAI_ENVIRONMENT=development\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("VERBAOPS_ENVIRONMENT=development\n", encoding="utf-8")
 
     with pytest.raises(BootstrapError):
         bootstrap_dev_environment(tmp_path)

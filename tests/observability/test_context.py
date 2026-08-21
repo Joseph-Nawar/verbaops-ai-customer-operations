@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from relayai.observability.context import (
+from verbaops.observability.context import (
     bind_request_context,
     bind_tenant_id,
     clear_request_context,

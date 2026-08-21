@@ -24,13 +24,13 @@ ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-RUN addgroup --system relayai \
-    && adduser --system --ingroup relayai relayai
+RUN addgroup --system verbaops \
+    && adduser --system --ingroup verbaops verbaops
 
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 COPY --from=builder /app/migrations /app/migrations
 
-USER relayai
+USER verbaops
 EXPOSE 8000
-CMD ["uvicorn", "relayai.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "verbaops.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

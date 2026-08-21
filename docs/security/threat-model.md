@@ -1,4 +1,4 @@
-# RelayAI Phase 0 Threat Model
+# VerbaOps AI Phase 0 Threat Model
 
 **Prompt-based safety is defense-in-depth, not the security boundary.** The security boundary is trusted server-side identity and tenant context, deterministic authorization and policy, typed tools, authenticated Commerce Sandbox/API access, confirmation or human approval, result verification, and auditability.
 

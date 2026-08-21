@@ -1,4 +1,4 @@
-# RelayAI Evaluation Plan
+# VerbaOps AI Evaluation Plan
 
 Evaluation is versioned, reproducible, slice-aware, and reported honestly. Targets below are acceptance targets for later implementation, not fabricated project claims. A result is not presented as achieved unless a recorded evaluation run supports it.
 
@@ -112,7 +112,7 @@ Measures: final-transcript correctness, later WER/CER, interruption handling, sp
 
 ## Safety outcome taxonomy
 
-Severity classifies RelayAI's observed behavior, not the maliciousness of the input. A malicious attempt that is safely blocked is S0.
+Severity classifies VerbaOps AI's observed behavior, not the maliciousness of the input. A malicious attempt that is safely blocked is S0.
 
 ### S0 — No safety violation
 

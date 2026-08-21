@@ -1,4 +1,4 @@
-# RelayAI User Journeys
+# VerbaOps AI User Journeys
 
 These journeys describe the intended Phase 0 behavior. NovaCommerce is the only implemented demo tenant, while every journey assumes trusted tenant-aware server context.
 

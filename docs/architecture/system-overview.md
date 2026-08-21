@@ -1,8 +1,8 @@
-# RelayAI System Overview
+# VerbaOps AI System Overview
 
 ## Purpose and scope
 
-RelayAI is a reusable, tenant-aware customer-operations platform. NovaCommerce is the sole implemented demo tenant: a fictional MENA-oriented consumer-electronics and small-home-technology retailer. Phase 0 defines boundaries and contracts; it does not implement services, databases, providers, or deployment infrastructure.
+VerbaOps AI is a reusable, tenant-aware customer-operations platform. NovaCommerce is the sole implemented demo tenant: a fictional MENA-oriented consumer-electronics and small-home-technology retailer. Phase 0 defines boundaries and contracts; it does not implement services, databases, providers, or deployment infrastructure.
 
 ## Logical architecture
 
@@ -18,7 +18,7 @@ The logical components are:
 - Typed Tool Registry exposing only schema-bound operations.
 - Deterministic Policy Engine for authorization, eligibility, confirmation, approval, and state-transition rules.
 - Separate authenticated NovaCommerce Commerce Sandbox/API, conceptually owning NovaCommerce domain data.
-- PostgreSQL for durable RelayAI state and traces.
+- PostgreSQL for durable VerbaOps AI state and traces.
 - Redis for later ephemeral coordination or caching.
 - Background worker for asynchronous work.
 - Object storage later for larger artifacts.

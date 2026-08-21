@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from fastapi import FastAPI
 
-from relayai.observability.context import get_request_context
+from verbaops.observability.context import get_request_context
 
 from .conftest import request
 

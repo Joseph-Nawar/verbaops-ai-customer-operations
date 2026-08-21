@@ -5,7 +5,7 @@ Date: 2026-08-19
 
 ## Context
 
-RelayAI may use external model, speech, retrieval, and related providers. Provider outages, response differences, cost changes, and future substitutions must not leak into business-policy code.
+VerbaOps AI may use external model, speech, retrieval, and related providers. Provider outages, response differences, cost changes, and future substitutions must not leak into business-policy code.
 
 ## Decision
 

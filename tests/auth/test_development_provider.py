@@ -6,10 +6,10 @@ from uuid import UUID
 
 import pytest
 
-from relayai.auth.context import Role, TrustedContext
-from relayai.auth.development import DevelopmentAuthProvider
-from relayai.auth.provider import AuthenticationError, OpaqueCredential
-from relayai.config.settings import Environment
+from verbaops.auth.context import Role, TrustedContext
+from verbaops.auth.development import DevelopmentAuthProvider
+from verbaops.auth.provider import AuthenticationError, OpaqueCredential
+from verbaops.config.settings import Environment
 
 PRINCIPAL_ID = UUID("10000000-0000-0000-0000-000000000001")
 TENANT_ID = UUID("10000000-0000-0000-0000-000000000002")

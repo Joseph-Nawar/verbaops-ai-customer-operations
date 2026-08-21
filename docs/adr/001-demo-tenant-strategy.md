@@ -5,7 +5,7 @@ Date: 2026-08-19
 
 ## Context
 
-RelayAI is intended to be reusable across customer-operations tenants, but Phase 0 needs one coherent business domain for demonstrations and evaluation. NovaCommerce supplies that domain as a fictional MENA-oriented retailer.
+VerbaOps AI is intended to be reusable across customer-operations tenants, but Phase 0 needs one coherent business domain for demonstrations and evaluation. NovaCommerce supplies that domain as a fictional MENA-oriented retailer.
 
 ## Decision
 
@@ -18,4 +18,4 @@ Evaluation can be concrete without implying that integrations with real retailer
 ## Alternatives considered
 
 - Build multiple demo tenants: rejected because it expands Phase 0 scope and dilutes domain-specific evaluation.
-- Make RelayAI NovaCommerce-specific: rejected because it prevents the intended reusable platform architecture.
+- Make VerbaOps AI NovaCommerce-specific: rejected because it prevents the intended reusable platform architecture.

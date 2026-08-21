@@ -1,16 +1,18 @@
+name: verbaops
+
 services:
   postgres:
     image: pgvector/pgvector:0.8.6-pg16-bookworm
     environment:
-      POSTGRES_USER: relayai
-      POSTGRES_DB: relayai
+      POSTGRES_USER: verbaops
+      POSTGRES_DB: verbaops
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     secrets:
       - postgres_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U relayai -d relayai"]
+      test: ["CMD-SHELL", "pg_isready -U verbaops -d verbaops"]
       interval: 5s
       timeout: 5s
       retries: 12

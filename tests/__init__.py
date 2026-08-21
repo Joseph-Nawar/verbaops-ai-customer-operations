@@ -1,1 +1,1 @@
-"""Test package for RelayAI."""
+"""Test package for VerbaOps AI."""

@@ -5,7 +5,7 @@ Date: 2026-08-19
 
 ## Context
 
-RelayAI has distinct concerns—sessions, voice, runtime, retrieval, tools, policy, commerce, persistence, background work, and evaluation—but Phase 0 has no evidence for independent deployment or scaling boundaries.
+VerbaOps AI has distinct concerns—sessions, voice, runtime, retrieval, tools, policy, commerce, persistence, background work, and evaluation—but Phase 0 has no evidence for independent deployment or scaling boundaries.
 
 ## Decision
 

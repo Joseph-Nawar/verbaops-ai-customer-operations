@@ -28,7 +28,7 @@ async def test_version_reports_service_version_and_environment(app: FastAPI) -> 
 
     assert response.status_code == 200
     assert response.json() == {
-        "service": "relayai",
+        "service": "verbaops",
         "version": "0.1.0",
         "environment": "development",
     }

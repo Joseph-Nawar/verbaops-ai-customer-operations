@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
-name = "relay-ai"
+name = "verbaops-ai"
 version = "0.1.0"
-description = "RelayAI multilingual customer-operations platform foundation"
+description = "VerbaOps AI — Production-Grade Multilingual Agentic Customer Operations Platform"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.19,<2",
@@ -33,7 +33,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/relayai"]
+packages = ["src/verbaops"]
 
 [tool.ruff]
 target-version = "py312"
@@ -61,7 +61,7 @@ asyncio_mode = "strict"
 
 [tool.coverage.run]
 branch = true
-source = ["relayai"]
+source = ["verbaops"]
 
 [tool.coverage.report]
 show_missing = true

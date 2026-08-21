@@ -23,7 +23,7 @@ check:
 	$(MAKE) format-check
 	$(MAKE) typecheck
 	$(MAKE) test
-	$(UV) run pytest --cov=relayai --cov-report=term-missing
+	$(UV) run pytest --cov=verbaops --cov-report=term-missing
 	$(UV) run pre-commit run --all-files
 	git diff --check
 
