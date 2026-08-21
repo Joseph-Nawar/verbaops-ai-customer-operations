@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from novacommerce.db.models.order import OrderStatus
 from novacommerce.db.models.refund import RefundStatus
 from novacommerce.db.models.shipment import ShipmentStatus
@@ -16,11 +18,64 @@ from novacommerce.services.writes.rules import (
 ANCHOR = datetime(2026, 8, 21, 12, tzinfo=UTC)
 
 
-def test_cancellation_status_matrix() -> None:
-    assert cancellation_allowed(OrderStatus.CONFIRMED, ShipmentStatus.LABEL_CREATED)
-    assert cancellation_allowed(OrderStatus.PENDING, None)
-    assert not cancellation_allowed(OrderStatus.SHIPPED, ShipmentStatus.IN_TRANSIT)
-    assert not cancellation_allowed(OrderStatus.CONFIRMED, ShipmentStatus.OUT_FOR_DELIVERY)
+@pytest.mark.parametrize(
+    "order_status",
+    [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PROCESSING],
+)
+@pytest.mark.parametrize(
+    "shipment_status",
+    [None, ShipmentStatus.PENDING, ShipmentStatus.LABEL_CREATED],
+)
+def test_cancellation_allows_each_locked_order_and_shipment_pair(
+    order_status: OrderStatus,
+    shipment_status: ShipmentStatus | None,
+) -> None:
+    assert cancellation_allowed(order_status, shipment_status)
+
+
+@pytest.mark.parametrize(
+    "order_status",
+    [OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+)
+@pytest.mark.parametrize(
+    "shipment_status",
+    [
+        None,
+        ShipmentStatus.PENDING,
+        ShipmentStatus.LABEL_CREATED,
+        ShipmentStatus.IN_TRANSIT,
+        ShipmentStatus.OUT_FOR_DELIVERY,
+        ShipmentStatus.DELIVERED,
+        ShipmentStatus.EXCEPTION,
+        ShipmentStatus.CANCELLED,
+    ],
+)
+def test_cancellation_blocks_each_locked_terminal_order_pair(
+    order_status: OrderStatus,
+    shipment_status: ShipmentStatus | None,
+) -> None:
+    assert not cancellation_allowed(order_status, shipment_status)
+
+
+@pytest.mark.parametrize(
+    "order_status",
+    [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PROCESSING],
+)
+@pytest.mark.parametrize(
+    "shipment_status",
+    [
+        ShipmentStatus.IN_TRANSIT,
+        ShipmentStatus.OUT_FOR_DELIVERY,
+        ShipmentStatus.DELIVERED,
+        ShipmentStatus.EXCEPTION,
+        ShipmentStatus.CANCELLED,
+    ],
+)
+def test_cancellation_blocks_each_locked_non_cancellable_shipment_pair(
+    order_status: OrderStatus,
+    shipment_status: ShipmentStatus,
+) -> None:
+    assert not cancellation_allowed(order_status, shipment_status)
 
 
 def test_return_window_is_inclusive_at_exactly_30_days() -> None:

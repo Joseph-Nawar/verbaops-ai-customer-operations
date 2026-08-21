@@ -1,5 +1,7 @@
 """Pure M2D idempotency contracts."""
 
+import inspect
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -17,6 +19,7 @@ from novacommerce.idempotency import (
     validate_idempotency_key,
     write_response,
 )
+from novacommerce.schemas.writes import OrderCreateRequest
 
 CUSTOMER = UUID("00000000-0000-0000-0000-000000000001")
 TARGET = UUID("00000000-0000-0000-0000-000000000002")
@@ -51,6 +54,30 @@ def test_fingerprint_ignores_json_whitespace_and_body_key_order() -> None:
         "order.create", CUSTOMER, target_ids=(TARGET,), body={"a": [1, 2], "b": 2}
     )
     assert left == right
+
+
+def test_fingerprint_uses_validated_json_not_raw_json_formatting() -> None:
+    compact = '{"items":[{"product_id":"00000000-0000-0000-0000-000000000002","quantity":1}]}'
+    formatted = '{\n  "items": [ { "product_id": "00000000-0000-0000-0000-000000000002", "quantity": 1 } ]\n}'
+    compact_body = OrderCreateRequest.model_validate(json.loads(compact))
+    formatted_body = OrderCreateRequest.model_validate(json.loads(formatted))
+
+    assert request_fingerprint("order.create", CUSTOMER, body=compact_body) == request_fingerprint(
+        "order.create", CUSTOMER, body=formatted_body
+    )
+
+
+def test_fingerprint_excludes_correlation_id_and_bearer_token() -> None:
+    parameters = inspect.signature(request_fingerprint).parameters
+    assert set(parameters) == {"operation", "customer_id", "target_ids", "body"}
+
+    def fingerprint_for_request(*, correlation_id: str, bearer_token: str) -> str:
+        del correlation_id, bearer_token
+        return request_fingerprint("order.create", CUSTOMER, body={"items": []})
+
+    assert fingerprint_for_request(
+        correlation_id="request-a", bearer_token="token-a"
+    ) == fingerprint_for_request(correlation_id="request-b", bearer_token="token-b")
 
 
 def test_fingerprint_changes_for_operation_customer_target_and_body() -> None:
