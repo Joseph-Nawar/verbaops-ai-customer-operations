@@ -4,6 +4,7 @@
 .env.*
 !.env.example
 .secrets
+.secrets/commerce_postgres_password
 .venv
 __pycache__
 *.py[cod]

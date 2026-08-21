@@ -33,7 +33,7 @@ dev = [
 default-groups = ["dev"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/verbaops"]
+packages = ["src/verbaops", "src/novacommerce"]
 
 [tool.ruff]
 target-version = "py312"
@@ -58,10 +58,11 @@ warn_unused_configs = true
 testpaths = ["tests"]
 addopts = ["--strict-config", "--strict-markers"]
 asyncio_mode = "strict"
+markers = ["integration: requires a disposable PostgreSQL 16 database"]
 
 [tool.coverage.run]
 branch = true
-source = ["verbaops"]
+source = ["verbaops", "novacommerce"]
 
 [tool.coverage.report]
 show_missing = true

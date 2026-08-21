@@ -63,9 +63,65 @@ services:
     secrets:
       - postgres_password
 
+  commerce-postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_USER: novacommerce
+      POSTGRES_DB: novacommerce
+      POSTGRES_PASSWORD_FILE: /run/secrets/commerce_postgres_password
+    secrets:
+      - commerce_postgres_password
+    volumes:
+      - commerce_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novacommerce -d novacommerce"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  commerce-migrate:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "alembic-commerce.ini", "upgrade", "head"]
+    secrets:
+      - commerce_postgres_password
+
+  commerce-api:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+      commerce-migrate:
+        condition: service_completed_successfully
+    command: ["uvicorn", "novacommerce.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "8010:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/ready')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    secrets:
+      - commerce_postgres_password
+
 secrets:
   postgres_password:
     file: ./.secrets/postgres_password
+  commerce_postgres_password:
+    file: ./.secrets/commerce_postgres_password
 
 volumes:
   postgres_data:
+  commerce_postgres_data:

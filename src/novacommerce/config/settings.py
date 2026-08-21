@@ -1,4 +1,4 @@
-"""Validated, immutable application configuration."""
+"""Independent, immutable NovaCommerce configuration."""
 
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 
 class Environment(StrEnum):
-    """Supported deployment environments."""
+    """Supported NovaCommerce deployment environments."""
 
     DEVELOPMENT = "development"
     TEST = "test"
@@ -17,7 +17,7 @@ class Environment(StrEnum):
 
 
 class LogLevel(StrEnum):
-    """Supported application log levels."""
+    """Supported service log levels."""
 
     DEBUG = "DEBUG"
     INFO = "INFO"
@@ -27,15 +27,7 @@ class LogLevel(StrEnum):
 
 
 class DatabaseSettings(BaseModel):
-    """Database connection settings, when the environment requires them."""
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
-
-    url: SecretStr | None = None
-
-
-class RedisSettings(BaseModel):
-    """Redis connection settings, when the environment requires them."""
+    """NovaCommerce PostgreSQL connection settings."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
@@ -43,7 +35,7 @@ class RedisSettings(BaseModel):
 
 
 class ObservabilitySettings(BaseModel):
-    """Configuration for future observability integrations."""
+    """Operational logging settings."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
@@ -51,20 +43,19 @@ class ObservabilitySettings(BaseModel):
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from VERBAOPS_-prefixed environment variables."""
+    """Load only `NOVACOMMERCE_`-prefixed environment variables."""
 
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
-        env_prefix="VERBAOPS_",
+        env_prefix="NOVACOMMERCE_",
         extra="forbid",
         frozen=True,
     )
 
     environment: Environment = Environment.DEVELOPMENT
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
-    redis: RedisSettings = Field(default_factory=RedisSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod
@@ -76,13 +67,13 @@ class Settings(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Ignore NovaCommerce entries when both services share `.env`."""
+        """Allow the shared dotenv file to contain VerbaOps settings as well."""
 
         def filtered_dotenv() -> dict[str, Any]:
             return {
                 key: value
                 for key, value in dotenv_settings().items()
-                if key.lower().startswith("verbaops_")
+                if key.lower().startswith("novacommerce_")
             }
 
         return (
@@ -93,21 +84,11 @@ class Settings(BaseSettings):
         )
 
     @model_validator(mode="after")
-    def require_deployed_infrastructure(self) -> Self:
-        """Require connection URLs in staging and production only."""
+    def require_deployed_database(self) -> Self:
+        """Require a non-blank database URL outside local environments."""
 
-        if self.environment in (Environment.STAGING, Environment.PRODUCTION):
-            missing = [
-                name
-                for name, value in (
-                    ("database.url", self.database.url),
-                    ("redis.url", self.redis.url),
-                )
-                if value is None or not value.get_secret_value().strip()
-            ]
-            if missing:
-                raise ValueError(
-                    "database and redis URLs are required for staging and production: "
-                    + ", ".join(missing)
-                )
+        if self.environment in (Environment.STAGING, Environment.PRODUCTION) and (
+            self.database.url is None or not self.database.url.get_secret_value().strip()
+        ):
+            raise ValueError("database.url is required in staging and production")
         return self

@@ -46,7 +46,8 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff check ." in text
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
-    assert "uv run pytest --cov=verbaops --cov-report=term-missing" in text
+    assert "uv run pytest --cov=verbaops --cov=novacommerce --cov-report=term-missing" in text
+    assert "--cov=novacommerce" in text
     assert "uv run pre-commit run --all-files" in text
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")

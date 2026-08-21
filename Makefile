@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate
 
 sync:
 	$(UV) sync
@@ -23,7 +23,7 @@ check:
 	$(MAKE) format-check
 	$(MAKE) typecheck
 	$(MAKE) test
-	$(UV) run pytest --cov=verbaops --cov-report=term-missing
+	$(UV) run pytest --cov=verbaops --cov=novacommerce --cov-report=term-missing
 	$(UV) run pre-commit run --all-files
 	git diff --check
 
@@ -38,3 +38,8 @@ migrate:
 	$(UV) run python scripts/bootstrap_dev_env.py
 	docker compose up -d --wait postgres redis
 	docker compose run --rm migrate
+
+commerce-migrate:
+	$(UV) run python scripts/bootstrap_dev_env.py
+	docker compose up -d --wait commerce-postgres
+	docker compose run --rm commerce-migrate

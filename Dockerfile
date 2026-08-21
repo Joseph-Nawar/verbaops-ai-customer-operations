@@ -10,6 +10,8 @@ COPY pyproject.toml uv.lock ./
 COPY src ./src
 COPY alembic.ini ./alembic.ini
 COPY migrations ./migrations
+COPY alembic-commerce.ini ./alembic-commerce.ini
+COPY commerce_migrations ./commerce_migrations
 
 RUN uv export --locked --no-dev --no-emit-project --format requirements-txt --output-file /tmp/requirements.txt \
     && uv venv /opt/venv \
@@ -30,6 +32,8 @@ RUN addgroup --system verbaops \
 COPY --from=builder /opt/venv /opt/venv
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/alembic-commerce.ini /app/alembic-commerce.ini
+COPY --from=builder /app/commerce_migrations /app/commerce_migrations
 
 USER verbaops
 EXPOSE 8000

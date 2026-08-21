@@ -1,0 +1,1 @@
+"""NovaCommerce migration revisions."""
