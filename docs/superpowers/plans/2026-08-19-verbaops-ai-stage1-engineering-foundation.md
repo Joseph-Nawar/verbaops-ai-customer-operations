@@ -20,7 +20,7 @@
 - Do not add application/runtime dependencies unless strictly required to build/install the package.
 - Do not add domain tables, NovaCommerce models, LangGraph, AI/provider SDKs, RAG, voice, AWS/cloud infrastructure, frontend code, worker services, or later-stage automation.
 - Do not modify locked Phase 0 product or architecture decisions.
-- M1A, M1B, M1C, M1D, and M1E are accepted/complete; M1F remains not started.
+- M1A, M1B, M1C, M1D, and M1E are accepted/complete; M1F is the active final acceptance gate.
 
 ## Locked Stage 1 sequence
 
@@ -31,7 +31,7 @@
 | M1C FastAPI Application & Request Infrastructure | FastAPI application, request context, dependency injection, operational routes, and structured logging | Accepted/complete |
 | M1D Persistence & Runtime Infrastructure | Async SQLAlchemy/asyncpg resources, Redis lifecycle, Alembic pgvector extension migration, real readiness, Uvicorn composition, and local Docker stack; no domain tables | Accepted/complete |
 | M1E Engineering Automation | Deterministic locked quality gates, coverage enforcement, pinned GitHub Actions, and local runtime image build; no publishing or deployment | Accepted/complete |
-| M1F Stage 1 Final Gate | Recorded boundary only; not implemented | Not started |
+| M1F Stage 1 Final Gate | Clean-clone verification, original Stage 1 requirement audit, and final hosted-CI acceptance; no feature development | Active milestone |
 
 ### Accepted milestone record
 
@@ -55,6 +55,8 @@
 - [x] Add a separate quality-gated local Docker runtime build with no registry login, push, Compose startup, or deployment behavior.
 - [x] Verify the workflow contract locally and preserve all developer Makefile commands.
 
-### Future milestone boundaries
+### Active M1F boundary
 
-- [ ] M1F Stage 1 Final Gate remains not started and retains its existing boundary.
+- [ ] Verify the complete engineering foundation from a genuinely fresh GitHub clone.
+- [ ] Audit every original Stage 1 exit criterion and preserve all Phase 0 architecture and scope boundaries.
+- [ ] Mark Stage 1 accepted only after the final candidate commit has its own green hosted CI run.
