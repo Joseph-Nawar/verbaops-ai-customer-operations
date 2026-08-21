@@ -1,5 +1,11 @@
 # NovaCommerce Domain & Persistence Foundation Implementation Plan
 
+## Stage 2 milestone status
+
+- M2A — accepted/complete (`60e8c7bac8f1c845bd87f4f35ca5dced364dab72`)
+- M2B — active on `stage2/m2b-deterministic-seed`
+- M2C–M2F — not started
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add the isolated NovaCommerce M2A package, PostgreSQL schema, operational FastAPI service, and local runtime without changing VerbaOps business behavior.
@@ -116,6 +122,21 @@
 
 **Files:**
 - Git branch: `stage2/m2a-domain-persistence`
+
+## M2B — Deterministic NovaCommerce Seed System
+
+**Status:** active. This milestone is additive administrative development/test tooling only.
+
+**Constraints:** no schema migration, API route, business workflow, VerbaOps import, or M2C+ functionality.
+
+- [ ] Add exactly `Faker==40.36.0` to the development/seed dependency set and keep the production API environment Faker-free.
+- [ ] Add pure deterministic seed configuration, UUIDv5 IDs, scenario catalogue, generator, validator, transactional bulk-insert service, and CLI.
+- [ ] Generate and validate canonical entity distributions, protected scenario references, and zero idempotency/event rows.
+- [ ] Add Docker-independent determinism, distribution, invariant, fingerprint, dependency, and CLI contract tests using TDD.
+- [ ] Add PostgreSQL-only integration coverage for seed, reset, refusal, rollback, counts, fingerprints, and scenario state.
+- [ ] Add a profile-gated `commerce-seed` Compose service, `make commerce-seed`, and a dedicated seed image target without changing normal API runtime behavior.
+- [ ] Run all lint, format, type, unit, integration, coverage, pre-commit, Compose, and image verification against disposable PostgreSQL 16.
+- [ ] Commit as `feat: add deterministic NovaCommerce seed dataset`, push this branch, and open a draft M2B PR without merging or beginning M2C.
 
 - [ ] Re-run all required fresh checks: `uv lock --check`, `uv sync --locked`, Ruff, format, mypy, coverage, pre-commit, `make check`, Compose config, runtime image build, and `git diff --check`.
 - [ ] Review `git status --short`, `git log -5 --oneline`, and `git diff main...HEAD --stat`; stage only confirmed files.

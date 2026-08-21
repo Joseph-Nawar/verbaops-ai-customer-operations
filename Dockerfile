@@ -19,6 +19,28 @@ RUN uv export --locked --no-dev --no-emit-project --format requirements-txt --ou
     && uv build --wheel --out-dir /tmp/dist \
     && uv pip install --python /opt/venv/bin/python --no-deps /tmp/dist/*.whl
 
+RUN uv export --locked --no-emit-project --format requirements-txt --output-file /tmp/seed-requirements.txt \
+    && uv venv /opt/seed-venv \
+    && uv pip install --python /opt/seed-venv/bin/python --requirement /tmp/seed-requirements.txt \
+    && uv pip install --python /opt/seed-venv/bin/python --no-deps /tmp/dist/*.whl
+
+FROM python:3.12-slim-bookworm AS seed
+
+ENV PATH="/opt/seed-venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
+
+RUN addgroup --system verbaops \
+    && adduser --system --ingroup verbaops verbaops
+
+COPY --from=builder /opt/seed-venv /opt/seed-venv
+COPY --from=builder /app/alembic-commerce.ini /app/alembic-commerce.ini
+COPY --from=builder /app/commerce_migrations /app/commerce_migrations
+
+USER verbaops
+ENTRYPOINT ["python", "-m", "novacommerce.seed"]
+
 FROM python:3.12-slim-bookworm AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \

@@ -116,6 +116,22 @@ services:
     secrets:
       - commerce_postgres_password
 
+  commerce-seed:
+    profiles: ["seed"]
+    build:
+      context: .
+      target: seed
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+      commerce-migrate:
+        condition: service_completed_successfully
+    secrets:
+      - commerce_postgres_password
+
 secrets:
   postgres_password:
     file: ./.secrets/postgres_password

@@ -136,6 +136,18 @@ wheels = [
 ]
 
 [[package]]
+name = "faker"
+version = "40.36.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/98/d2/026af1e002bbc6df534d1f8262b18ec79a974f928e9290bfbfdfe7c7b2af/faker-40.36.0.tar.gz", hash = "sha256:754048c76c03afa7de83eee8f4bcee3cf668cbb7d995f54a4e9678db7f110308", size = 2025903, upload-time = "2026-07-24T21:11:33.088Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/9a/b947ed175ce9a0dcb070ccf3607f0ce8720cfb5ed1a36166a150b2acd5af/faker-40.36.0-py3-none-any.whl", hash = "sha256:82b9497d9cfe017048075bcf969298a74b1b6e39f5e4dad1211085d1133f7b62", size = 2062829, upload-time = "2026-07-24T21:11:31.37Z" },
+]
+
+[[package]]
 name = "fastapi"
 version = "0.141.1"
 source = { registry = "https://pypi.org/simple" }
@@ -563,55 +575,6 @@ wheels = [
 ]
 
 [[package]]
-name = "verbaops-ai"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "alembic" },
-    { name = "asyncpg" },
-    { name = "fastapi" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "redis" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pre-commit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "alembic", specifier = ">=1.19,<2" },
-    { name = "asyncpg", specifier = ">=0.30,<1" },
-    { name = "fastapi", specifier = ">=0.100,<1" },
-    { name = "pydantic", specifier = ">=2,<3" },
-    { name = "pydantic-settings", specifier = ">=2,<3" },
-    { name = "redis", specifier = ">=8,<9" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52,<2.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52,<0.53" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "mypy", specifier = ">=1.15,<2" },
-    { name = "pre-commit", specifier = ">=4,<5" },
-    { name = "pytest", specifier = ">=8.3,<9" },
-    { name = "pytest-asyncio", specifier = ">=0.24,<2" },
-    { name = "pytest-cov", specifier = ">=6,<7" },
-    { name = "ruff", specifier = ">=0.9,<1" },
-]
-
-[[package]]
 name = "ruff"
 version = "0.16.3"
 source = { registry = "https://pypi.org/simple" }
@@ -696,6 +659,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tzdata"
+version = "2026.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/ff/5a28bdfd8c3ebec42564ac7d0e54ca3db65044a9314a97f9564fa7a1e926/tzdata-2026.3.tar.gz", hash = "sha256:4a1518b8993086a7982523e071643f3c0e5f213e75b21318e78bcabfff9d1415", size = 198674, upload-time = "2026-07-10T08:50:37.887Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/6d/b53b99a9f2766d095985947a5782f1702cabb129a34f7a802d7197af832f/tzdata-2026.3-py2.py3-none-any.whl", hash = "sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931", size = 348168, upload-time = "2026-07-10T08:50:36.46Z" },
+]
+
+[[package]]
 name = "uvicorn"
 version = "0.52.4"
 source = { registry = "https://pypi.org/simple" }
@@ -730,6 +702,57 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b5b1ac819a3f946d3b2ee07f09149578ae76066d70b44df3fa990add49a82e4", size = 4426307, upload-time = "2025-10-16T22:16:32.917Z" },
     { url = "https://files.pythonhosted.org/packages/90/60/97362554ac21e20e81bcef1150cb2a7e4ffdaf8ea1e5b2e8bf7a053caa18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e047cc068570bac9866237739607d1313b9253c3051ad84738cbb095be0537b2", size = 4131970, upload-time = "2025-10-16T22:16:34.015Z" },
     { url = "https://files.pythonhosted.org/packages/99/39/6b3f7d234ba3964c428a6e40006340f53ba37993f46ed6e111c6e9141d18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:512fec6815e2dd45161054592441ef76c830eddaad55c8aa30952e6fe1ed07c0", size = 4296343, upload-time = "2025-10-16T22:16:35.149Z" },
+]
+
+[[package]]
+name = "verbaops-ai"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "alembic" },
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "redis" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "faker" },
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "pre-commit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.19,<2" },
+    { name = "asyncpg", specifier = ">=0.30,<1" },
+    { name = "fastapi", specifier = ">=0.100,<1" },
+    { name = "pydantic", specifier = ">=2,<3" },
+    { name = "pydantic-settings", specifier = ">=2,<3" },
+    { name = "redis", specifier = ">=8,<9" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.52,<2.1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52,<0.53" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "faker", specifier = "==40.36.0" },
+    { name = "httpx", specifier = ">=0.27,<1" },
+    { name = "mypy", specifier = ">=1.15,<2" },
+    { name = "pre-commit", specifier = ">=4,<5" },
+    { name = "pytest", specifier = ">=8.3,<9" },
+    { name = "pytest-asyncio", specifier = ">=0.24,<2" },
+    { name = "pytest-cov", specifier = ">=6,<7" },
+    { name = "ruff", specifier = ">=0.9,<1" },
 ]
 
 [[package]]
