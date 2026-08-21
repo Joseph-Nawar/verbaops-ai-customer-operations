@@ -1097,6 +1097,21 @@ async def test_m2d_postgres_cancel_vs_reschedule_has_legal_final_state(
     primary = scenario_uuid(config, "customer_primary")
     order_id = scenario_uuid(config, "order_already_shipped")
     target = scenario_uuid(config, "slot_available")
+    async with engine.connect() as connection:
+        product_id, quantity = (
+            await connection.execute(
+                text(
+                    "SELECT product_id, quantity FROM order_items "
+                    "WHERE order_id = :order_id ORDER BY id LIMIT 1"
+                ),
+                {"order_id": order_id},
+            )
+        ).one()
+    product_id = UUID(str(product_id))
+    quantity = int(quantity)
+    stock_before = int(
+        await scalar(engine, "SELECT stock FROM products WHERE id = :id", id=product_id)
+    )
     responses = await run_race(
         request(
             live_app,
@@ -1128,6 +1143,11 @@ async def test_m2d_postgres_cancel_vs_reschedule_has_legal_final_state(
         ("shipped", "in_transit"),
         ("cancelled", "cancelled"),
     }
+    stock_after = int(
+        await scalar(engine, "SELECT stock FROM products WHERE id = :id", id=product_id)
+    )
+    assert stock_after >= 0
+    assert stock_after == (stock_before + quantity if order_status == "cancelled" else stock_before)
     if shipment_slot is not None:
         capacity, reserved, references = await slot_state(engine, UUID(str(shipment_slot)))
         assert 0 <= reserved <= capacity
