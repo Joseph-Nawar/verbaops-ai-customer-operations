@@ -58,6 +58,7 @@ def bootstrap_dev_environment(root: Path) -> tuple[Path, Path]:
         "environment": _setting_value(env_content, "NOVACOMMERCE_ENVIRONMENT"),
         "database_url": _setting_value(env_content, "NOVACOMMERCE_DATABASE__URL"),
         "log_level": _setting_value(env_content, "NOVACOMMERCE_OBSERVABILITY__LOG_LEVEL"),
+        "service_token": _setting_value(env_content, "NOVACOMMERCE_SERVICE_TOKEN"),
     }
     commerce_config_present = "NOVACOMMERCE_" in env_content
     commerce_secret_exists = commerce_password_path.exists()
@@ -79,6 +80,18 @@ def bootstrap_dev_environment(root: Path) -> tuple[Path, Path]:
             raise BootstrapError(
                 "NovaCommerce local development configuration has mismatched credentials"
             )
+        if commerce_lines["service_token"] is not None:
+            if (
+                len(commerce_lines["service_token"]) < 32
+                or not commerce_lines["service_token"].strip()
+            ):
+                raise BootstrapError("NovaCommerce service token is blank or malformed")
+        else:
+            service_token = secrets.token_urlsafe(32)
+            if not env_content.endswith("\n"):
+                env_content += "\n"
+            env_content += f"NOVACOMMERCE_SERVICE_TOKEN={service_token}\n"
+            _restrictive_write(env_path, env_content)
     else:
         commerce_password = secrets.token_urlsafe(32)
         commerce_password_path.parent.mkdir(parents=True, exist_ok=True)
@@ -91,6 +104,7 @@ def bootstrap_dev_environment(root: Path) -> tuple[Path, Path]:
                 "NOVACOMMERCE_DATABASE__URL="
                 f"postgresql+asyncpg://novacommerce:{commerce_password}@commerce-postgres:5432/novacommerce",
                 "NOVACOMMERCE_OBSERVABILITY__LOG_LEVEL=INFO",
+                f"NOVACOMMERCE_SERVICE_TOKEN={secrets.token_urlsafe(32)}",
                 "",
             ]
         )

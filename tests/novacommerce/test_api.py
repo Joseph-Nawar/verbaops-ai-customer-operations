@@ -6,6 +6,7 @@ from typing import cast
 import httpx
 import pytest
 from fastapi import FastAPI
+from pydantic import SecretStr
 
 from novacommerce.api.app import create_app
 from novacommerce.api.runtime import create_runtime_app
@@ -14,7 +15,7 @@ from novacommerce.config.settings import Settings
 
 def make_settings() -> Settings:
     construct = cast(Callable[..., Settings], Settings)
-    return construct(_env_file=None)
+    return construct(_env_file=None, service_token=SecretStr("test-token-" + "x" * 32))
 
 
 async def request(app: FastAPI, path: str) -> httpx.Response:
@@ -39,7 +40,7 @@ async def test_operational_endpoints_and_openapi() -> None:
 
     schema = (await request(app, "/openapi.json")).json()
     assert schema["info"]["title"] == "NovaCommerce Commerce Sandbox"
-    assert "/v1" not in str(schema["paths"])
+    assert "/v1/products/search" in schema["paths"]
 
 
 @pytest.mark.asyncio
@@ -76,5 +77,6 @@ def test_runtime_factory_composes_novacommerce_without_starting_io(
         "NOVACOMMERCE_DATABASE__URL",
         "postgresql+asyncpg://user:password@localhost/commerce",
     )
+    monkeypatch.setenv("NOVACOMMERCE_SERVICE_TOKEN", "test-token-" + "x" * 32)
     app = create_runtime_app()
     assert app.title == "NovaCommerce Commerce Sandbox"
