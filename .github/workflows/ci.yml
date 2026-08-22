@@ -47,17 +47,124 @@ jobs:
         run: uv run ruff format --check .
 
       - name: Type check
-        run: uv run mypy src tests
+        run: uv run mypy src tests scripts
 
       - name: Tests and coverage
-        run: uv run pytest --cov=verbaops --cov=novacommerce --cov-report=term-missing
+        run: uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 
       - name: Pre-commit repository checks
         run: uv run pre-commit run --all-files
 
+      - name: OpenAPI contract check
+        run: make commerce-contract-check
+
+  postgres-contract:
+    name: postgres-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: novacommerce_test
+          POSTGRES_PASSWORD: novacommerce_test_password
+          POSTGRES_DB: novacommerce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U novacommerce_test -d novacommerce_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NOVACOMMERCE_DATABASE__URL: postgresql+asyncpg://novacommerce_test:novacommerce_test_password@localhost:5432/novacommerce_test
+      NOVACOMMERCE_TEST_DATABASE_URL: postgresql+asyncpg://novacommerce_test:novacommerce_test_password@localhost:5432/novacommerce_test
+      NOVACOMMERCE_SERVICE_TOKEN: m2e-hosted-test-token-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply Commerce migrations
+        run: uv run alembic -c alembic-commerce.ini upgrade head
+
+      - name: Validate PostgreSQL marker taxonomy
+        run: uv run pytest tests/test_postgres_classification.py -q
+
+      - name: Run PostgreSQL contract suite
+        run: uv run pytest -m "postgres and contract"
+
+  postgres-concurrency:
+    name: postgres-concurrency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16.6-alpine
+        env:
+          POSTGRES_USER: novacommerce_test
+          POSTGRES_PASSWORD: novacommerce_test_password
+          POSTGRES_DB: novacommerce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U novacommerce_test -d novacommerce_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NOVACOMMERCE_DATABASE__URL: postgresql+asyncpg://novacommerce_test:novacommerce_test_password@localhost:5432/novacommerce_test
+      NOVACOMMERCE_TEST_DATABASE_URL: postgresql+asyncpg://novacommerce_test:novacommerce_test_password@localhost:5432/novacommerce_test
+      NOVACOMMERCE_SERVICE_TOKEN: m2e-hosted-test-token-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply Commerce migrations
+        run: uv run alembic -c alembic-commerce.ini upgrade head
+
+      - name: Validate PostgreSQL marker taxonomy
+        run: uv run pytest tests/test_postgres_classification.py -q
+
+      - name: Run PostgreSQL concurrency suite
+        run: uv run pytest -m "postgres and concurrency"
+
+      - name: Repeat critical race suite 2
+        run: uv run pytest -m "postgres and concurrency and critical_race"
+
+      - name: Repeat critical race suite 3
+        run: uv run pytest -m "postgres and concurrency and critical_race"
+
   docker-build:
     name: docker-build
-    needs: quality
+    needs: [quality, postgres-contract, postgres-concurrency]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
