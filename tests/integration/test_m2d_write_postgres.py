@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from os import environ
 from typing import Any
@@ -133,6 +134,100 @@ async def order_item_id(engine: AsyncEngine, order_id: UUID) -> UUID:
             )
         ).scalar_one()
     return UUID(str(value))
+
+
+async def prepare_return_scenario(
+    engine: AsyncEngine,
+    order_id: UUID,
+    *,
+    delivered_days_ago: int,
+    selected_item_quantity: int | None = None,
+) -> tuple[UUID, datetime, datetime]:
+    """Arrange one deterministic return scenario entirely in test DB state."""
+
+    now = datetime.now(UTC)
+    delivered_at = now - timedelta(days=delivered_days_ago)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                "DELETE FROM return_items WHERE return_id IN "
+                "(SELECT id FROM returns WHERE order_id = :order_id)"
+            ),
+            {"order_id": order_id},
+        )
+        await connection.execute(
+            text("DELETE FROM returns WHERE order_id = :order_id"),
+            {"order_id": order_id},
+        )
+        await connection.execute(
+            text("UPDATE orders SET status = 'delivered' WHERE id = :order_id"),
+            {"order_id": order_id},
+        )
+        await connection.execute(
+            text(
+                "UPDATE shipments SET status = 'delivered', delivered_at = :delivered_at "
+                "WHERE order_id = :order_id"
+            ),
+            {"order_id": order_id, "delivered_at": delivered_at},
+        )
+        if selected_item_quantity is not None:
+            await connection.execute(
+                text(
+                    "UPDATE order_items SET quantity = :quantity "
+                    "WHERE id = (SELECT id FROM order_items "
+                    "WHERE order_id = :order_id ORDER BY id LIMIT 1)"
+                ),
+                {"order_id": order_id, "quantity": selected_item_quantity},
+            )
+    return await order_item_id(engine, order_id), now, delivered_at
+
+
+async def consumed_return_quantity(engine: AsyncEngine, item_id: UUID) -> int:
+    return int(
+        await scalar(
+            engine,
+            "SELECT coalesce(sum(ri.quantity), 0) FROM return_items ri "
+            "JOIN returns r ON r.id = ri.return_id "
+            "WHERE ri.order_item_id = :item_id "
+            "AND r.status IN ('requested', 'approved', 'received', 'completed')",
+            item_id=item_id,
+        )
+    )
+
+
+async def assert_return_fixture(
+    engine: AsyncEngine,
+    order_id: UUID,
+    item_id: UUID,
+    *,
+    now: datetime,
+    delivered_at: datetime,
+    requested_quantity: int,
+    window_open: bool,
+) -> None:
+    async with engine.connect() as connection:
+        order_status, shipment_status = (
+            await connection.execute(
+                text(
+                    "SELECT o.status, s.status FROM orders o "
+                    "JOIN shipments s ON s.order_id = o.id WHERE o.id = :order_id"
+                ),
+                {"order_id": order_id},
+            )
+        ).one()
+    ordered_quantity = int(
+        await scalar(
+            engine, "SELECT quantity FROM order_items WHERE id = :item_id", item_id=item_id
+        )
+    )
+    consumed = await consumed_return_quantity(engine, item_id)
+    assert order_status == "delivered", "fixture precondition incorrect"
+    assert shipment_status == "delivered", "fixture precondition incorrect"
+    assert (now <= delivered_at + timedelta(days=30)) is window_open, (
+        "fixture precondition incorrect"
+    )
+    assert consumed == 0, "fixture precondition incorrect"
+    assert ordered_quantity - consumed >= requested_quantity, "fixture precondition incorrect"
 
 
 async def run_race(*requests: Any) -> list[httpx.Response]:
@@ -332,7 +427,18 @@ async def test_m2d_postgres_transactional_writes_and_replay(
     assert full_replay.headers["X-Idempotent-Replay"] == "true"
     assert full.json()["error"]["code"] == "delivery_slot_full"
 
-    delivered_item = await order_item_id(engine, delivered_29d)
+    delivered_item, return_now, delivered_at = await prepare_return_scenario(
+        engine, delivered_29d, delivered_days_ago=29
+    )
+    await assert_return_fixture(
+        engine,
+        delivered_29d,
+        delivered_item,
+        now=return_now,
+        delivered_at=delivered_at,
+        requested_quantity=1,
+        window_open=True,
+    )
     return_body = {
         "order_id": str(delivered_29d),
         "reason": "M2D integration return",
@@ -356,7 +462,18 @@ async def test_m2d_postgres_transactional_writes_and_replay(
     )
     assert returned.status_code == returned_replay.status_code == 201
     assert returned_replay.headers["X-Idempotent-Replay"] == "true"
-    expired_item = await order_item_id(engine, delivered_31d)
+    expired_item, expired_now, expired_delivered_at = await prepare_return_scenario(
+        engine, delivered_31d, delivered_days_ago=31
+    )
+    await assert_return_fixture(
+        engine,
+        delivered_31d,
+        expired_item,
+        now=expired_now,
+        delivered_at=expired_delivered_at,
+        requested_quantity=1,
+        window_open=False,
+    )
     expired = await request(
         live_app,
         "POST",
@@ -1314,12 +1431,21 @@ async def test_m2d_postgres_final_returnable_quantity_race(
     config = SeedConfig()
     primary = scenario_uuid(config, "customer_primary")
     order_id = scenario_uuid(config, "order_delivered_29d")
-    item_id = await order_item_id(engine, order_id)
-    async with engine.begin() as connection:
-        await connection.execute(
-            text("UPDATE order_items SET quantity = 1 WHERE id = :item_id"),
-            {"item_id": item_id},
-        )
+    item_id, race_now, race_delivered_at = await prepare_return_scenario(
+        engine,
+        order_id,
+        delivered_days_ago=29,
+        selected_item_quantity=1,
+    )
+    await assert_return_fixture(
+        engine,
+        order_id,
+        item_id,
+        now=race_now,
+        delivered_at=race_delivered_at,
+        requested_quantity=1,
+        window_open=True,
+    )
     before = await counts(engine)
     body = {
         "order_id": str(order_id),
