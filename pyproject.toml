@@ -59,7 +59,13 @@ warn_unused_configs = true
 testpaths = ["tests"]
 addopts = ["--strict-config", "--strict-markers"]
 asyncio_mode = "strict"
-markers = ["integration: requires a disposable PostgreSQL 16 database"]
+markers = [
+    "integration: requires a disposable PostgreSQL 16 database",
+    "postgres: requires a disposable PostgreSQL 16 database",
+    "contract: deterministic PostgreSQL/API contract behavior",
+    "concurrency: PostgreSQL transaction and concurrency safety behavior",
+    "critical_race: approved high-risk concurrency scenario",
+]
 
 [tool.coverage.run]
 branch = true

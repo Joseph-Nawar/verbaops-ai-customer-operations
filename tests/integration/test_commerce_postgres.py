@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 
 from novacommerce.db.resources import DatabaseResources, ping_database
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.contract]
 
 
 @pytest.fixture(scope="module")

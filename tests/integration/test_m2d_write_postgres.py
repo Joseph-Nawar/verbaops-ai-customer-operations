@@ -35,7 +35,7 @@ from novacommerce.seed.ids import scenario_uuid
 from novacommerce.seed.service import seed_database
 from novacommerce.services.writes.orders import create_order
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres]
 
 TOKEN = "m2d-integration-token-" + "x" * 32
 TABLES = (
@@ -182,6 +182,8 @@ async def status_count(engine: AsyncEngine, table: str, statuses: tuple[str, ...
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_transactional_writes_and_replay(
     live_app: Any,
     engine: AsyncEngine,
@@ -482,6 +484,7 @@ async def test_m2d_postgres_transactional_writes_and_replay(
 
 
 @pytest.mark.asyncio
+@pytest.mark.contract
 async def test_m2d_postgres_seed_state_and_read_only_counters(
     live_app: Any,
     engine: AsyncEngine,
@@ -503,6 +506,7 @@ async def test_m2d_postgres_seed_state_and_read_only_counters(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_operation_failure_rolls_back_event_and_idempotency(
     live_app: Any,
     engine: AsyncEngine,
@@ -542,6 +546,7 @@ async def test_m2d_operation_failure_rolls_back_event_and_idempotency(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_real_mutation_failure_before_event_rolls_back_everything(
     live_app: Any,
     engine: AsyncEngine,
@@ -583,6 +588,7 @@ async def test_m2d_real_mutation_failure_before_event_rolls_back_everything(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_real_mutation_failure_after_event_rolls_back_everything(
     live_app: Any,
     engine: AsyncEngine,
@@ -622,6 +628,7 @@ async def test_m2d_real_mutation_failure_after_event_rolls_back_everything(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_real_mutation_failure_after_completion_rolls_back_everything(
     live_app: Any,
     engine: AsyncEngine,
@@ -661,6 +668,7 @@ async def test_m2d_real_mutation_failure_after_completion_rolls_back_everything(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_ambiguous_commit_replays_committed_outcome(
     live_app: Any,
     engine: AsyncEngine,
@@ -729,6 +737,7 @@ async def test_m2d_ambiguous_commit_replays_committed_outcome(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_unpersisted_ambiguous_commit_retries_real_mutation_once(
     live_app: Any,
     engine: AsyncEngine,
@@ -791,6 +800,7 @@ async def test_m2d_unpersisted_ambiguous_commit_retries_real_mutation_once(
 
 
 @pytest.mark.asyncio
+@pytest.mark.contract
 async def test_m2d_postgres_same_key_rejects_target_operation_and_customer_reuse(
     live_app: Any,
     engine: AsyncEngine,
@@ -876,6 +886,7 @@ async def test_m2d_postgres_same_key_rejects_target_operation_and_customer_reuse
 
 
 @pytest.mark.asyncio
+@pytest.mark.contract
 async def test_m2d_postgres_pre_execution_and_deterministic_rejection_counts(
     live_app: Any,
     engine: AsyncEngine,
@@ -935,6 +946,7 @@ async def test_m2d_postgres_pre_execution_and_deterministic_rejection_counts(
 
 
 @pytest.mark.asyncio
+@pytest.mark.contract
 async def test_m2d_postgres_same_slot_reschedule_is_idempotent_without_event(
     live_app: Any,
     engine: AsyncEngine,
@@ -994,6 +1006,8 @@ async def test_m2d_postgres_same_slot_reschedule_is_idempotent_without_event(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_final_inventory_unit_race(
     live_app: Any,
     engine: AsyncEngine,
@@ -1026,6 +1040,8 @@ async def test_m2d_postgres_final_inventory_unit_race(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_double_cancellation_restores_inventory_once(
     live_app: Any,
     engine: AsyncEngine,
@@ -1089,6 +1105,7 @@ async def test_m2d_postgres_double_cancellation_restores_inventory_once(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_postgres_cancel_vs_reschedule_has_legal_final_state(
     live_app: Any,
     engine: AsyncEngine,
@@ -1155,6 +1172,8 @@ async def test_m2d_postgres_cancel_vs_reschedule_has_legal_final_state(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_final_slot_race_allows_one_shipment(
     live_app: Any,
     engine: AsyncEngine,
@@ -1211,6 +1230,7 @@ async def test_m2d_postgres_final_slot_race_allows_one_shipment(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_postgres_opposite_reschedules_preserve_slot_invariants(
     live_app: Any,
     engine: AsyncEngine,
@@ -1285,6 +1305,8 @@ async def test_m2d_postgres_opposite_reschedules_preserve_slot_invariants(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_final_returnable_quantity_race(
     live_app: Any,
     engine: AsyncEngine,
@@ -1333,6 +1355,8 @@ async def test_m2d_postgres_final_returnable_quantity_race(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
+@pytest.mark.critical_race
 async def test_m2d_postgres_refund_remaining_amount_race(
     live_app: Any,
     engine: AsyncEngine,
@@ -1418,6 +1442,7 @@ async def test_m2d_postgres_refund_remaining_amount_race(
 
 
 @pytest.mark.asyncio
+@pytest.mark.concurrency
 async def test_m2d_postgres_duplicate_ticket_same_key_creates_once(
     live_app: Any,
     engine: AsyncEngine,
