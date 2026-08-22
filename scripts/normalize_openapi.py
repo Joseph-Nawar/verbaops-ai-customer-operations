@@ -16,12 +16,14 @@ _COSMETIC_KEYS = frozenset({"description", "summary", "examples"})
 _COMPONENT_PREFIX = "#/components/"
 
 
-def _without_cosmetic(value: Any) -> Any:
+def _without_cosmetic(value: Any, *, mapping_role: str | None = None) -> Any:
     if isinstance(value, Mapping):
         return {
-            str(key): _without_cosmetic(item)
+            str(key): _without_cosmetic(
+                item, mapping_role="properties" if key == "properties" else None
+            )
             for key, item in value.items()
-            if key not in _COSMETIC_KEYS
+            if mapping_role == "properties" or key not in _COSMETIC_KEYS
         }
     if isinstance(value, list):
         return [_without_cosmetic(item) for item in value]

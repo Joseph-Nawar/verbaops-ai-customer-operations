@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from novacommerce.api.errors import APIError
 from novacommerce.api.v1.dependencies import DatabaseSession, customer_dependency
+from novacommerce.api.v1.metadata import write_openapi_extra
 from novacommerce.auth.context import TrustedCustomerContext
 from novacommerce.db.models.customer import Customer
 from novacommerce.idempotency import (
@@ -17,7 +18,11 @@ from novacommerce.idempotency import (
     validate_idempotency_key,
     write_response,
 )
-from novacommerce.schemas.writes import OrderCreateRequest
+from novacommerce.schemas.writes import (
+    CancelOrderResponse,
+    CreateOrderResponse,
+    OrderCreateRequest,
+)
 from novacommerce.services.writes.orders import cancel_order, create_order
 
 router = APIRouter(tags=["writes"])
@@ -33,12 +38,19 @@ async def require_customer(session: DatabaseSession, context: TrustedCustomerCon
     await session.rollback()
 
 
-@router.post("/orders")
+@router.post(
+    "/orders",
+    response_model=CreateOrderResponse,
+    status_code=201,
+    openapi_extra=write_openapi_extra(),
+)
 async def create_order_route(
     request: OrderCreateRequest,
     session: DatabaseSession,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", include_in_schema=False)
+    ] = None,
 ) -> JSONResponse:
     key = validate_idempotency_key(idempotency_key)
     await require_customer(session, context)
@@ -59,12 +71,19 @@ async def create_order_route(
     return write_response(execution)
 
 
-@router.post("/orders/{order_id}/cancel")
+@router.post(
+    "/orders/{order_id}/cancel",
+    response_model=CancelOrderResponse,
+    status_code=200,
+    openapi_extra=write_openapi_extra(),
+)
 async def cancel_order_route(
     order_id: UUID,
     session: DatabaseSession,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", include_in_schema=False)
+    ] = None,
 ) -> JSONResponse:
     key = validate_idempotency_key(idempotency_key)
     await require_customer(session, context)

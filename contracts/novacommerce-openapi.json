@@ -1,23 +1,71 @@
 {
   "components": {
     "schemas": {
+      "CancelOrderResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/OrderResponse"
+          },
+          "shipment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShipmentResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "order",
+          "shipment"
+        ],
+        "title": "CancelOrderResponse",
+        "type": "object"
+      },
+      "CreateOrderResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "order": {
+            "$ref": "#/components/schemas/OrderResponse"
+          },
+          "shipment": {
+            "$ref": "#/components/schemas/ShipmentResponse"
+          }
+        },
+        "required": [
+          "order",
+          "shipment"
+        ],
+        "title": "CreateOrderResponse",
+        "type": "object"
+      },
       "CustomerResponse": {
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "title": "Created At"
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
           "email": {
-            "title": "Email"
+            "title": "Email",
+            "type": "string"
           },
           "id": {
-            "title": "Id"
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "language": {
-            "title": "Language"
+            "title": "Language",
+            "type": "string"
           },
           "name": {
-            "title": "Name"
+            "title": "Name",
+            "type": "string"
           }
         },
         "required": [
@@ -35,29 +83,41 @@
         "properties": {
           "available": {
             "readOnly": true,
-            "title": "Available"
+            "title": "Available",
+            "type": "boolean"
           },
           "capacity": {
-            "title": "Capacity"
+            "title": "Capacity",
+            "type": "integer"
           },
           "id": {
-            "title": "Id"
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "remaining_capacity": {
             "readOnly": true,
-            "title": "Remaining Capacity"
+            "title": "Remaining Capacity",
+            "type": "integer"
           },
           "reserved_count": {
-            "title": "Reserved Count"
+            "title": "Reserved Count",
+            "type": "integer"
           },
           "service_date": {
-            "title": "Service Date"
+            "format": "date",
+            "title": "Service Date",
+            "type": "string"
           },
           "window_end": {
-            "title": "Window End"
+            "format": "time",
+            "title": "Window End",
+            "type": "string"
           },
           "window_start": {
-            "title": "Window Start"
+            "format": "time",
+            "title": "Window Start",
+            "type": "string"
           }
         },
         "required": [
@@ -127,27 +187,91 @@
         "title": "OrderCreateRequest",
         "type": "object"
       },
+      "OrderItemResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "line_total": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Line Total",
+            "type": "string"
+          },
+          "order_item_id": {
+            "format": "uuid",
+            "title": "Order Item Id",
+            "type": "string"
+          },
+          "product_id": {
+            "format": "uuid",
+            "title": "Product Id",
+            "type": "string"
+          },
+          "product_name": {
+            "title": "Product Name",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "unit_price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unit Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_item_id",
+          "product_id",
+          "sku",
+          "product_name",
+          "quantity",
+          "unit_price",
+          "line_total"
+        ],
+        "title": "OrderItemResponse",
+        "type": "object"
+      },
       "OrderResponse": {
         "additionalProperties": false,
         "properties": {
           "created_at": {
-            "title": "Created At"
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
           "customer_id": {
-            "title": "Customer Id"
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
           },
           "id": {
-            "title": "Id"
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "items": {
-            "title": "Items"
+            "items": {
+              "$ref": "#/components/schemas/OrderItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
           },
-          "status": {},
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
           "total": {
-            "title": "Total"
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total",
+            "type": "string"
           },
           "updated_at": {
-            "title": "Updated At"
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
           }
         },
         "required": [
@@ -162,20 +286,80 @@
         "title": "OrderResponse",
         "type": "object"
       },
+      "OrderStatus": {
+        "enum": [
+          "pending",
+          "confirmed",
+          "processing",
+          "shipped",
+          "delivered",
+          "cancelled"
+        ],
+        "title": "OrderStatus",
+        "type": "string"
+      },
+      "ProductResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "price": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Price",
+            "type": "string"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "stock": {
+            "title": "Stock",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "description",
+          "price",
+          "stock"
+        ],
+        "title": "ProductResponse",
+        "type": "object"
+      },
       "ProductSearchResponse": {
         "additionalProperties": false,
         "properties": {
           "has_more": {
-            "title": "Has More"
+            "title": "Has More",
+            "type": "boolean"
           },
           "items": {
-            "title": "Items"
+            "items": {
+              "$ref": "#/components/schemas/ProductResponse"
+            },
+            "title": "Items",
+            "type": "array"
           },
           "limit": {
-            "title": "Limit"
+            "title": "Limit",
+            "type": "integer"
           },
           "offset": {
-            "title": "Offset"
+            "title": "Offset",
+            "type": "integer"
           }
         },
         "required": [
@@ -220,21 +404,31 @@
         "additionalProperties": false,
         "properties": {
           "amount": {
-            "title": "Amount"
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
           },
           "created_at": {
-            "title": "Created At"
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
           },
           "id": {
-            "title": "Id"
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "reason": {
-            "title": "Reason"
+            "title": "Reason",
+            "type": "string"
           },
           "requires_manual_approval": {
-            "title": "Requires Manual Approval"
+            "title": "Requires Manual Approval",
+            "type": "boolean"
           },
-          "status": {}
+          "status": {
+            "$ref": "#/components/schemas/RefundStatus"
+          }
         },
         "required": [
           "id",
@@ -246,6 +440,16 @@
         ],
         "title": "RefundResponse",
         "type": "object"
+      },
+      "RefundStatus": {
+        "enum": [
+          "approved",
+          "pending_manual_approval",
+          "rejected",
+          "completed"
+        ],
+        "title": "RefundStatus",
+        "type": "string"
       },
       "RescheduleRequest": {
         "additionalProperties": false,
@@ -315,29 +519,158 @@
         "title": "ReturnCreateRequest",
         "type": "object"
       },
+      "ReturnItemResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_item_id": {
+            "format": "uuid",
+            "title": "Order Item Id",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "order_item_id",
+          "quantity"
+        ],
+        "title": "ReturnItemResponse",
+        "type": "object"
+      },
+      "ReturnResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReturnItemResponse"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "order_id": {
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReturnStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "reason",
+          "status",
+          "created_at",
+          "updated_at",
+          "items"
+        ],
+        "title": "ReturnResponse",
+        "type": "object"
+      },
+      "ReturnStatus": {
+        "enum": [
+          "requested",
+          "approved",
+          "rejected",
+          "received",
+          "completed"
+        ],
+        "title": "ReturnStatus",
+        "type": "string"
+      },
       "ShipmentResponse": {
         "additionalProperties": false,
         "properties": {
           "carrier": {
-            "title": "Carrier"
+            "title": "Carrier",
+            "type": "string"
           },
           "delivered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Delivered At"
           },
           "delivery_slot_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Delivery Slot Id"
           },
           "estimated_delivery": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Estimated Delivery"
           },
           "id": {
-            "title": "Id"
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
           },
           "order_id": {
-            "title": "Order Id"
+            "format": "uuid",
+            "title": "Order Id",
+            "type": "string"
           },
-          "status": {},
+          "status": {
+            "$ref": "#/components/schemas/ShipmentStatus"
+          },
           "tracking_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Tracking Number"
           }
         },
@@ -354,9 +687,27 @@
         "title": "ShipmentResponse",
         "type": "object"
       },
+      "ShipmentStatus": {
+        "enum": [
+          "pending",
+          "label_created",
+          "in_transit",
+          "out_for_delivery",
+          "delivered",
+          "exception",
+          "cancelled"
+        ],
+        "title": "ShipmentStatus",
+        "type": "string"
+      },
       "SupportTicketCreateRequest": {
         "additionalProperties": false,
         "properties": {
+          "description": {
+            "maxLength": 5000,
+            "title": "Description",
+            "type": "string"
+          },
           "order_id": {
             "anyOf": [
               {
@@ -381,6 +732,75 @@
         ],
         "title": "SupportTicketCreateRequest",
         "type": "object"
+      },
+      "SupportTicketResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SupportTicketStatus"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "customer_id",
+          "order_id",
+          "subject",
+          "description",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SupportTicketResponse",
+        "type": "object"
+      },
+      "SupportTicketStatus": {
+        "enum": [
+          "open",
+          "in_progress",
+          "closed"
+        ],
+        "title": "SupportTicketStatus",
+        "type": "string"
       },
       "ValidationError": {
         "properties": {
@@ -421,6 +841,47 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WriteRefundResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requires_manual_approval": {
+            "title": "Requires Manual Approval",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RefundStatus"
+          }
+        },
+        "required": [
+          "id",
+          "amount",
+          "status",
+          "reason",
+          "requires_manual_approval",
+          "created_at"
+        ],
+        "title": "WriteRefundResponse",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -453,17 +914,10 @@
           {
             "in": "header",
             "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -586,34 +1040,22 @@
         "parameters": [
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -628,10 +1070,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CreateOrderResponse"
+                }
               }
             }
           },
@@ -672,17 +1116,10 @@
           {
             "in": "header",
             "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -732,34 +1169,22 @@
           },
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -767,7 +1192,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/CancelOrderResponse"
+                }
               }
             }
           },
@@ -808,17 +1235,10 @@
           {
             "in": "header",
             "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -870,34 +1290,22 @@
           },
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -912,10 +1320,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WriteRefundResponse"
+                }
               }
             }
           },
@@ -955,34 +1365,22 @@
           },
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -1000,7 +1398,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ShipmentResponse"
+                }
               }
             }
           },
@@ -1041,17 +1441,10 @@
           {
             "in": "header",
             "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -1160,34 +1553,22 @@
         "parameters": [
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -1202,10 +1583,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnResponse"
+                }
               }
             }
           },
@@ -1235,34 +1618,22 @@
         "parameters": [
           {
             "in": "header",
-            "name": "Idempotency-Key",
-            "required": false,
+            "name": "X-VerbaOps-Customer-ID",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Idempotency-Key"
+              "format": "uuid",
+              "type": "string"
             }
           },
           {
             "in": "header",
-            "name": "X-VerbaOps-Customer-ID",
-            "required": false,
+            "name": "Idempotency-Key",
+            "required": true,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Verbaops-Customer-Id"
+              "maxLength": 255,
+              "minLength": 8,
+              "pattern": "^[A-Za-z0-9._:-]{8,255}$",
+              "type": "string"
             }
           }
         ],
@@ -1277,10 +1648,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
               }
             }
           },

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from novacommerce.api.dependencies import get_database_session
 from novacommerce.api.errors import APIError
 from novacommerce.api.v1.dependencies import customer_dependency
+from novacommerce.api.v1.metadata import customer_openapi_extra
 from novacommerce.auth.context import TrustedCustomerContext
 from novacommerce.schemas.customers import CustomerResponse
 from novacommerce.services.customers import get_owned_customer
@@ -16,7 +17,11 @@ from novacommerce.services.customers import get_owned_customer
 router = APIRouter(tags=["customers"])
 
 
-@router.get("/customers/{customer_id}", response_model=CustomerResponse)
+@router.get(
+    "/customers/{customer_id}",
+    response_model=CustomerResponse,
+    openapi_extra=customer_openapi_extra(),
+)
 async def get_customer(
     customer_id: UUID,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],

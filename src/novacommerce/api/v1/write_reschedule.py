@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 
 from novacommerce.api.v1.dependencies import DatabaseSession, customer_dependency
+from novacommerce.api.v1.metadata import write_openapi_extra
 from novacommerce.api.v1.write_orders import require_customer
 from novacommerce.auth.context import TrustedCustomerContext
 from novacommerce.idempotency import (
@@ -15,19 +16,27 @@ from novacommerce.idempotency import (
     validate_idempotency_key,
     write_response,
 )
+from novacommerce.schemas.shipments import ShipmentResponse
 from novacommerce.schemas.writes import RescheduleRequest
 from novacommerce.services.writes.reschedule import reschedule_shipment
 
 router = APIRouter(tags=["writes"])
 
 
-@router.post("/orders/{order_id}/reschedule")
+@router.post(
+    "/orders/{order_id}/reschedule",
+    response_model=ShipmentResponse,
+    status_code=200,
+    openapi_extra=write_openapi_extra(),
+)
 async def reschedule_order_route(
     order_id: UUID,
     request: RescheduleRequest,
     session: DatabaseSession,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
-    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    idempotency_key: Annotated[
+        str | None, Header(alias="Idempotency-Key", include_in_schema=False)
+    ] = None,
 ) -> JSONResponse:
     key = validate_idempotency_key(idempotency_key)
     await require_customer(session, context)

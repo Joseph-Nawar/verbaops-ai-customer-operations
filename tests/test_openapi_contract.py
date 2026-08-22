@@ -71,6 +71,25 @@ def test_normalization_is_deterministic_and_closes_references() -> None:
     assert "examples" not in normalized["paths"]["/v1/products/search"]["get"]["parameters"][0]
 
 
+def test_normalization_strips_cosmetic_description_but_preserves_property_name() -> None:
+    changed = deepcopy(document())
+    changed["components"]["schemas"]["Result"]["description"] = "schema prose"
+    changed["components"]["schemas"]["Result"]["properties"]["description"] = {
+        "type": "string",
+        "maxLength": 5000,
+        "description": "property prose",
+    }
+
+    normalized = normalize_openapi(changed)
+    result = normalized["components"]["schemas"]["Result"]
+
+    assert "description" not in result
+    assert result["properties"]["description"] == {
+        "type": "string",
+        "maxLength": 5000,
+    }
+
+
 def test_cosmetic_metadata_does_not_change_contract() -> None:
     changed = deepcopy(document())
     changed["paths"]["/v1/products/search"]["get"]["summary"] = "different"
