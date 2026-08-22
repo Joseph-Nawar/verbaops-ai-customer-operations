@@ -186,6 +186,7 @@ async def test_staging_and_production_seeding_are_refused(
                 Settings(
                     environment=environment,
                     database=DatabaseSettings(url=SecretStr(database_url)),
+                    service_token=SecretStr("m2d-seed-integration-token-" + "x" * 32),
                 ),
                 SeedConfig(),
             )
