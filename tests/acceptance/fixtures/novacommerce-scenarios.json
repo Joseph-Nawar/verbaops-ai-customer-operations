@@ -1,0 +1,39 @@
+{
+  "seed": 20260821,
+  "as_of": "2026-08-21",
+  "fingerprint": "f9c5a32603d7087eb820deffcbf8fdd27324e0fbd677d3f9c4774b335aadacdb",
+  "scenario_ids": {
+    "customer_other": "1e6f81a6-e717-58fa-9418-00f7e268538a",
+    "customer_primary": "d77809e8-6d3b-5792-9128-ff2bc88bc955",
+    "order_already_shipped": "45fd2b63-ce1b-52ae-baf6-96d8cd9f4aa2",
+    "order_cancellable": "54d93c0f-951e-5d74-afdd-80d33d4c8c95",
+    "order_delivered_29d": "530eb837-f66e-56f1-987c-10069776cd97",
+    "order_delivered_30d": "8c7d6358-83b1-5529-affd-6ef024806fde",
+    "order_delivered_31d": "7580b5ce-5c20-5f80-833c-b220f78ea9a3",
+    "order_other_customer": "47bdc99a-fa82-5331-b700-fdc83aec81f0",
+    "order_refund_499_99": "86174036-35f8-5b37-95e7-466ce09a55d8",
+    "order_refund_500_00": "12a3d903-c2bd-5491-ab2a-d713987e59b0",
+    "order_refund_501_00": "161019f2-ecf4-5bf1-8f2a-6ecac63cc0f5",
+    "product_499_99": "d79b6c87-628b-5818-a029-50cd00a2ed77",
+    "product_500_00": "5b3d109a-e5d1-59e7-99ca-b005a6b7ca9d",
+    "product_501_00": "fb0f3f5f-9a1e-5559-9397-ce922ddb6a86",
+    "product_low_stock": "a94efd4a-260b-562a-9aab-b58bdc31e73b",
+    "product_out_of_stock": "95c6cd6d-7813-5412-8dad-e01edd874e84",
+    "product_standard_stock": "fdc7adcd-b31b-5988-9405-02351340f0d5",
+    "slot_available": "811f8d54-7c38-5b43-8c41-bffd27f9bd2d",
+    "slot_full": "92ee8be4-0bb0-5c26-857d-70925605def2",
+    "slot_one_remaining": "45529d1c-3ecc-5553-b27a-1673df22e552"
+  },
+  "overlay_ids": {
+    "customer": "23f695c2-4050-5d12-abf7-247f8906b0c5",
+    "overlay_product": "095d2341-9c29-5ec7-b00c-cb76388ec477",
+    "recent_delivered_order": "5bd5847c-96a5-5403-92d8-6aaa9efa6f3a",
+    "recent_delivered_shipment": "3fc84b56-a83d-5ff7-9856-2f238afe8a24",
+    "recent_order_item": "14e58536-e58b-5b6d-8c28-255de31fe3c5",
+    "reschedulable_order": "c5c3d4a1-9e6b-5e5b-9e1f-e0a63f5ae27b",
+    "reschedulable_order_item": "8c8e6f76-3bb0-5d03-83bc-8a104ca55412",
+    "reschedulable_shipment": "d83df457-3a34-57be-a14c-201f119a4464",
+    "slot_x": "1d2a1c96-225b-53aa-8979-d91272ea6d58",
+    "slot_y": "8e4ed276-fc71-5dff-ad00-ce206e5f2c0c"
+  }
+}

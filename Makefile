@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
 
 sync:
 	$(UV) sync
@@ -47,6 +47,9 @@ commerce-migrate:
 commerce-seed:
 	$(UV) run python scripts/bootstrap_dev_env.py
 	docker compose --profile seed run --build --rm commerce-seed
+
+commerce-acceptance:
+	$(UV) run python scripts/run_commerce_acceptance.py
 
 postgres-contract:
 	$(UV) run python scripts/require_test_database.py

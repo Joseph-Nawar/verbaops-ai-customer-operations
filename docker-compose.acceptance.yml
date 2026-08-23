@@ -1,0 +1,79 @@
+services:
+  commerce-postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: ${ACCEPTANCE_DB_NAME}
+      POSTGRES_USER: ${ACCEPTANCE_DB_USER}
+      POSTGRES_PASSWORD: ${ACCEPTANCE_DB_PASSWORD}
+    volumes:
+      - commerce_acceptance_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  commerce-migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "/app/alembic-commerce.ini", "upgrade", "head"]
+
+  commerce-seed:
+    build:
+      context: .
+      target: seed
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-migrate:
+        condition: service_completed_successfully
+    command: ["--seed", "20260821", "--as-of", "2026-08-21"]
+
+  commerce-fixtures:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+      ACCEPTANCE_SCENARIO_MANIFEST: /acceptance/novacommerce-scenarios.json
+    volumes:
+      - ./scripts/apply_commerce_acceptance_overlay.py:/acceptance/apply_overlay.py:ro
+      - ./tests/acceptance/fixtures/novacommerce-scenarios.json:/acceptance/novacommerce-scenarios.json:ro
+    depends_on:
+      commerce-seed:
+        condition: service_completed_successfully
+    command: ["python", "/acceptance/apply_overlay.py"]
+
+  commerce-api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+      NOVACOMMERCE_SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
+    depends_on:
+      commerce-fixtures:
+        condition: service_completed_successfully
+    command:
+      ["uvicorn", "novacommerce.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${ACCEPTANCE_API_PORT:-18010}:8000"
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  commerce_acceptance_postgres_data:

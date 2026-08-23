@@ -8,11 +8,9 @@ from pydantic import SecretStr
 
 from novacommerce.api.app import create_app
 from novacommerce.config.settings import Environment, Settings
-from scripts.openapi_contract import (
-    collect_references,
-    normalize_openapi,
-    normalized_bytes,
-)
+from scripts.openapi_contract import normalize_openapi, normalized_bytes
+
+__all__ = ["normalize_openapi", "normalized_bytes"]
 
 
 def generate_normalized_openapi() -> bytes:

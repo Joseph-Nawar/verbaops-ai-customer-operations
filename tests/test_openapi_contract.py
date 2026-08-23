@@ -4,9 +4,9 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
+from scripts.normalize_openapi import normalize_openapi, normalized_bytes
 from scripts.openapi_contract import normalize_openapi as pure_normalize_openapi
 from scripts.openapi_contract import normalized_bytes as pure_normalized_bytes
-from scripts.normalize_openapi import normalize_openapi, normalized_bytes
 
 
 def document() -> dict[str, Any]:
