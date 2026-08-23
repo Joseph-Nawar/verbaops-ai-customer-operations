@@ -93,9 +93,13 @@ class LLMSettings(BaseModel):
 
         if not isinstance(data, dict):
             return data
+        if "base_url" not in data:
+            return data
         value = data.get("base_url")
         if not isinstance(value, str):
-            return data
+            sanitized = dict(data)
+            sanitized["base_url"] = "[redacted]"
+            return sanitized
         try:
             parsed = urlsplit(value)
             contains_credentials = (

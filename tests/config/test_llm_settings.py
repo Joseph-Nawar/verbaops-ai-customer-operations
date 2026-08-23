@@ -72,11 +72,12 @@ def test_llm_settings_reject_extra_fields() -> None:
         "https://litellm:4000/v1?api_key=llm-secret",
         "https://[?api_key=llm-secret",
         "https://[#llm-secret",
+        b"https://litellm:4000/v1?api_key=llm-secret",
     ],
 )
-def test_llm_settings_reject_url_credentials_without_echoing_them(base_url: str) -> None:
+def test_llm_settings_reject_url_credentials_without_echoing_them(base_url: object) -> None:
     with pytest.raises(ValidationError) as error:
-        LLMSettings(base_url=base_url)
+        LLMSettings(base_url=cast(Any, base_url))
 
     rendered = (str(error.value), repr(error.value), str(error.value.errors()), error.value.json())
     assert all("llm-user" not in value and "llm-secret" not in value for value in rendered)
