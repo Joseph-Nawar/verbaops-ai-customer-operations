@@ -63,13 +63,20 @@ def test_llm_settings_reject_extra_fields() -> None:
         LLMSettings.model_validate({"unexpected": "value"})
 
 
-def test_llm_settings_reject_url_credentials_without_echoing_them() -> None:
-    sentinel = "pw"
-
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://llm-user:llm-secret@litellm:4000/v1",
+        "https://llm-secret@litellm:4000/v1",
+        "https://:llm-secret@litellm:4000/v1",
+    ],
+)
+def test_llm_settings_reject_url_credentials_without_echoing_them(base_url: str) -> None:
     with pytest.raises(ValidationError) as error:
-        LLMSettings(base_url=f"https://gateway-user:{sentinel}@litellm:4000/v1")
+        LLMSettings(base_url=base_url)
 
-    assert sentinel not in str(error.value)
+    rendered = (str(error.value), repr(error.value), str(error.value.errors()), error.value.json())
+    assert all("llm-user" not in value and "llm-secret" not in value for value in rendered)
 
 
 def test_llm_settings_serialization_cannot_contain_url_credentials() -> None:

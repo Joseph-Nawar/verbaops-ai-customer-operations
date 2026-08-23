@@ -65,6 +65,27 @@ class LLMSettings(BaseModel):
     api_key: SecretStr = SecretStr("local-development-key")
     timeout_seconds: PositiveFloat = 30.0
 
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_url_credentials(cls, data: Any) -> Any:
+        """Replace credential-bearing URLs before Pydantic records an error input."""
+
+        if not isinstance(data, dict):
+            return data
+        value = data.get("base_url")
+        if not isinstance(value, str):
+            return data
+        try:
+            parsed = urlsplit(value)
+            contains_credentials = parsed.username is not None or parsed.password is not None
+        except ValueError:
+            contains_credentials = "@" in value
+        if not contains_credentials:
+            return data
+        sanitized = dict(data)
+        sanitized["base_url"] = "[redacted]"
+        return sanitized
+
     @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, value: str) -> str:
