@@ -88,9 +88,17 @@ async def arrange_future_delivery_slots(engine: AsyncEngine) -> None:
         await connection.execute(
             text(
                 "UPDATE delivery_slots "
-                "SET service_date = service_date + CAST(:offset_days AS INTEGER)"
+                "SET service_date = service_date + CAST(:temporary_offset AS INTEGER)"
             ),
-            {"offset_days": offset_days},
+            {"temporary_offset": 1000},
+        )
+        await connection.execute(
+            text(
+                "UPDATE delivery_slots "
+                "SET service_date = service_date "
+                "+ CAST(:offset_days - :temporary_offset AS INTEGER)"
+            ),
+            {"offset_days": offset_days, "temporary_offset": 1000},
         )
         earliest = (
             await connection.execute(text("SELECT min(service_date) FROM delivery_slots"))
