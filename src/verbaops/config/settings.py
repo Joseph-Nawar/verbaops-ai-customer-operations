@@ -3,7 +3,16 @@
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
@@ -42,6 +51,33 @@ class RedisSettings(BaseModel):
     url: SecretStr | None = None
 
 
+class LLMSettings(BaseModel):
+    """Immutable connection settings for the OpenAI-compatible LLM gateway."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+
+    base_url: str = "http://localhost:4000/v1"
+    api_key: SecretStr = SecretStr("local-development-key")
+    timeout_seconds: PositiveFloat = 30.0
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """Require an absolute HTTP(S) gateway URL without exposing credentials."""
+
+        AnyHttpUrl(value)
+        return value
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key(cls, value: SecretStr) -> SecretStr:
+        """Reject blank credentials while keeping the value secret."""
+
+        if not value.get_secret_value().strip():
+            raise ValueError("api_key must not be blank")
+        return value
+
+
 class ObservabilitySettings(BaseModel):
     """Configuration for future observability integrations."""
 
@@ -65,6 +101,7 @@ class Settings(BaseSettings):
     environment: Environment = Environment.DEVELOPMENT
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod

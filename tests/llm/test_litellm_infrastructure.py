@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).parents[2]
 NORMAL_CONFIG = ROOT / "infra" / "litellm" / "config.yaml"
 TEST_CONFIG = ROOT / "infra" / "litellm" / "config.test.yaml"
@@ -33,7 +32,10 @@ def test_test_config_routes_agent_fast_to_local_provider_without_external_creden
 def test_compose_pins_stable_litellm_image_and_contains_only_local_gateway_services() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
 
-    assert "ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4" in text
+    assert (
+        "ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4"
+        in text
+    )
     assert "latest" not in text.lower()
     assert "-rc" not in text.lower()
     assert "provider-stub:" in text

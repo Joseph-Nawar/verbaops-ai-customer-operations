@@ -9,7 +9,6 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-
 API_KEY = os.environ.get("PROVIDER_TEST_API_KEY", "local-test-provider-key")
 
 
@@ -24,9 +23,7 @@ def _content_text(messages: list[dict[str, Any]]) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return " ".join(
-            str(part.get("text", "")) for part in content if isinstance(part, dict)
-        )
+        return " ".join(str(part.get("text", "")) for part in content if isinstance(part, dict))
     return ""
 
 
@@ -102,7 +99,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/health":
             self._send(HTTPStatus.OK, {"status": "ok"})
         elif self.path == "/v1/models":
@@ -111,11 +108,15 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 {"object": "list", "data": [{"id": "local-test-model", "object": "model"}]},
             )
         else:
-            self._send(HTTPStatus.NOT_FOUND, _error("not found", "invalid_request_error", "not_found"))
+            self._send(
+                HTTPStatus.NOT_FOUND, _error("not found", "invalid_request_error", "not_found")
+            )
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         if self.path != "/v1/chat/completions":
-            self._send(HTTPStatus.NOT_FOUND, _error("not found", "invalid_request_error", "not_found"))
+            self._send(
+                HTTPStatus.NOT_FOUND, _error("not found", "invalid_request_error", "not_found")
+            )
             return
         if self.headers.get("Authorization") != f"Bearer {API_KEY}":
             self._send(
@@ -127,7 +128,10 @@ class ProviderHandler(BaseHTTPRequestHandler):
         try:
             request = json.loads(self.rfile.read(length))
         except (json.JSONDecodeError, UnicodeDecodeError):
-            self._send(HTTPStatus.BAD_REQUEST, _error("invalid JSON", "invalid_request_error", "invalid_json"))
+            self._send(
+                HTTPStatus.BAD_REQUEST,
+                _error("invalid JSON", "invalid_request_error", "invalid_json"),
+            )
             return
         if "test:malformed" in _content_text(request.get("messages", [])):
             self._send(HTTPStatus.OK, {}, raw=b"{not-json")
