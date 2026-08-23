@@ -96,7 +96,8 @@ async def arrange_future_delivery_slots(engine: AsyncEngine) -> None:
             text(
                 "UPDATE delivery_slots "
                 "SET service_date = service_date "
-                "+ CAST(:offset_days - :temporary_offset AS INTEGER)"
+                "+ CAST(:offset_days AS INTEGER) "
+                "- CAST(:temporary_offset AS INTEGER)"
             ),
             {"offset_days": offset_days, "temporary_offset": 1000},
         )
