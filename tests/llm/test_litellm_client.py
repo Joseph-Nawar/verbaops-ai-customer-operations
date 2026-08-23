@@ -320,9 +320,9 @@ async def test_gateway_auth_error_payload_on_bad_request_is_mapped_to_authentica
             400,
             json={
                 "error": {
-                    "message": "Invalid API key",
-                    "type": "authentication_error",
-                    "code": "invalid_api_key",
+                    "message": "No connected db.",
+                    "type": "no_db_connection",
+                    "code": "400",
                 }
             },
         )

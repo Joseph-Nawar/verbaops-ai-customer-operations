@@ -130,7 +130,8 @@ class LiteLLMClient(LLMClient):
             if isinstance(value := error.get(key), str)
         )
         return any(
-            marker in details for marker in ("auth", "api key", "unauthorized", "credential")
+            marker in details
+            for marker in ("auth", "api key", "unauthorized", "credential", "no_db")
         )
 
     def _parse_response(
