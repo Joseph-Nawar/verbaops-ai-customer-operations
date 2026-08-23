@@ -1,6 +1,7 @@
 """Immutable, application-owned LLM request and response models."""
 
 import json
+from copy import deepcopy
 from enum import StrEnum
 from typing import Any, Literal, TypeVar
 
@@ -155,11 +156,50 @@ class StructuredResponse[T](BaseModel):
     def response_format(cls, response_model: type[BaseModel]) -> dict[str, Any]:
         """Build the strict OpenAI JSON-schema response format for a model."""
 
+        schema = cls._make_strict_schema(response_model.model_json_schema())
         return {
             "type": "json_schema",
             "json_schema": {
                 "name": response_model.__name__,
                 "strict": True,
-                "schema": response_model.model_json_schema(),
+                "schema": schema,
             },
         }
+
+    @classmethod
+    def _make_strict_schema(cls, schema: dict[str, Any]) -> dict[str, Any]:
+        """Convert a Pydantic schema into the strict object form accepted by gateways."""
+
+        result = deepcopy(schema)
+        cls._make_strict_schema_node(result)
+        return result
+
+    @classmethod
+    def _make_strict_schema_node(cls, schema: dict[str, Any]) -> None:
+        """Apply strictness recursively without changing the caller-owned schema."""
+
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            schema["additionalProperties"] = False
+            schema["required"] = list(properties)
+            for property_schema in properties.values():
+                if isinstance(property_schema, dict):
+                    cls._make_strict_schema_node(property_schema)
+
+        items = schema.get("items")
+        if isinstance(items, dict):
+            cls._make_strict_schema_node(items)
+
+        for key in ("anyOf", "oneOf", "allOf", "prefixItems"):
+            alternatives = schema.get(key)
+            if isinstance(alternatives, list):
+                for alternative in alternatives:
+                    if isinstance(alternative, dict):
+                        cls._make_strict_schema_node(alternative)
+
+        for definitions_key in ("$defs", "definitions"):
+            definitions = schema.get(definitions_key)
+            if isinstance(definitions, dict):
+                for definition in definitions.values():
+                    if isinstance(definition, dict):
+                        cls._make_strict_schema_node(definition)

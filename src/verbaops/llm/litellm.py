@@ -157,19 +157,20 @@ class LiteLLMClient(LLMClient):
 
         content = self._optional_string(message.get("content"))
         tool_calls = self._parse_tool_calls(message.get("tool_calls"))
-        request_id = response.headers.get("x-request-id")
-        if request_id is None:
-            request_id = self._optional_string(payload.get("id"))
+        request_id = self._first_header(response, "x-litellm-call-id", "x-request-id")
+        model = self._first_header(response, "x-litellm-model-id", "x-litellm-model-name")
+        if model is None:
+            model = self._optional_string(payload.get("model"))
         metadata = ResponseMetadata(
             capability_alias=capability_alias,
             request_id=request_id,
-            model=self._optional_string(payload.get("model")),
+            model=model,
             provider=self._provider(payload),
             input_tokens=self._usage_value(payload, "prompt_tokens"),
             output_tokens=self._usage_value(payload, "completion_tokens"),
             total_tokens=self._usage_value(payload, "total_tokens"),
             latency_ms=latency_ms,
-            cost=self._cost(payload),
+            cost=self._cost(payload, response),
             finish_reason=self._optional_string(choice.get("finish_reason")),
         )
         return GenerateResponse(content=content, metadata=metadata, tool_calls=tool_calls)
@@ -191,6 +192,8 @@ class LiteLLMClient(LLMClient):
         tool_calls: list[ToolCall] = []
         for item in value:
             if not isinstance(item, dict):
+                raise LLMProtocolError()
+            if item.get("type") != "function":
                 raise LLMProtocolError()
             function = item.get("function")
             if not isinstance(function, dict):
@@ -229,7 +232,28 @@ class LiteLLMClient(LLMClient):
             return self._optional_string(payload["litellm_provider"])
         return None
 
-    def _cost(self, payload: dict[str, Any]) -> float | None:
+    @staticmethod
+    def _first_header(response: httpx.Response, *names: str) -> str | None:
+        """Return the first valid gateway metadata header, if supplied."""
+
+        for name in names:
+            value = response.headers.get(name)
+            if value is not None:
+                if not isinstance(value, str) or not value:
+                    raise LLMProtocolError()
+                return value
+        return None
+
+    def _cost(self, payload: dict[str, Any], response: httpx.Response) -> float | None:
+        header_value = response.headers.get("x-litellm-response-cost-original")
+        if header_value is not None:
+            try:
+                value = float(header_value)
+            except ValueError:
+                raise LLMProtocolError() from None
+            if value < 0:
+                raise LLMProtocolError()
+            return value
         if "response_cost" in payload:
             value = payload["response_cost"]
         elif "cost" in payload:
@@ -239,5 +263,7 @@ class LiteLLMClient(LLMClient):
         if value is None:
             return None
         if isinstance(value, bool) or not isinstance(value, int | float):
+            raise LLMProtocolError()
+        if value < 0:
             raise LLMProtocolError()
         return float(value)

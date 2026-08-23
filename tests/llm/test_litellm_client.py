@@ -119,7 +119,11 @@ async def test_generate_serializes_exact_request_and_normalizes_gateway_response
         }
         return httpx.Response(
             200,
-            headers={"x-request-id": "gateway-header-id"},
+            headers={
+                "x-litellm-call-id": "gateway-call-id",
+                "x-litellm-model-id": "gateway-model-id",
+                "x-litellm-response-cost-original": "0.0035",
+            },
             json={
                 "id": "gateway-body-id",
                 "model": "gateway-model",
@@ -157,15 +161,15 @@ async def test_generate_serializes_exact_request_and_normalizes_gateway_response
     assert response.tool_calls[0].id == "call-1"
     assert response.tool_calls[0].name == "lookup_order"
     assert response.tool_calls[0].arguments == {"order_id": "ORD-1"}
-    assert response.metadata.request_id == "gateway-header-id"
+    assert response.metadata.request_id == "gateway-call-id"
     assert response.metadata.capability_alias is CapabilityAlias.AGENT_FAST
-    assert response.metadata.model == "gateway-model"
+    assert response.metadata.model == "gateway-model-id"
     assert response.metadata.provider == "gateway-provider"
     assert response.metadata.input_tokens == 11
     assert response.metadata.output_tokens == 7
     assert response.metadata.total_tokens == 18
     assert response.metadata.latency_ms == pytest.approx(123.0)
-    assert response.metadata.cost == 0.0025
+    assert response.metadata.cost == 0.0035
     assert response.metadata.finish_reason == "tool_calls"
 
 
@@ -208,11 +212,12 @@ async def test_generate_structured_sends_strict_schema_and_parses_pydantic_data(
             "json_schema": {
                 "name": "TicketAnswer",
                 "strict": True,
-                "schema": TicketAnswer.model_json_schema(),
+                "schema": {**TicketAnswer.model_json_schema(), "additionalProperties": False},
             },
         }
         return httpx.Response(
             200,
+            headers={"x-request-id": "structured-gateway-id"},
             json={
                 "id": "structured-response",
                 "choices": [
@@ -227,7 +232,7 @@ async def test_generate_structured_sends_strict_schema_and_parses_pydantic_data(
     response = await make_client(handler).generate_structured(make_request(), TicketAnswer)
 
     assert response.data == TicketAnswer(status="open", message="We are checking.")
-    assert response.metadata.request_id == "structured-response"
+    assert response.metadata.request_id == "structured-gateway-id"
     assert response.metadata.finish_reason == "stop"
     assert response.tool_calls == ()
 
@@ -252,6 +257,24 @@ async def test_generate_structured_sends_strict_schema_and_parses_pydantic_data(
                                         "name": "lookup_order",
                                         "arguments": "not-json",
                                     },
+                                }
+                            ],
+                        }
+                    }
+                ]
+            },
+            None,
+        ),
+        (
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call-1",
+                                    "function": {"name": "lookup_order", "arguments": "{}"},
                                 }
                             ],
                         }

@@ -18,6 +18,24 @@ class LLMGatewayContractError(RuntimeError):
     """Raised when a disposable gateway contract lifecycle command fails."""
 
 
+def _redact_output(value: str) -> str:
+    """Keep failure diagnostics useful without echoing credentials or auth headers."""
+
+    secrets = {
+        GATEWAY_API_KEY,
+        environ.get("VERBAOPS_LLM__API_KEY", ""),
+        environ.get("OPENAI_API_KEY", ""),
+        environ.get("ANTHROPIC_API_KEY", ""),
+    }
+    redacted = value
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "[redacted]")
+    redacted = re.sub(r"(?i)(authorization:\s*bearer\s+)[^\s;]+", r"\1[redacted]", redacted)
+    redacted = re.sub(r"(?i)(https?://)[^/\s:@]+:[^@\s]+@", r"\1[redacted]@", redacted)
+    return redacted[-4000:]
+
+
 def run_command(command: Sequence[str], *, env: dict[str, str] | None = None) -> str:
     """Run one contract lifecycle command without exposing its captured output."""
 
@@ -30,8 +48,10 @@ def run_command(command: Sequence[str], *, env: dict[str, str] | None = None) ->
         text=True,
     )
     if completed.returncode != 0:
+        diagnostics = _redact_output(f"{completed.stdout}\n{completed.stderr}").strip()
+        suffix = f"\n{diagnostics}" if diagnostics else ""
         raise LLMGatewayContractError(
-            f"LLM gateway contract command failed with exit {completed.returncode}"
+            f"LLM gateway contract command failed with exit {completed.returncode}{suffix}"
         )
     return completed.stdout
 

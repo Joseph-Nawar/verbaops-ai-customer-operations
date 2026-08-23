@@ -112,6 +112,16 @@ def test_runner_preserves_primary_and_teardown_failures(
     }
 
 
+def test_runner_failure_diagnostics_redact_credentials() -> None:
+    error = runner._redact_output(
+        "Authorization: Bearer sk-test-gateway https://user:secret@gateway.example/v1"
+    )
+
+    assert "sk-test-gateway" not in error
+    assert "user:secret" not in error
+    assert "[redacted]" in error
+
+
 def test_compose_command_uses_the_repository_gateway_stack() -> None:
     command = runner.compose_command("gateway-test", "down")
 

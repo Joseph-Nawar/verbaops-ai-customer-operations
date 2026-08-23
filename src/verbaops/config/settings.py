@@ -91,8 +91,9 @@ class LLMSettings(BaseModel):
     def sanitize_url_credentials(cls, data: Any) -> Any:
         """Replace credential-bearing URLs before Pydantic records an error input."""
 
-        if not isinstance(data, dict):
+        if not isinstance(data, Mapping):
             return data
+        data = dict(data)
         if "base_url" not in data:
             return data
         value = data.get("base_url")

@@ -65,7 +65,10 @@ async def test_real_proxy_generates_plain_text_through_verbaops_client() -> None
 
     assert response.content == "deterministic-stub-response"
     assert response.metadata.capability_alias is CapabilityAlias.AGENT_FAST
+    assert response.metadata.request_id is not None
     assert response.metadata.model is not None
+    assert response.metadata.model != CapabilityAlias.AGENT_FAST.value
+    assert response.metadata.cost is not None
     assert response.metadata.latency_ms is not None
 
 

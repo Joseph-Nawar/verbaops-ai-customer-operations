@@ -112,7 +112,10 @@ def test_structured_response_format_is_strict_json_schema() -> None:
         "json_schema": {
             "name": "TicketAnswer",
             "strict": True,
-            "schema": TicketAnswer.model_json_schema(),
+            "schema": {
+                **TicketAnswer.model_json_schema(),
+                "additionalProperties": False,
+            },
         },
     }
 
