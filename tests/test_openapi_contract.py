@@ -4,6 +4,8 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
+from scripts.openapi_contract import normalize_openapi as pure_normalize_openapi
+from scripts.openapi_contract import normalized_bytes as pure_normalized_bytes
 from scripts.normalize_openapi import normalize_openapi, normalized_bytes
 
 
@@ -155,3 +157,8 @@ def test_stale_snapshot_is_detectable_without_mutating_expected_bytes() -> None:
 
     assert normalized_bytes(changed) != expected
     assert expected == normalized_bytes(document())
+
+
+def test_pure_contract_module_matches_backward_compatible_exports() -> None:
+    assert pure_normalize_openapi(document()) == normalize_openapi(document())
+    assert pure_normalized_bytes(document()) == normalized_bytes(document())
