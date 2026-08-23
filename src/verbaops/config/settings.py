@@ -2,6 +2,7 @@
 
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
+from urllib.parse import urlsplit
 
 from pydantic import (
     AnyHttpUrl,
@@ -65,6 +66,12 @@ class LLMSettings(BaseModel):
     def validate_base_url(cls, value: str) -> str:
         """Require an absolute HTTP(S) gateway URL without exposing credentials."""
 
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            raise ValueError("base_url must be an absolute HTTP(S) URL") from None
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("base_url must not contain credentials")
         AnyHttpUrl(value)
         return value
 

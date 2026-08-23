@@ -63,6 +63,24 @@ def test_llm_settings_reject_extra_fields() -> None:
         LLMSettings.model_validate({"unexpected": "value"})
 
 
+def test_llm_settings_reject_url_credentials_without_echoing_them() -> None:
+    sentinel = "embedded-url-secret"
+
+    with pytest.raises(ValidationError) as error:
+        LLMSettings(base_url=f"https://gateway-user:{sentinel}@litellm:4000/v1")
+
+    assert sentinel not in str(error.value)
+
+
+def test_llm_settings_serialization_cannot_contain_url_credentials() -> None:
+    settings = LLMSettings(base_url="https://litellm:4000/v1", api_key=SecretStr("api-secret"))
+
+    serialized = f"{settings!r} {settings} {settings.model_dump_json()}"
+
+    assert "api-secret" not in serialized
+    assert "@litellm" not in serialized
+
+
 def test_llm_settings_reject_nested_extra_environment_variables(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

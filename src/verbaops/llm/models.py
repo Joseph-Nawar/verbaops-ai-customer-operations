@@ -117,6 +117,7 @@ class ResponseMetadata(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    capability_alias: CapabilityAlias | None = None
     request_id: str | None = None
     model: str | None = None
     provider: str | None = None

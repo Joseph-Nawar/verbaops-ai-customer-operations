@@ -125,6 +125,7 @@ def test_structured_response_format_is_strict_json_schema() -> None:
 def test_response_metadata_fields_are_nullable() -> None:
     metadata = ResponseMetadata()
 
+    assert metadata.capability_alias is None
     assert metadata.request_id is None
     assert metadata.model is None
     assert metadata.provider is None
@@ -134,6 +135,12 @@ def test_response_metadata_fields_are_nullable() -> None:
     assert metadata.latency_ms is None
     assert metadata.cost is None
     assert metadata.finish_reason is None
+
+
+def test_response_metadata_retains_capability_alias() -> None:
+    metadata = ResponseMetadata(capability_alias=CapabilityAlias.AGENT_FAST)
+
+    assert metadata.capability_alias is CapabilityAlias.AGENT_FAST
 
 
 def test_llm_models_are_frozen_and_reject_extra_fields() -> None:
