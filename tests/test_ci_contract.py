@@ -109,9 +109,11 @@ def test_hosted_postgres_jobs_have_exact_marker_passes_and_isolated_services() -
     assert "name: postgres-concurrency" in text
     assert text.count("image: postgres:16") + text.count("image: postgres:16.6-alpine") >= 2
     assert text.count("NOVACOMMERCE_TEST_DATABASE_URL:") >= 2
-    assert text.count('uv run pytest -m "postgres and contract"') == 1
-    assert text.count('uv run pytest -m "postgres and concurrency"') == 1
-    assert text.count('uv run pytest -m "postgres and concurrency and critical_race"') == 2
+    assert text.count('uv run pytest -m "postgres and contract and not m3b"') == 1
+    assert text.count('uv run pytest -m "postgres and concurrency and not m3b"') == 1
+    assert (
+        text.count('uv run pytest -m "postgres and concurrency and critical_race and not m3b"') == 2
+    )
     assert "alembic -c alembic-commerce.ini upgrade head" in text
     assert "health-cmd" in text
     assert "continue-on-error" not in text

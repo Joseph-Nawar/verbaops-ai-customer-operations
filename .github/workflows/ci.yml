@@ -105,7 +105,7 @@ jobs:
         run: uv run pytest tests/test_postgres_classification.py -q
 
       - name: Run PostgreSQL contract suite
-        run: uv run pytest -m "postgres and contract"
+        run: uv run pytest -m "postgres and contract and not m3b"
 
   postgres-concurrency:
     name: postgres-concurrency
@@ -154,13 +154,58 @@ jobs:
         run: uv run pytest tests/test_postgres_classification.py -q
 
       - name: Run PostgreSQL concurrency suite
-        run: uv run pytest -m "postgres and concurrency"
+        run: uv run pytest -m "postgres and concurrency and not m3b"
 
       - name: Repeat critical race suite 2
-        run: uv run pytest -m "postgres and concurrency and critical_race"
+        run: uv run pytest -m "postgres and concurrency and critical_race and not m3b"
 
       - name: Repeat critical race suite 3
-        run: uv run pytest -m "postgres and concurrency and critical_race"
+        run: uv run pytest -m "postgres and concurrency and critical_race and not m3b"
+
+  postgres-m3b:
+    name: postgres-m3b
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_USER: verbaops_test
+          POSTGRES_PASSWORD: verbaops_test_password
+          POSTGRES_DB: verbaops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verbaops_test -d verbaops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      VERBAOPS_DATABASE__URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5432/verbaops_test
+      NOVACOMMERCE_TEST_DATABASE_URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5432/verbaops_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply VerbaOps migrations
+        run: uv run alembic upgrade head
+
+      - name: Run M3B PostgreSQL persistence suite
+        run: uv run pytest -m "postgres and m3b"
 
   docker-build:
     name: docker-build
