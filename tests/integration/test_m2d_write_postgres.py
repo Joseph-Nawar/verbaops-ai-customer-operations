@@ -78,6 +78,26 @@ async def clear_database(engine: AsyncEngine) -> None:
             await connection.execute(text(f"DELETE FROM {table}"))
 
 
+async def arrange_future_delivery_slots(engine: AsyncEngine) -> None:
+    """Keep M2D slot-write tests independent of the canonical seed date."""
+
+    today = datetime.now(UTC).date()
+    seed_as_of = SeedConfig().as_of
+    offset_days = max(1, (today - seed_as_of).days)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                "UPDATE delivery_slots "
+                "SET service_date = service_date + CAST(:offset_days AS INTEGER)"
+            ),
+            {"offset_days": offset_days},
+        )
+        earliest = (
+            await connection.execute(text("SELECT min(service_date) FROM delivery_slots"))
+        ).scalar_one()
+    assert earliest > today
+
+
 @pytest_asyncio.fixture
 async def live_app(database_url: str, engine: AsyncEngine) -> AsyncIterator[Any]:
     await clear_database(engine)
@@ -87,6 +107,7 @@ async def live_app(database_url: str, engine: AsyncEngine) -> AsyncIterator[Any]
         service_token=SecretStr(TOKEN),
     )
     await seed_database(settings, SeedConfig())
+    await arrange_future_delivery_slots(engine)
     app = create_app(settings=settings)
     async with app.router.lifespan_context(app):
         yield app
