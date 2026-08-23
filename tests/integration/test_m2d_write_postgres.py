@@ -1475,7 +1475,7 @@ async def test_m2d_postgres_final_returnable_quantity_race(
         "AND r.status IN ('requested', 'approved', 'received', 'completed')",
         order_id=order_id,
     )
-    assert returned_quantity <= 1
+    assert returned_quantity == 1
     after = await counts(engine)
     assert after["commerce_events"] - before["commerce_events"] == 1
 

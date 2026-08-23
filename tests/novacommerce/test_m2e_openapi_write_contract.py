@@ -57,16 +57,17 @@ def test_raw_openapi_documents_write_success_status_and_response_models() -> Non
 
 def test_raw_openapi_documents_customer_and_idempotency_headers_as_required() -> None:
     spec = raw_openapi()
-    customer_paths = {
-        "/v1/customers/{customer_id}",
-        "/v1/orders/{order_id}",
-        "/v1/orders/{order_id}/shipment",
-        "/v1/orders/{order_id}/refunds",
-        "/v1/orders",
-        "/v1/orders/{order_id}/cancel",
-        "/v1/orders/{order_id}/reschedule",
-        "/v1/returns",
-        "/v1/support-tickets",
+    customer_operations = {
+        ("/v1/customers/{customer_id}", "get"),
+        ("/v1/orders/{order_id}", "get"),
+        ("/v1/orders/{order_id}/shipment", "get"),
+        ("/v1/orders/{order_id}/refunds", "get"),
+        ("/v1/orders", "post"),
+        ("/v1/orders/{order_id}/cancel", "post"),
+        ("/v1/orders/{order_id}/reschedule", "post"),
+        ("/v1/returns", "post"),
+        ("/v1/orders/{order_id}/refunds", "post"),
+        ("/v1/support-tickets", "post"),
     }
     write_paths = {
         "/v1/orders",
@@ -77,8 +78,7 @@ def test_raw_openapi_documents_customer_and_idempotency_headers_as_required() ->
         "/v1/support-tickets",
     }
 
-    for path in customer_paths:
-        method = "post" if path in write_paths else "get"
+    for path, method in customer_operations:
         assert (
             header_parameter(operation(spec, path, method), "X-VerbaOps-Customer-ID")["required"]
             is True
