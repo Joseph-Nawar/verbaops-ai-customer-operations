@@ -29,7 +29,9 @@ async def service_dependency(
 async def customer_dependency(
     request: Request,
     _: Annotated[str, Depends(service_dependency)],
-    customer_header: Annotated[str | None, Header(alias="X-VerbaOps-Customer-ID")] = None,
+    customer_header: Annotated[
+        str | None, Header(alias="X-VerbaOps-Customer-ID", include_in_schema=False)
+    ] = None,
 ) -> TrustedCustomerContext:
     del request
     return parse_customer_context(customer_header)

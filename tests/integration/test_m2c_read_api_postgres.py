@@ -19,7 +19,7 @@ from novacommerce.seed.config import SeedConfig
 from novacommerce.seed.ids import scenario_uuid
 from novacommerce.seed.service import seed_database
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.contract]
 
 TOKEN = "m2c-integration-token-" + "x" * 32
 TABLES = (

@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 WORKFLOW = Path(".github/workflows/ci.yml")
+MAKEFILE = Path("Makefile")
 
 
 def workflow_text() -> str:
@@ -46,13 +47,16 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff check ." in text
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
-    assert "uv run pytest --cov=verbaops --cov=novacommerce --cov-report=term-missing" in text
+    assert (
+        'uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
+        in text
+    )
     assert "--cov=novacommerce" in text
     assert "uv run pre-commit run --all-files" in text
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")
-    assert text.index("uv run mypy src tests") < text.index("uv run pytest --cov=verbaops")
-    assert text.index("uv run pytest --cov=verbaops") < text.index(
+    assert text.index("uv run mypy src tests") < text.index('uv run pytest -m "not postgres"')
+    assert text.index('uv run pytest -m "not postgres"') < text.index(
         "uv run pre-commit run --all-files"
     )
     assert "0.12.5" in text
@@ -63,9 +67,55 @@ def test_ci_docker_job_is_quality_gated_and_does_not_publish() -> None:
     text = workflow_text()
 
     assert "docker-build:" in text
-    assert "needs: quality" in text
+    assert "needs: [quality, postgres-contract, postgres-concurrency]" in text
     assert "docker build --target runtime -t verbaops:ci ." in text
     assert "docker/build-push-action" not in text
     assert "docker login" not in text
     assert "docker push" not in text
     assert "docker compose" not in text
+
+
+def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
+    text = MAKEFILE.read_text(encoding="utf-8")
+
+    assert '$(UV) run pytest -m "not postgres"' in text
+    assert "postgres-contract:" in text
+    assert "postgres-concurrency:" in text
+    assert "postgres-critical-race:" in text
+    assert "commerce-contract-check:" in text
+    assert "commerce-contract-update:" in text
+    assert "scripts/require_test_database.py" in text
+
+
+def test_postgres_targets_require_external_test_database_url() -> None:
+    script = Path("scripts/require_test_database.py").read_text(encoding="utf-8")
+    assert "NOVACOMMERCE_TEST_DATABASE_URL" in script
+    assert "postgresql+asyncpg://" in script
+    assert "raise SystemExit" in script
+
+
+def test_hosted_postgres_jobs_have_exact_marker_passes_and_isolated_services() -> None:
+    text = workflow_text()
+
+    assert "postgres-contract:" in text
+    assert "postgres-concurrency:" in text
+    assert "name: postgres-contract" in text
+    assert "name: postgres-concurrency" in text
+    assert text.count("image: postgres:16") + text.count("image: postgres:16.6-alpine") >= 2
+    assert text.count("NOVACOMMERCE_TEST_DATABASE_URL:") >= 2
+    assert text.count('uv run pytest -m "postgres and contract"') == 1
+    assert text.count('uv run pytest -m "postgres and concurrency"') == 1
+    assert text.count('uv run pytest -m "postgres and concurrency and critical_race"') == 2
+    assert "alembic -c alembic-commerce.ini upgrade head" in text
+    assert "health-cmd" in text
+    assert "continue-on-error" not in text
+    assert "rerunfailures" not in text
+    assert "pytest-rerunfailures" not in text
+
+
+def test_quality_uses_normal_database_independent_path_and_contract_check() -> None:
+    text = workflow_text()
+
+    assert 'uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce' in text
+    assert "uv run mypy src tests scripts" in text
+    assert "make commerce-contract-check" in text

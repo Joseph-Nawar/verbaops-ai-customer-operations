@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from novacommerce.api.dependencies import get_database_session
 from novacommerce.api.errors import APIError
 from novacommerce.api.v1.dependencies import customer_dependency
+from novacommerce.api.v1.metadata import customer_openapi_extra
 from novacommerce.auth.context import TrustedCustomerContext
 from novacommerce.schemas.orders import OrderItemResponse, OrderResponse
 from novacommerce.schemas.refunds import RefundResponse
@@ -18,7 +19,11 @@ from novacommerce.services.orders import get_owned_order, get_owned_refunds, get
 router = APIRouter(tags=["orders"])
 
 
-@router.get("/orders/{order_id}", response_model=OrderResponse)
+@router.get(
+    "/orders/{order_id}",
+    response_model=OrderResponse,
+    openapi_extra=customer_openapi_extra(),
+)
 async def get_order(
     order_id: UUID,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
@@ -49,7 +54,11 @@ async def get_order(
     )
 
 
-@router.get("/orders/{order_id}/shipment", response_model=ShipmentResponse)
+@router.get(
+    "/orders/{order_id}/shipment",
+    response_model=ShipmentResponse,
+    openapi_extra=customer_openapi_extra(),
+)
 async def get_shipment(
     order_id: UUID,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
@@ -64,7 +73,11 @@ async def get_shipment(
     return ShipmentResponse.model_validate(shipment)
 
 
-@router.get("/orders/{order_id}/refunds", response_model=list[RefundResponse])
+@router.get(
+    "/orders/{order_id}/refunds",
+    response_model=list[RefundResponse],
+    openapi_extra=customer_openapi_extra(),
+)
 async def get_refunds(
     order_id: UUID,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],

@@ -13,7 +13,7 @@ from novacommerce.config.settings import DatabaseSettings, Environment, Settings
 from novacommerce.seed.config import SeedConfig
 from novacommerce.seed.service import SeedResult, SeedServiceError, seed_database
 
-pytestmark = pytest.mark.integration
+pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.contract]
 
 TABLES = (
     "commerce_events",
