@@ -171,6 +171,8 @@ class StructuredResponse[T](BaseModel):
         """Convert a Pydantic schema into the strict object form accepted by gateways."""
 
         result = deepcopy(schema)
+        if result.get("type") != "object" or not isinstance(result.get("properties"), dict):
+            raise ValueError("structured response models must have an object root schema")
         cls._make_strict_schema_node(result)
         return result
 
@@ -178,6 +180,10 @@ class StructuredResponse[T](BaseModel):
     def _make_strict_schema_node(cls, schema: dict[str, Any]) -> None:
         """Apply strictness recursively without changing the caller-owned schema."""
 
+        schema.pop("default", None)
+        additional_properties = schema.get("additionalProperties")
+        if isinstance(additional_properties, dict) or additional_properties is True:
+            raise ValueError("mapping fields are not supported in strict structured schemas")
         properties = schema.get("properties")
         if isinstance(properties, dict):
             schema["additionalProperties"] = False

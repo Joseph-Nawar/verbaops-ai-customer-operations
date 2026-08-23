@@ -355,6 +355,35 @@ async def test_gateway_auth_error_payload_on_bad_request_is_mapped_to_authentica
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("cost", ["nan", "inf", "-inf"])
+async def test_non_finite_gateway_cost_metadata_is_rejected(cost: str) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"x-litellm-response-cost-original": cost},
+            json={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+    with pytest.raises(LLMProtocolError):
+        await make_client(handler).generate(make_request())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cost", [float("nan"), float("inf"), float("-inf")])
+async def test_non_finite_body_cost_metadata_is_rejected(cost: float) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            content=json.dumps(
+                {"response_cost": cost, "choices": [{"message": {"content": "ok"}}]}
+            ).encode(),
+        )
+
+    with pytest.raises(LLMProtocolError):
+        await make_client(handler).generate(make_request())
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("transport_error", "error_type"),
     [

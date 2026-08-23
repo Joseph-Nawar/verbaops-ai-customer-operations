@@ -3,7 +3,7 @@
 from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, RootModel, ValidationError
 
 from verbaops.llm.models import (
     CapabilityAlias,
@@ -104,6 +104,11 @@ class TicketAnswer(BaseModel):
     message: str
 
 
+class NestedAnswer(BaseModel):
+    details: TicketAnswer
+    note: str | None = None
+
+
 def test_structured_response_format_is_strict_json_schema() -> None:
     response_format = StructuredResponse.response_format(TicketAnswer)
 
@@ -123,6 +128,27 @@ def test_structured_response_format_is_strict_json_schema() -> None:
         data=TicketAnswer(status="open", message="We are checking."),
     )
     assert response.data.status == "open"
+
+
+def test_strict_schema_conversion_is_recursive_and_removes_defaults() -> None:
+    schema = StructuredResponse.response_format(NestedAnswer)["json_schema"]["schema"]
+
+    assert schema["required"] == ["details", "note"]
+    assert "default" not in schema["properties"]["note"]
+    assert schema["$defs"]["TicketAnswer"]["additionalProperties"] is False
+
+
+def test_strict_schema_rejects_mapping_fields_and_non_object_roots() -> None:
+    class MappingAnswer(BaseModel):
+        labels: dict[str, str]
+
+    class RootAnswer(RootModel[list[str]]):
+        pass
+
+    with pytest.raises(ValueError, match="mapping fields"):
+        StructuredResponse.response_format(MappingAnswer)
+    with pytest.raises(ValueError, match="object root"):
+        StructuredResponse.response_format(RootAnswer)
 
 
 def test_response_metadata_fields_are_nullable() -> None:

@@ -1,6 +1,7 @@
 """HTTP-only LiteLLM gateway adapter using the OpenAI chat-completions API."""
 
 import json
+import math
 from time import perf_counter
 from typing import Any
 
@@ -251,7 +252,7 @@ class LiteLLMClient(LLMClient):
                 value = float(header_value)
             except ValueError:
                 raise LLMProtocolError() from None
-            if value < 0:
+            if not math.isfinite(value) or value < 0:
                 raise LLMProtocolError()
             return value
         if "response_cost" in payload:
@@ -264,6 +265,6 @@ class LiteLLMClient(LLMClient):
             return None
         if isinstance(value, bool) or not isinstance(value, int | float):
             raise LLMProtocolError()
-        if value < 0:
+        if not math.isfinite(float(value)) or value < 0:
             raise LLMProtocolError()
         return float(value)
