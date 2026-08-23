@@ -1,10 +1,17 @@
 """Tests for deterministic NovaCommerce OpenAPI contract normalization."""
 
+import subprocess
+import sys
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import pytest
 from scripts.normalize_openapi import normalize_openapi, normalized_bytes
+from scripts.openapi_contract import normalize_openapi as pure_normalize_openapi
+from scripts.openapi_contract import normalized_bytes as pure_normalized_bytes
+
+ROOT = Path(__file__).parents[1]
 
 
 def document() -> dict[str, Any]:
@@ -155,3 +162,25 @@ def test_stale_snapshot_is_detectable_without_mutating_expected_bytes() -> None:
 
     assert normalized_bytes(changed) != expected
     assert expected == normalized_bytes(document())
+
+
+def test_pure_contract_module_matches_backward_compatible_exports() -> None:
+    assert pure_normalize_openapi(document()) == normalize_openapi(document())
+    assert pure_normalized_bytes(document()) == normalized_bytes(document())
+
+
+def test_normalize_script_runs_by_file_path_for_make_contract_check() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "normalize_openapi.py"),
+            "--check",
+            str(ROOT / "contracts" / "novacommerce-openapi.json"),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout

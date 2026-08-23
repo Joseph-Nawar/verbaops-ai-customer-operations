@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
 
 sync:
 	$(UV) sync
@@ -15,7 +15,7 @@ typecheck:
 	$(UV) run mypy src tests scripts
 
 test:
-	$(UV) run pytest -m "not postgres"
+	$(UV) run pytest -m "not postgres and not commerce_acceptance"
 
 check:
 	$(MAKE) sync
@@ -23,7 +23,7 @@ check:
 	$(MAKE) format-check
 	$(MAKE) typecheck
 	$(MAKE) test
-	$(UV) run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing
+	$(UV) run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 	$(UV) run pre-commit run --all-files
 	git diff --check
 
@@ -47,6 +47,9 @@ commerce-migrate:
 commerce-seed:
 	$(UV) run python scripts/bootstrap_dev_env.py
 	docker compose --profile seed run --build --rm commerce-seed
+
+commerce-acceptance:
+	$(UV) run python -m scripts.run_commerce_acceptance
 
 postgres-contract:
 	$(UV) run python scripts/require_test_database.py

@@ -2,7 +2,7 @@
 
 ## Production-Grade Multilingual Agentic Customer Operations Platform
 
-VerbaOps AI is a production-oriented multilingual customer-operations platform being built to demonstrate safe agentic AI, tool execution, retrieval, real-time voice, evaluation, and production infrastructure. The current repository state contains the completed Stage 1 engineering foundation; AI and business-domain functionality are introduced in later stages.
+VerbaOps AI is a production-oriented multilingual customer-operations platform being built to demonstrate safe agentic AI, tool execution, retrieval, real-time voice, evaluation, and production infrastructure. The repository currently contains the completed Stage 1 foundation and Stage 2 NovaCommerce persistence, seed, authenticated API, transactional-write, hosted-contract, and permanent black-box acceptance milestones.
 
 ## Current status
 
@@ -10,6 +10,11 @@ VerbaOps AI is a production-oriented multilingual customer-operations platform b
 
 Currently implemented:
 
+- isolated NovaCommerce PostgreSQL persistence and service boundary;
+- deterministic fictional seed dataset (`20260821`, `2026-08-21`);
+- authenticated read and transactional write HTTP APIs;
+- PostgreSQL idempotency, concurrency, and hosted-contract gates;
+- permanent black-box Commerce acceptance gate;
 - Python 3.12 and uv project management;
 - FastAPI application foundation;
 - trusted identity boundary;
@@ -25,7 +30,6 @@ Currently implemented:
 
 Not implemented yet:
 
-- NovaCommerce business domain;
 - LLM agent or LangGraph;
 - RAG and tool execution;
 - deterministic policy engine;
@@ -94,7 +98,30 @@ The current API intentionally exposes operational endpoints only:
 - `GET /docs` — FastAPI documentation;
 - `GET /openapi.json` — OpenAPI schema.
 
-There are deliberately no customer, business, or AI endpoints yet.
+NovaCommerce exposes the locked Stage 2 HTTP contract. VerbaOps still has no
+direct Commerce database access; later AI capabilities are intentionally out
+of scope for this repository state.
+
+## Permanent Commerce acceptance
+
+Run the disposable black-box gate with:
+
+```bash
+make commerce-acceptance
+```
+
+The command creates a unique Compose project with five services:
+`commerce-postgres`, `commerce-migrate`, `commerce-seed`, `commerce-fixtures`,
+and `commerce-api`. It generates ephemeral credentials, uses only HTTP from
+the acceptance tests, compares the canonical seed result with the external
+scenario manifest, applies a setup-only time-relative fixture overlay, and
+removes containers, networks, and volumes on every exit. The API is bound to
+`127.0.0.1:18010` by default; set `ACCEPTANCE_API_PORT` to override it.
+
+The acceptance command does not read repository `.env` or `.secrets` files
+and does not create them. Its independent CI gate is named
+`commerce-acceptance`, alongside `quality`, `postgres-contract`,
+`postgres-concurrency`, and `docker-build`.
 
 ## Local configuration
 
