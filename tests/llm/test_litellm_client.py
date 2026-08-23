@@ -312,6 +312,26 @@ async def test_gateway_status_failures_are_mapped_to_safe_typed_errors(
 
 
 @pytest.mark.asyncio
+async def test_gateway_auth_error_payload_on_bad_request_is_mapped_to_authentication_error() -> (
+    None
+):
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Invalid API key",
+                    "type": "authentication_error",
+                    "code": "invalid_api_key",
+                }
+            },
+        )
+
+    with pytest.raises(LLMAuthenticationError):
+        await make_client(handler).generate(make_request())
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("transport_error", "error_type"),
     [

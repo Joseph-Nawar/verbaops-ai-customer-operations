@@ -106,8 +106,32 @@ class LiteLLMClient(LLMClient):
         if response.status_code >= 500:
             raise LLMUnavailableError()
         if response.status_code >= 400:
+            if response.status_code == 400 and self._is_authentication_response(response):
+                raise LLMAuthenticationError()
             raise LLMProtocolError()
         return response, latency_ms
+
+    @staticmethod
+    def _is_authentication_response(response: httpx.Response) -> bool:
+        """Classify safe, structured gateway auth errors without logging the body."""
+
+        try:
+            payload = response.json()
+        except (UnicodeDecodeError, ValueError):
+            return False
+        if not isinstance(payload, dict):
+            return False
+        error = payload.get("error")
+        if not isinstance(error, dict):
+            return False
+        details = " ".join(
+            value.lower()
+            for key in ("type", "code", "message")
+            if isinstance(value := error.get(key), str)
+        )
+        return any(
+            marker in details for marker in ("auth", "api key", "unauthorized", "credential")
+        )
 
     def _parse_response(
         self,

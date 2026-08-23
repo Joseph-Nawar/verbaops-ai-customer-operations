@@ -1,6 +1,6 @@
 """Run the permanent LiteLLM gateway contract through the local Compose stack."""
 
-import socket
+import re
 import subprocess
 import sys
 import uuid
@@ -36,14 +36,6 @@ def run_command(command: Sequence[str], *, env: dict[str, str] | None = None) ->
     return completed.stdout
 
 
-def find_free_port() -> int:
-    """Reserve an ephemeral loopback port long enough to select a unique mapping."""
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
-
-
 def compose_command(project: str, *arguments: str) -> list[str]:
     """Build a Compose invocation isolated by a unique project name."""
 
@@ -56,6 +48,15 @@ def compose_command(project: str, *arguments: str) -> list[str]:
         str(COMPOSE_FILE),
         *arguments,
     ]
+
+
+def gateway_host_port(port_output: str) -> int:
+    """Parse the Docker-assigned host port returned by `docker compose port`."""
+
+    match = re.search(r":(\d+)\s*$", port_output.strip())
+    if match is None:
+        raise LLMGatewayContractError("Docker did not report a gateway host port")
+    return int(match.group(1))
 
 
 def compose_environment(port: int) -> dict[str, str]:
@@ -79,9 +80,8 @@ def test_environment(port: int) -> dict[str, str]:
 def run_llm_gateway_contract() -> int:
     """Start, exercise, and always remove the isolated real-proxy contract stack."""
 
-    port = find_free_port()
     project = f"verbaops-llm-gateway-{uuid.uuid4().hex[:12]}"
-    compose_env = compose_environment(port)
+    compose_env = compose_environment(0)
     primary_error: Exception | None = None
     teardown_error: Exception | None = None
     try:
@@ -97,6 +97,9 @@ def run_llm_gateway_contract() -> int:
                 "llm-gateway",
             ),
             env=compose_env,
+        )
+        port = gateway_host_port(
+            run_command(compose_command(project, "port", "llm-gateway", "4000"), env=compose_env)
         )
         run_command(
             [sys.executable, "-m", "pytest", "-m", "llm_gateway_contract", "-q"],

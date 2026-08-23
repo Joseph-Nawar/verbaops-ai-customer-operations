@@ -16,9 +16,10 @@ def test_runner_starts_a_unique_waited_stack_and_runs_only_marked_tests(
 
     def fake_run(command: Sequence[str], *, env: dict[str, str] | None = None) -> str:
         commands.append((list(command), env))
+        if command[-3:] == ["port", "llm-gateway", "4000"]:
+            return "127.0.0.1:49123\n"
         return "5 passed in 0.1s"
 
-    monkeypatch.setattr(runner, "find_free_port", lambda: 39123)
     monkeypatch.setattr(runner, "run_command", fake_run)
 
     assert runner.run_llm_gateway_contract() == 0
@@ -43,9 +44,12 @@ def test_runner_starts_a_unique_waited_stack_and_runs_only_marked_tests(
         "llm-gateway",
     ]
     assert compose_environment is not None
-    assert compose_environment["LLM_GATEWAY_HOST_PORT"] == "39123"
+    assert compose_environment["LLM_GATEWAY_HOST_PORT"] == "0"
 
-    test_command, test_environment = commands[1]
+    port_command, _ = commands[1]
+    assert port_command[6:] == ["port", "llm-gateway", "4000"]
+
+    test_command, test_environment = commands[2]
     assert test_command == [
         sys.executable,
         "-m",
@@ -56,7 +60,7 @@ def test_runner_starts_a_unique_waited_stack_and_runs_only_marked_tests(
     ]
     assert test_environment == {
         "VERBAOPS_LLM__API_KEY": "sk-test-gateway",
-        "VERBAOPS_LLM__BASE_URL": "http://127.0.0.1:39123/v1",
+        "VERBAOPS_LLM__BASE_URL": "http://127.0.0.1:49123/v1",
         "VERBAOPS_LLM__TIMEOUT_SECONDS": "2.0",
     }
 
@@ -68,11 +72,12 @@ def test_runner_always_removes_volumes_orphans_and_temp_resources_after_test_fai
 
     def fake_run(command: Sequence[str], *, env: dict[str, str] | None = None) -> str:
         commands.append((list(command), env))
+        if command[-3:] == ["port", "llm-gateway", "4000"]:
+            return "127.0.0.1:49124\n"
         if "pytest" in command:
             raise LLMGatewayContractError("marked suite failed")
         return ""
 
-    monkeypatch.setattr(runner, "find_free_port", lambda: 39124)
     monkeypatch.setattr(runner, "run_command", fake_run)
 
     with pytest.raises(LLMGatewayContractError, match="marked suite failed"):
@@ -81,7 +86,7 @@ def test_runner_always_removes_volumes_orphans_and_temp_resources_after_test_fai
     down_command, down_environment = commands[-1]
     assert down_command[-3:] == ["down", "--volumes", "--remove-orphans"]
     assert down_environment is not None
-    assert down_environment["LLM_GATEWAY_HOST_PORT"] == "39124"
+    assert down_environment["LLM_GATEWAY_HOST_PORT"] == "0"
 
 
 def test_runner_preserves_primary_and_teardown_failures(
