@@ -1,0 +1,28 @@
+# Deployment configuration. Provider values are supplied by the deployment
+# environment or secret manager; no provider credential is committed here.
+model_list:
+  - model_name: agent-fast
+    litellm_params:
+      model: os.environ/VERBAOPS_AGENT_FAST_MODEL
+      api_base: os.environ/VERBAOPS_AGENT_FAST_BASE_URL
+      api_key: os.environ/VERBAOPS_AGENT_FAST_API_KEY
+  - model_name: agent-reasoning
+    litellm_params:
+      model: os.environ/VERBAOPS_AGENT_REASONING_MODEL
+      api_base: os.environ/VERBAOPS_AGENT_REASONING_BASE_URL
+      api_key: os.environ/VERBAOPS_AGENT_REASONING_API_KEY
+  - model_name: eval-judge
+    litellm_params:
+      model: os.environ/VERBAOPS_EVAL_JUDGE_MODEL
+      api_base: os.environ/VERBAOPS_EVAL_JUDGE_BASE_URL
+      api_key: os.environ/VERBAOPS_EVAL_JUDGE_API_KEY
+  - model_name: embedding-multilingual
+    litellm_params:
+      model: os.environ/VERBAOPS_EMBEDDING_MULTILINGUAL_MODEL
+      api_base: os.environ/VERBAOPS_EMBEDDING_MULTILINGUAL_BASE_URL
+      api_key: os.environ/VERBAOPS_EMBEDDING_MULTILINGUAL_API_KEY
+
+litellm_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  drop_params: true
+  set_verbose: false

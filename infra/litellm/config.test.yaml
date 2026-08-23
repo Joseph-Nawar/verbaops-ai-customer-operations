@@ -1,0 +1,12 @@
+# Deterministic, provider-free contract configuration.
+model_list:
+  - model_name: agent-fast
+    litellm_params:
+      model: openai/local-test-model
+      api_base: http://provider-stub:8000/v1
+      api_key: local-test-provider-key
+
+litellm_settings:
+  master_key: sk-test-gateway
+  drop_params: true
+  set_verbose: false
