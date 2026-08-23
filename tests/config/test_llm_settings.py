@@ -70,6 +70,8 @@ def test_llm_settings_reject_extra_fields() -> None:
         "https://llm-secret@litellm:4000/v1",
         "https://:llm-secret@litellm:4000/v1",
         "https://litellm:4000/v1?api_key=llm-secret",
+        "https://[?api_key=llm-secret",
+        "https://[#llm-secret",
     ],
 )
 def test_llm_settings_reject_url_credentials_without_echoing_them(base_url: str) -> None:

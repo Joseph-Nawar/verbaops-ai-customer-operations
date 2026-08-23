@@ -105,7 +105,7 @@ class LLMSettings(BaseModel):
                 or bool(parsed.fragment)
             )
         except ValueError:
-            contains_credentials = "@" in value
+            contains_credentials = any(marker in value for marker in ("@", "?", "#"))
         if not contains_credentials:
             return data
         sanitized = dict(data)
