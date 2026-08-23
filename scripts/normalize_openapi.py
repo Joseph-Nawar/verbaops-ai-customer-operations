@@ -8,7 +8,14 @@ from pydantic import SecretStr
 
 from novacommerce.api.app import create_app
 from novacommerce.config.settings import Environment, Settings
-from scripts.openapi_contract import normalize_openapi, normalized_bytes
+
+if __package__:
+    from scripts.openapi_contract import normalize_openapi, normalized_bytes
+else:  # pragma: no cover - exercised by direct file-path execution
+    from openapi_contract import (  # type: ignore[import-not-found, no-redef]
+        normalize_openapi,
+        normalized_bytes,
+    )
 
 __all__ = ["normalize_openapi", "normalized_bytes"]
 
