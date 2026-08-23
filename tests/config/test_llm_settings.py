@@ -64,7 +64,7 @@ def test_llm_settings_reject_extra_fields() -> None:
 
 
 def test_llm_settings_reject_url_credentials_without_echoing_them() -> None:
-    sentinel = "embedded-url-secret"
+    sentinel = "pw"
 
     with pytest.raises(ValidationError) as error:
         LLMSettings(base_url=f"https://gateway-user:{sentinel}@litellm:4000/v1")

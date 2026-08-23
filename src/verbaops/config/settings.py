@@ -55,7 +55,11 @@ class RedisSettings(BaseModel):
 class LLMSettings(BaseModel):
     """Immutable connection settings for the OpenAI-compatible LLM gateway."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
 
     base_url: str = "http://localhost:4000/v1"
     api_key: SecretStr = SecretStr("local-development-key")
