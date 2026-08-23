@@ -1,0 +1,32 @@
+name: verbaops-llm-gateway
+
+services:
+  provider-stub:
+    build:
+      context: .
+      dockerfile: infra/litellm/Dockerfile.test-provider
+    environment:
+      PROVIDER_TEST_API_KEY: local-test-provider-key
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  llm-gateway:
+    image: ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4
+    command: ["--config", "/app/config.test.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: sk-test-gateway
+    volumes:
+      - ./infra/litellm/config.test.yaml:/app/config.test.yaml:ro
+    ports:
+      - "${LLM_GATEWAY_HOST_PORT:-18080}:4000"
+    depends_on:
+      provider-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 3s
+      timeout: 3s
+      retries: 30

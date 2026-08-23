@@ -1,9 +1,20 @@
 """Validated, immutable application configuration."""
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    SecretStr,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 
@@ -42,6 +53,94 @@ class RedisSettings(BaseModel):
     url: SecretStr | None = None
 
 
+class LLMSettings(BaseModel):
+    """Immutable connection settings for the OpenAI-compatible LLM gateway."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
+
+    base_url: str = "http://localhost:4000/v1"
+    api_key: SecretStr = SecretStr("local-development-key")
+    timeout_seconds: PositiveFloat = 30.0
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        """Validate updates instead of allowing credential-bearing URLs to bypass checks."""
+
+        if update is None:
+            return super().model_copy(update=None, deep=deep)
+        values = self.model_dump()
+        values.update(update)
+        return type(self).model_validate(values)
+
+    @classmethod
+    def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> Self:
+        """Keep the unsafe Pydantic constructor behind the same validation boundary."""
+
+        return cls.model_validate(values)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_url_credentials(cls, data: Any) -> Any:
+        """Replace credential-bearing URLs before Pydantic records an error input."""
+
+        if not isinstance(data, Mapping):
+            return data
+        data = dict(data)
+        if "base_url" not in data:
+            return data
+        value = data.get("base_url")
+        if not isinstance(value, str):
+            sanitized = dict(data)
+            sanitized["base_url"] = "[redacted]"
+            return sanitized
+        try:
+            parsed = urlsplit(value)
+            contains_credentials = (
+                parsed.username is not None
+                or parsed.password is not None
+                or bool(parsed.query)
+                or bool(parsed.fragment)
+            )
+        except ValueError:
+            contains_credentials = any(marker in value for marker in ("@", "?", "#"))
+        if not contains_credentials:
+            return data
+        sanitized = dict(data)
+        sanitized["base_url"] = "[redacted]"
+        return sanitized
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """Require an absolute HTTP(S) gateway URL without exposing credentials."""
+
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            raise ValueError("base_url must be an absolute HTTP(S) URL") from None
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("base_url must not contain credentials")
+        AnyHttpUrl(value)
+        return value
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key(cls, value: SecretStr) -> SecretStr:
+        """Reject blank credentials while keeping the value secret."""
+
+        if not value.get_secret_value().strip():
+            raise ValueError("api_key must not be blank")
+        return value
+
+
 class ObservabilitySettings(BaseModel):
     """Configuration for future observability integrations."""
 
@@ -65,6 +164,7 @@ class Settings(BaseSettings):
     environment: Environment = Environment.DEVELOPMENT
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    llm: LLMSettings = Field(default_factory=LLMSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod

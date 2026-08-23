@@ -3,6 +3,7 @@
 from verbaops.config.settings import (
     DatabaseSettings,
     Environment,
+    LLMSettings,
     LogLevel,
     ObservabilitySettings,
     RedisSettings,
@@ -12,6 +13,7 @@ from verbaops.config.settings import (
 __all__ = [
     "DatabaseSettings",
     "Environment",
+    "LLMSettings",
     "LogLevel",
     "ObservabilitySettings",
     "RedisSettings",
