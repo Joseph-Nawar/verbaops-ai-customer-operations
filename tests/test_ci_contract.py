@@ -48,15 +48,17 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
     assert (
-        'uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
+        'uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
         in text
     )
     assert "--cov=novacommerce" in text
     assert "uv run pre-commit run --all-files" in text
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")
-    assert text.index("uv run mypy src tests") < text.index('uv run pytest -m "not postgres"')
-    assert text.index('uv run pytest -m "not postgres"') < text.index(
+    assert text.index("uv run mypy src tests") < text.index(
+        'uv run pytest -m "not postgres and not commerce_acceptance"'
+    )
+    assert text.index('uv run pytest -m "not postgres and not commerce_acceptance"') < text.index(
         "uv run pre-commit run --all-files"
     )
     assert "0.12.5" in text
@@ -78,7 +80,7 @@ def test_ci_docker_job_is_quality_gated_and_does_not_publish() -> None:
 def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
 
-    assert '$(UV) run pytest -m "not postgres"' in text
+    assert '$(UV) run pytest -m "not postgres and not commerce_acceptance"' in text
     assert "postgres-contract:" in text
     assert "postgres-concurrency:" in text
     assert "postgres-critical-race:" in text
@@ -116,6 +118,9 @@ def test_hosted_postgres_jobs_have_exact_marker_passes_and_isolated_services() -
 def test_quality_uses_normal_database_independent_path_and_contract_check() -> None:
     text = workflow_text()
 
-    assert 'uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce' in text
+    assert (
+        'uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce'
+        in text
+    )
     assert "uv run mypy src tests scripts" in text
     assert "make commerce-contract-check" in text

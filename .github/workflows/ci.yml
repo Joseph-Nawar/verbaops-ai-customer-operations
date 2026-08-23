@@ -50,7 +50,7 @@ jobs:
         run: uv run mypy src tests scripts
 
       - name: Tests and coverage
-        run: uv run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing
+        run: uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 
       - name: Pre-commit repository checks
         run: uv run pre-commit run --all-files

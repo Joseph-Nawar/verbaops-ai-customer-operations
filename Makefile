@@ -15,7 +15,7 @@ typecheck:
 	$(UV) run mypy src tests scripts
 
 test:
-	$(UV) run pytest -m "not postgres"
+	$(UV) run pytest -m "not postgres and not commerce_acceptance"
 
 check:
 	$(MAKE) sync
@@ -23,7 +23,7 @@ check:
 	$(MAKE) format-check
 	$(MAKE) typecheck
 	$(MAKE) test
-	$(UV) run pytest -m "not postgres" --cov=verbaops --cov=novacommerce --cov-report=term-missing
+	$(UV) run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 	$(UV) run pre-commit run --all-files
 	git diff --check
 
@@ -49,7 +49,7 @@ commerce-seed:
 	docker compose --profile seed run --build --rm commerce-seed
 
 commerce-acceptance:
-	$(UV) run python scripts/run_commerce_acceptance.py
+	$(UV) run python -m scripts.run_commerce_acceptance
 
 postgres-contract:
 	$(UV) run python scripts/require_test_database.py

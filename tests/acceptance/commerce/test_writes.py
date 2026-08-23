@@ -5,7 +5,7 @@ import httpx
 from .conftest import overlay_id, scenario_id
 
 
-def test_create_get_reschedule_cancel_and_replays(
+def test_create_get_cancel_and_replays(
     client: httpx.Client,
     primary_headers: dict[str, str],
     authenticated_headers: dict[str, str],
@@ -31,26 +31,6 @@ def test_create_get_reschedule_cancel_and_replays(
     assert replay.json() == created.json()
     assert client.get(f"/v1/orders/{order_id}", headers=primary_headers).status_code == 200
 
-    reschedule_key = idempotency_key + "-reschedule"
-    shipment_id = created.json()["shipment"]["id"]
-    slots = client.get("/v1/delivery-slots", headers=authenticated_headers).json()
-    target = next(item["id"] for item in slots if item["available"])
-    rescheduled = client.post(
-        f"/v1/orders/{order_id}/reschedule",
-        headers={**primary_headers, "Idempotency-Key": reschedule_key},
-        json={"delivery_slot_id": target},
-    )
-    assert rescheduled.status_code == 200
-    assert rescheduled.json()["id"] == shipment_id
-    assert (
-        client.post(
-            f"/v1/orders/{order_id}/reschedule",
-            headers={**primary_headers, "Idempotency-Key": reschedule_key},
-            json={"delivery_slot_id": target},
-        ).headers["x-idempotent-replay"]
-        == "true"
-    )
-
     cancel_key = idempotency_key + "-cancel"
     cancelled = client.post(
         f"/v1/orders/{order_id}/cancel",
@@ -64,6 +44,36 @@ def test_create_get_reschedule_cancel_and_replays(
     )
     assert cancel_replay.status_code == 200
     assert cancel_replay.headers["x-idempotent-replay"] == "true"
+
+
+def test_overlay_reschedule_uses_explicit_target_and_replays(
+    client: httpx.Client,
+    primary_headers: dict[str, str],
+    manifest: dict[str, object],
+    idempotency_key: str,
+) -> None:
+    order_id = overlay_id(manifest, "reschedulable_order")
+    shipment_id = overlay_id(manifest, "reschedulable_shipment")
+    target = overlay_id(manifest, "slot_y")
+    rescheduled = client.post(
+        f"/v1/orders/{order_id}/reschedule",
+        headers={**primary_headers, "Idempotency-Key": idempotency_key},
+        json={"delivery_slot_id": target},
+    )
+    assert rescheduled.status_code == 200
+    assert rescheduled.json()["id"] == shipment_id
+    shipment = client.get(f"/v1/orders/{order_id}/shipment", headers=primary_headers)
+    assert shipment.status_code == 200
+    assert shipment.json()["delivery_slot_id"] == target
+
+    replay = client.post(
+        f"/v1/orders/{order_id}/reschedule",
+        headers={**primary_headers, "Idempotency-Key": idempotency_key},
+        json={"delivery_slot_id": target},
+    )
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotent-replay"] == "true"
+    assert replay.json() == rescheduled.json()
 
 
 def test_return_refunds_ticket_and_business_rejections(

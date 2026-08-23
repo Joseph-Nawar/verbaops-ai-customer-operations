@@ -1,5 +1,8 @@
 """Unit tests for the structural PostgreSQL marker taxonomy."""
 
+import subprocess
+import sys
+
 import pytest
 from scripts.postgres_taxonomy import validate_postgres_classification
 
@@ -52,3 +55,24 @@ def test_real_postgres_test_without_category_is_rejected() -> None:
 
 def test_non_postgres_test_is_not_required_to_have_database_markers() -> None:
     validate_postgres_classification("tests/api/test_health.py::test_health", set())
+
+
+def test_acceptance_tests_are_not_in_postgres_taxonomy() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/acceptance/commerce",
+            "-m",
+            "postgres and commerce_acceptance",
+            "--collect-only",
+            "-q",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 5
+    assert "no tests collected" in result.stdout.lower()

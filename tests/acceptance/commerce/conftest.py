@@ -3,12 +3,14 @@
 import json
 import os
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import cast
 from uuid import uuid4
 
 import httpx
 import pytest
+from scripts.acceptance_time import parse_acceptance_as_of
 
 MANIFEST_PATH = Path(__file__).parents[1] / "fixtures" / "novacommerce-scenarios.json"
 ACCEPTANCE_ROOT = Path(__file__).parent
@@ -22,7 +24,6 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         except ValueError:
             continue
         item.add_marker(marker)
-        item.add_marker(pytest.mark.postgres)
 
 
 @pytest.fixture(scope="session")
@@ -35,6 +36,17 @@ def manifest() -> dict[str, object]:
     if not isinstance(value, dict):
         pytest.fail("acceptance scenario manifest must be an object")
     return value
+
+
+@pytest.fixture(scope="session")
+def acceptance_as_of() -> datetime:
+    configured = os.environ.get("ACCEPTANCE_AS_OF")
+    if not configured:
+        pytest.fail("ACCEPTANCE_AS_OF is required for black-box acceptance")
+    try:
+        return parse_acceptance_as_of(configured)
+    except ValueError as error:
+        pytest.fail(str(error))
 
 
 @pytest.fixture(scope="session")

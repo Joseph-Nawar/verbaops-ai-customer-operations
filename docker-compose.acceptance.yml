@@ -45,8 +45,10 @@ services:
       NOVACOMMERCE_ENVIRONMENT: test
       NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
       ACCEPTANCE_SCENARIO_MANIFEST: /acceptance/novacommerce-scenarios.json
+      ACCEPTANCE_AS_OF: ${ACCEPTANCE_AS_OF}
     volumes:
       - ./scripts/apply_commerce_acceptance_overlay.py:/acceptance/apply_overlay.py:ro
+      - ./scripts/acceptance_time.py:/acceptance/acceptance_time.py:ro
       - ./tests/acceptance/fixtures/novacommerce-scenarios.json:/acceptance/novacommerce-scenarios.json:ro
     depends_on:
       commerce-seed:

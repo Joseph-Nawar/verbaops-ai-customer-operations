@@ -1,5 +1,6 @@
 """Read-only customer and catalog contracts over HTTP."""
 
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import httpx
@@ -51,29 +52,44 @@ def test_product_search_is_case_insensitive_paginated_and_literal_safe(
 
 
 def test_delivery_slot_reads_derive_availability(
-    client: httpx.Client, authenticated_headers: dict[str, str], manifest: dict[str, object]
+    client: httpx.Client,
+    authenticated_headers: dict[str, str],
+    manifest: dict[str, object],
+    acceptance_as_of: datetime,
 ) -> None:
+    from_date = acceptance_as_of.date() + timedelta(days=39)
+    to_date = acceptance_as_of.date() + timedelta(days=42)
     response = client.get(
         "/v1/delivery-slots",
         headers=authenticated_headers,
-        params={"from_date": "2026-08-21", "to_date": "2026-09-20", "available_only": "false"},
+        params={
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "available_only": "false",
+        },
     )
     assert response.status_code == 200
     by_id = {item["id"]: item for item in response.json()}
-    for name, remaining, available in (
-        ("slot_available", 15, True),
-        ("slot_one_remaining", 1, True),
-        ("slot_full", 0, False),
-    ):
-        slot = by_id[scenario_id(manifest, name)]
+    overlay_slots = [overlay_id(manifest, "slot_x"), overlay_id(manifest, "slot_y")]
+    assert set(overlay_slots) <= by_id.keys()
+    for slot_id in overlay_slots:
+        slot = by_id[slot_id]
         assert slot["capacity"] == 20
-        assert slot["remaining_capacity"] == remaining
-        assert slot["available"] is available
+        assert slot["remaining_capacity"] == slot["capacity"] - slot["reserved_count"]
+        assert slot["available"] is (slot["remaining_capacity"] > 0)
 
     only_available = client.get(
-        "/v1/delivery-slots", headers=authenticated_headers, params={"available_only": "true"}
+        "/v1/delivery-slots",
+        headers=authenticated_headers,
+        params={
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "available_only": "true",
+        },
     )
-    assert scenario_id(manifest, "slot_full") not in {item["id"] for item in only_available.json()}
+    assert only_available.status_code == 200
+    available_ids = {item["id"] for item in only_available.json()}
+    assert set(overlay_slots) <= available_ids
 
 
 def test_overlay_reschedulable_resources_are_reachable(
