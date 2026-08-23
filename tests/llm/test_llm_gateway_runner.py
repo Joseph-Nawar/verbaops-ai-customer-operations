@@ -2,6 +2,7 @@
 
 import sys
 from collections.abc import Sequence
+from os import environ
 from pathlib import Path
 
 import pytest
@@ -58,11 +59,11 @@ def test_runner_starts_a_unique_waited_stack_and_runs_only_marked_tests(
         "llm_gateway_contract",
         "-q",
     ]
-    assert test_environment == {
-        "VERBAOPS_LLM__API_KEY": "sk-test-gateway",
-        "VERBAOPS_LLM__BASE_URL": "http://127.0.0.1:49123/v1",
-        "VERBAOPS_LLM__TIMEOUT_SECONDS": "2.0",
-    }
+    assert test_environment is not None
+    assert test_environment["VERBAOPS_LLM__API_KEY"] == "sk-test-gateway"
+    assert test_environment["VERBAOPS_LLM__BASE_URL"] == "http://127.0.0.1:49123/v1"
+    assert test_environment["VERBAOPS_LLM__TIMEOUT_SECONDS"] == "2.0"
+    assert test_environment["PATH"] == environ["PATH"]
 
 
 def test_runner_always_removes_volumes_orphans_and_temp_resources_after_test_failure(
@@ -136,8 +137,9 @@ def test_compose_environment_keeps_host_execution_settings_but_pytest_stays_isol
     assert compose_environment["PATH"] == "C:\\test-bin"
     assert compose_environment["USERPROFILE"] == "C:\\test-profile"
     assert compose_environment["LLM_GATEWAY_HOST_PORT"] == "39125"
-    assert runner.test_environment(39125) == {
-        "VERBAOPS_LLM__API_KEY": "sk-test-gateway",
-        "VERBAOPS_LLM__BASE_URL": "http://127.0.0.1:39125/v1",
-        "VERBAOPS_LLM__TIMEOUT_SECONDS": "2.0",
-    }
+    test_environment = runner.test_environment(39125)
+    assert test_environment["PATH"] == "C:\\test-bin"
+    assert test_environment["USERPROFILE"] == "C:\\test-profile"
+    assert test_environment["VERBAOPS_LLM__API_KEY"] == "sk-test-gateway"
+    assert test_environment["VERBAOPS_LLM__BASE_URL"] == "http://127.0.0.1:39125/v1"
+    assert test_environment["VERBAOPS_LLM__TIMEOUT_SECONDS"] == "2.0"

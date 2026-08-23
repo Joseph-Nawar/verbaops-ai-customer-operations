@@ -68,13 +68,17 @@ def compose_environment(port: int) -> dict[str, str]:
 
 
 def test_environment(port: int) -> dict[str, str]:
-    """Pass only deterministic local LiteLLM settings to the marked suite."""
+    """Preserve process execution settings while forcing deterministic LLM settings."""
 
-    return {
-        "VERBAOPS_LLM__API_KEY": GATEWAY_API_KEY,
-        "VERBAOPS_LLM__BASE_URL": f"http://127.0.0.1:{port}/v1",
-        "VERBAOPS_LLM__TIMEOUT_SECONDS": "2.0",
-    }
+    environment = dict(environ)
+    environment.update(
+        {
+            "VERBAOPS_LLM__API_KEY": GATEWAY_API_KEY,
+            "VERBAOPS_LLM__BASE_URL": f"http://127.0.0.1:{port}/v1",
+            "VERBAOPS_LLM__TIMEOUT_SECONDS": "2.0",
+        }
+    )
+    return environment
 
 
 def run_llm_gateway_contract() -> int:
