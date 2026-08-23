@@ -158,6 +158,7 @@ async def test_generate_serializes_exact_request_and_normalizes_gateway_response
     assert response.tool_calls[0].name == "lookup_order"
     assert response.tool_calls[0].arguments == {"order_id": "ORD-1"}
     assert response.metadata.request_id == "gateway-header-id"
+    assert response.metadata.capability_alias is CapabilityAlias.AGENT_FAST
     assert response.metadata.model == "gateway-model"
     assert response.metadata.provider == "gateway-provider"
     assert response.metadata.input_tokens == 11

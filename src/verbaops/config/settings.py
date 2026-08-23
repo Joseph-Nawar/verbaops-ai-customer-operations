@@ -1,5 +1,6 @@
 """Validated, immutable application configuration."""
 
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 from urllib.parse import urlsplit
@@ -64,6 +65,26 @@ class LLMSettings(BaseModel):
     base_url: str = "http://localhost:4000/v1"
     api_key: SecretStr = SecretStr("local-development-key")
     timeout_seconds: PositiveFloat = 30.0
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        """Validate updates instead of allowing credential-bearing URLs to bypass checks."""
+
+        if update is None:
+            return super().model_copy(update=None, deep=deep)
+        values = self.model_dump()
+        values.update(update)
+        return type(self).model_validate(values)
+
+    @classmethod
+    def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> Self:
+        """Keep the unsafe Pydantic constructor behind the same validation boundary."""
+
+        return cls.model_validate(values)
 
     @model_validator(mode="before")
     @classmethod

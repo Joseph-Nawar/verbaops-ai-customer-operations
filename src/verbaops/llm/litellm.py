@@ -17,6 +17,7 @@ from verbaops.llm.errors import (
     LLMUnavailableError,
 )
 from verbaops.llm.models import (
+    CapabilityAlias,
     GenerateRequest,
     GenerateResponse,
     ResponseMetadata,
@@ -47,7 +48,7 @@ class LiteLLMClient(LLMClient):
 
         payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
         response, latency_ms = await self._post(payload)
-        return self._parse_response(response, latency_ms)
+        return self._parse_response(response, latency_ms, request.capability)
 
     async def generate_structured[T: BaseModel](
         self,
@@ -108,7 +109,12 @@ class LiteLLMClient(LLMClient):
             raise LLMProtocolError()
         return response, latency_ms
 
-    def _parse_response(self, response: httpx.Response, latency_ms: float) -> GenerateResponse:
+    def _parse_response(
+        self,
+        response: httpx.Response,
+        latency_ms: float,
+        capability_alias: CapabilityAlias,
+    ) -> GenerateResponse:
         try:
             payload = response.json()
         except (UnicodeDecodeError, ValueError):
@@ -130,6 +136,7 @@ class LiteLLMClient(LLMClient):
         if request_id is None:
             request_id = self._optional_string(payload.get("id"))
         metadata = ResponseMetadata(
+            capability_alias=capability_alias,
             request_id=request_id,
             model=self._optional_string(payload.get("model")),
             provider=self._provider(payload),

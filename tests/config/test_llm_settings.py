@@ -88,6 +88,18 @@ def test_llm_settings_serialization_cannot_contain_url_credentials() -> None:
     assert "@litellm" not in serialized
 
 
+@pytest.mark.parametrize("operation", ["model_copy", "model_construct"])
+def test_llm_settings_cannot_bypass_url_credential_validation(operation: str) -> None:
+    settings = LLMSettings()
+    credential_url = "https://llm-user:llm-secret@litellm:4000/v1"
+
+    with pytest.raises(ValidationError):
+        if operation == "model_copy":
+            settings.model_copy(update={"base_url": credential_url})
+        else:
+            LLMSettings.model_construct(base_url=credential_url)
+
+
 def test_llm_settings_reject_nested_extra_environment_variables(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
