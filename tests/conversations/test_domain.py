@@ -1,5 +1,6 @@
 """Pure M3B record and error contract tests."""
 
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -10,8 +11,22 @@ from verbaops.conversations.errors import (
     ConversationLifecycleError,
     ConversationNotFoundError,
 )
-from verbaops.conversations.persistence import AgentRun
-from verbaops.conversations.repository import _require_running, utc_now
+from verbaops.conversations.persistence import (
+    AgentRun,
+    Conversation,
+    Message,
+    ModelCall,
+    ToolInvocation,
+)
+from verbaops.conversations.repository import (
+    _agent_run_record,
+    _conversation_record,
+    _message_record,
+    _model_call_record,
+    _require_running,
+    _tool_invocation_record,
+    utc_now,
+)
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.models import CapabilityAlias, ResponseMetadata
 
@@ -65,3 +80,79 @@ def test_persistence_helpers_keep_utc_and_reject_finished_runs() -> None:
         _require_running(run)
     service = ConversationService(None)  # type: ignore[arg-type]
     assert service._stale_after.total_seconds() == 900
+
+
+def test_persistence_models_convert_to_domain_records() -> None:
+    now = datetime.now(UTC)
+    conversation_id = uuid4()
+    message_id = uuid4()
+    run_id = uuid4()
+    model_call_id = uuid4()
+    tool_invocation_id = uuid4()
+    conversation = Conversation(
+        id=conversation_id,
+        tenant_id=uuid4(),
+        principal_id=uuid4(),
+        created_at=now,
+        updated_at=now,
+    )
+    message = Message(
+        id=message_id,
+        conversation_id=conversation_id,
+        sequence=1,
+        role="user",
+        content="hello",
+        created_at=now,
+    )
+    run = AgentRun(
+        id=run_id,
+        conversation_id=conversation_id,
+        user_message_id=message_id,
+        assistant_message_id=None,
+        status="running",
+        graph_version="g",
+        prompt_version="p",
+        tool_schema_version="t",
+        started_at=now,
+        completed_at=None,
+        error_code=None,
+    )
+    model_call = ModelCall(
+        id=model_call_id,
+        agent_run_id=run_id,
+        sequence=1,
+        capability_alias="agent-fast",
+        gateway_request_id="request",
+        gateway_model_id="deployment",
+        model="model",
+        provider="provider",
+        input_tokens=1,
+        output_tokens=2,
+        total_tokens=3,
+        latency_ms=4.0,
+        cost_usd=0.0,
+        finish_reason="stop",
+        status="succeeded",
+        error_code=None,
+        created_at=now,
+    )
+    tool_invocation = ToolInvocation(
+        id=tool_invocation_id,
+        agent_run_id=run_id,
+        sequence=1,
+        tool_call_id="call",
+        tool_name="lookup",
+        risk_level="read",
+        arguments_json={"id": "1"},
+        result_json={"ok": True},
+        status="succeeded",
+        latency_ms=5.0,
+        error_code=None,
+        created_at=now,
+        completed_at=now,
+    )
+    assert _conversation_record(conversation).id == conversation_id
+    assert _message_record(message).id == message_id
+    assert _agent_run_record(run).id == run_id
+    assert _model_call_record(model_call).gateway_model_id == "deployment"
+    assert _tool_invocation_record(tool_invocation).result_json == {"ok": True}
