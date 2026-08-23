@@ -98,7 +98,12 @@ class LLMSettings(BaseModel):
             return data
         try:
             parsed = urlsplit(value)
-            contains_credentials = parsed.username is not None or parsed.password is not None
+            contains_credentials = (
+                parsed.username is not None
+                or parsed.password is not None
+                or bool(parsed.query)
+                or bool(parsed.fragment)
+            )
         except ValueError:
             contains_credentials = "@" in value
         if not contains_credentials:
