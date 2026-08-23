@@ -13,7 +13,7 @@ from verbaops.llm import (
     ChatMessage,
     GenerateRequest,
     LiteLLMClient,
-    LLMProtocolError,
+    LLMAuthenticationError,
     LLMUnavailableError,
     ToolDefinition,
 )
@@ -111,7 +111,7 @@ async def test_real_proxy_parses_tool_call_arguments() -> None:
 @pytest.mark.parametrize(
     ("api_key", "marker", "error_type", "timeout_seconds"),
     [
-        ("wrong-test-gateway-key", "test:plain", LLMProtocolError, None),
+        ("wrong-test-gateway-key", "test:plain", LLMAuthenticationError, None),
         ("sk-test-gateway", "test:server-error", LLMUnavailableError, 10.0),
     ],
 )
