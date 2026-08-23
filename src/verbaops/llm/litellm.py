@@ -14,6 +14,7 @@ from verbaops.llm.errors import (
     LLMAuthenticationError,
     LLMProtocolError,
     LLMRateLimitError,
+    LLMStructuredOutputError,
     LLMTimeoutError,
     LLMUnavailableError,
 )
@@ -33,10 +34,10 @@ class LiteLLMClient(LLMClient):
     def __init__(
         self,
         settings: LLMSettings,
-        transport: httpx.AsyncBaseTransport | None = None,
+        http_client: httpx.AsyncClient,
     ) -> None:
         self._settings = settings
-        self._transport = transport
+        self._http_client = http_client
         self._endpoint = f"{settings.base_url.rstrip('/')}/chat/completions"
 
     def __repr__(self) -> str:
@@ -63,17 +64,17 @@ class LiteLLMClient(LLMClient):
         )
         response = await self.generate(structured_request)
         if response.content is None:
-            raise LLMProtocolError()
+            raise LLMStructuredOutputError()
         try:
             raw_data = json.loads(response.content)
         except (TypeError, ValueError):
-            raise LLMProtocolError() from None
+            raise LLMStructuredOutputError() from None
         if not isinstance(raw_data, dict):
-            raise LLMProtocolError()
+            raise LLMStructuredOutputError()
         try:
             data = response_model.model_validate(raw_data)
         except ValidationError:
-            raise LLMProtocolError() from None
+            raise LLMStructuredOutputError() from None
         return StructuredResponse(
             data=data,
             metadata=response.metadata,
@@ -83,17 +84,12 @@ class LiteLLMClient(LLMClient):
     async def _post(self, payload: dict[str, Any]) -> tuple[httpx.Response, float]:
         started_at = perf_counter()
         try:
-            async with httpx.AsyncClient(
-                transport=self._transport,
+            response = await self._http_client.post(
+                self._endpoint,
+                headers={"Authorization": f"Bearer {self._settings.api_key.get_secret_value()}"},
+                json=payload,
                 timeout=self._settings.timeout_seconds,
-            ) as client:
-                response = await client.post(
-                    self._endpoint,
-                    headers={
-                        "Authorization": f"Bearer {self._settings.api_key.get_secret_value()}"
-                    },
-                    json=payload,
-                )
+            )
         except httpx.TimeoutException:
             raise LLMTimeoutError() from None
         except httpx.TransportError:
@@ -158,20 +154,22 @@ class LiteLLMClient(LLMClient):
 
         content = self._optional_string(message.get("content"))
         tool_calls = self._parse_tool_calls(message.get("tool_calls"))
-        request_id = self._first_header(response, "x-litellm-call-id", "x-request-id")
-        model = self._first_header(response, "x-litellm-model-id", "x-litellm-model-name")
+        gateway_request_id = self._first_header(response, "x-litellm-call-id", "x-request-id")
+        gateway_model_id = self._first_header(response, "x-litellm-model-id")
+        model = self._first_header(response, "x-litellm-model-name")
         if model is None:
             model = self._optional_string(payload.get("model"))
         metadata = ResponseMetadata(
             capability_alias=capability_alias,
-            request_id=request_id,
+            gateway_request_id=gateway_request_id,
+            gateway_model_id=gateway_model_id,
             model=model,
             provider=self._provider(payload),
             input_tokens=self._usage_value(payload, "prompt_tokens"),
             output_tokens=self._usage_value(payload, "completion_tokens"),
             total_tokens=self._usage_value(payload, "total_tokens"),
             latency_ms=latency_ms,
-            cost=self._cost(payload, response),
+            cost_usd=self._cost(payload, response),
             finish_reason=self._optional_string(choice.get("finish_reason")),
         )
         return GenerateResponse(content=content, metadata=metadata, tool_calls=tool_calls)

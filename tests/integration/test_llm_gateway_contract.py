@@ -3,6 +3,7 @@
 import os
 from collections.abc import AsyncIterator
 
+import httpx
 import pytest
 import pytest_asyncio
 from pydantic import BaseModel, SecretStr
@@ -58,24 +59,35 @@ def request_for(marker: str, *, tools: tuple[ToolDefinition, ...] | None = None)
     )
 
 
+@pytest_asyncio.fixture
+async def gateway_client() -> AsyncIterator[LiteLLMClient]:
+    async with httpx.AsyncClient() as http_client:
+        yield LiteLLMClient(gateway_settings(), http_client=http_client)
+
+
 @pytest.mark.llm_gateway_contract
 @pytest.mark.asyncio
-async def test_real_proxy_generates_plain_text_through_verbaops_client() -> None:
-    response = await LiteLLMClient(gateway_settings()).generate(request_for("test:plain"))
+async def test_real_proxy_generates_plain_text_through_verbaops_client(
+    gateway_client: LiteLLMClient,
+) -> None:
+    response = await gateway_client.generate(request_for("test:plain"))
 
     assert response.content == "deterministic-stub-response"
     assert response.metadata.capability_alias is CapabilityAlias.AGENT_FAST
-    assert response.metadata.request_id is not None
+    assert response.metadata.gateway_request_id is not None
+    assert response.metadata.gateway_model_id is not None
     assert response.metadata.model is not None
-    assert response.metadata.model != CapabilityAlias.AGENT_FAST.value
-    assert response.metadata.cost is not None
+    assert response.metadata.gateway_model_id != response.metadata.model
+    assert response.metadata.cost_usd is not None
     assert response.metadata.latency_ms is not None
 
 
 @pytest.mark.llm_gateway_contract
 @pytest.mark.asyncio
-async def test_real_proxy_generates_and_parses_a_pydantic_structured_response() -> None:
-    response = await LiteLLMClient(gateway_settings()).generate_structured(
+async def test_real_proxy_generates_and_parses_a_pydantic_structured_response(
+    gateway_client: LiteLLMClient,
+) -> None:
+    response = await gateway_client.generate_structured(
         request_for("test:structured"), ContractAnswer
     )
 
@@ -85,7 +97,7 @@ async def test_real_proxy_generates_and_parses_a_pydantic_structured_response() 
 
 @pytest.mark.llm_gateway_contract
 @pytest.mark.asyncio
-async def test_real_proxy_parses_tool_call_arguments() -> None:
+async def test_real_proxy_parses_tool_call_arguments(gateway_client: LiteLLMClient) -> None:
     tools = (
         ToolDefinition(
             name="lookup_order",
@@ -99,9 +111,7 @@ async def test_real_proxy_parses_tool_call_arguments() -> None:
         ),
     )
 
-    response = await LiteLLMClient(gateway_settings()).generate(
-        request_for("test:tool-call", tools=tools)
-    )
+    response = await gateway_client.generate(request_for("test:tool-call", tools=tools))
 
     assert response.content is None
     assert response.tool_calls[0].id == "call_local_lookup"
@@ -126,6 +136,8 @@ async def test_real_proxy_normalizes_invalid_credentials_and_upstream_failures(
 ) -> None:
     # This database-free LiteLLM configuration returns a safe 400 for an unknown key.
     with pytest.raises(error_type):
-        await LiteLLMClient(
-            gateway_settings(api_key=api_key, timeout_seconds=timeout_seconds)
-        ).generate(request_for(marker))
+        async with httpx.AsyncClient() as http_client:
+            await LiteLLMClient(
+                gateway_settings(api_key=api_key, timeout_seconds=timeout_seconds),
+                http_client=http_client,
+            ).generate(request_for(marker))

@@ -18,6 +18,7 @@ from verbaops.llm import (
     LLMClient,
     LLMProtocolError,
     LLMRateLimitError,
+    LLMStructuredOutputError,
     LLMTimeoutError,
     LLMUnavailableError,
     ToolDefinition,
@@ -65,7 +66,10 @@ def make_request(content: str = "Find order ORD-1") -> GenerateRequest:
 
 
 def make_client(handler: Callable[[httpx.Request], httpx.Response]) -> LiteLLMClient:
-    return LiteLLMClient(make_settings(), transport=httpx.MockTransport(handler))
+    return LiteLLMClient(
+        make_settings(),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
 
 
 def assert_safe(value: object) -> None:
@@ -122,6 +126,7 @@ async def test_generate_serializes_exact_request_and_normalizes_gateway_response
             headers={
                 "x-litellm-call-id": "gateway-call-id",
                 "x-litellm-model-id": "gateway-model-id",
+                "x-litellm-model-name": "gateway-model-name",
                 "x-litellm-response-cost-original": "0.0035",
             },
             json={
@@ -161,15 +166,16 @@ async def test_generate_serializes_exact_request_and_normalizes_gateway_response
     assert response.tool_calls[0].id == "call-1"
     assert response.tool_calls[0].name == "lookup_order"
     assert response.tool_calls[0].arguments == {"order_id": "ORD-1"}
-    assert response.metadata.request_id == "gateway-call-id"
+    assert response.metadata.gateway_request_id == "gateway-call-id"
+    assert response.metadata.gateway_model_id == "gateway-model-id"
     assert response.metadata.capability_alias is CapabilityAlias.AGENT_FAST
-    assert response.metadata.model == "gateway-model-id"
+    assert response.metadata.model == "gateway-model-name"
     assert response.metadata.provider == "gateway-provider"
     assert response.metadata.input_tokens == 11
     assert response.metadata.output_tokens == 7
     assert response.metadata.total_tokens == 18
     assert response.metadata.latency_ms == pytest.approx(123.0)
-    assert response.metadata.cost == 0.0035
+    assert response.metadata.cost_usd == 0.0035
     assert response.metadata.finish_reason == "tool_calls"
 
 
@@ -187,13 +193,14 @@ async def test_generate_leaves_omitted_gateway_metadata_nullable() -> None:
 
     assert response.content == "plain text"
     assert response.tool_calls == ()
-    assert response.metadata.request_id is None
+    assert response.metadata.gateway_request_id is None
+    assert response.metadata.gateway_model_id is None
     assert response.metadata.model is None
     assert response.metadata.provider is None
     assert response.metadata.input_tokens is None
     assert response.metadata.output_tokens is None
     assert response.metadata.total_tokens is None
-    assert response.metadata.cost is None
+    assert response.metadata.cost_usd is None
     assert response.metadata.finish_reason is None
     assert response.metadata.latency_ms is not None
 
@@ -232,7 +239,7 @@ async def test_generate_structured_sends_strict_schema_and_parses_pydantic_data(
     response = await make_client(handler).generate_structured(make_request(), TicketAnswer)
 
     assert response.data == TicketAnswer(status="open", message="We are checking.")
-    assert response.metadata.request_id == "structured-gateway-id"
+    assert response.metadata.gateway_request_id == "structured-gateway-id"
     assert response.metadata.finish_reason == "stop"
     assert response.tool_calls == ()
 
@@ -283,10 +290,6 @@ async def test_generate_structured_sends_strict_schema_and_parses_pydantic_data(
             },
             None,
         ),
-        (
-            {"choices": [{"message": {"content": '["not", "an", "object"]'}}]},
-            TicketAnswer,
-        ),
     ],
 )
 async def test_malformed_gateway_payloads_raise_protocol_errors(
@@ -307,6 +310,46 @@ async def test_malformed_gateway_payloads_raise_protocol_errors(
             await client.generate_structured(make_request(), response_model)
 
     assert_safe(error.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content",
+    ["not-json", '["not", "an", "object"]', '{"status":"open"}'],
+)
+async def test_structured_output_failures_use_a_distinct_safe_error(content: str) -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": content}}]},
+        )
+
+    with pytest.raises(LLMStructuredOutputError) as error:
+        await make_client(handler).generate_structured(make_request(), TicketAnswer)
+
+    assert_safe(error.value)
+
+
+@pytest.mark.asyncio
+async def test_sequential_generates_reuse_the_injected_async_client() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = LiteLLMClient(make_settings(), http_client=http_client)
+
+        await client.generate(make_request())
+        await client.generate(make_request("second request"))
+
+        assert client._http_client is http_client
+        assert calls == 2
 
 
 @pytest.mark.asyncio
@@ -416,5 +459,6 @@ def test_public_client_and_all_typed_errors_redact_secrets_from_strings_and_repr
         LLMRateLimitError,
         LLMUnavailableError,
         LLMProtocolError,
+        LLMStructuredOutputError,
     ):
         assert_safe(error_type(SENSITIVE_DETAIL))

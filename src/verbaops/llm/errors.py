@@ -38,3 +38,9 @@ class LLMProtocolError(LLMError):
     """The gateway returned a response outside the expected protocol."""
 
     message = "LLM gateway returned an invalid response"
+
+
+class LLMStructuredOutputError(LLMError):
+    """The gateway content could not satisfy the requested structured model."""
+
+    message = "LLM structured output was invalid"

@@ -6,6 +6,7 @@ from verbaops.llm.errors import (
     LLMError,
     LLMProtocolError,
     LLMRateLimitError,
+    LLMStructuredOutputError,
     LLMTimeoutError,
     LLMUnavailableError,
 )
@@ -31,6 +32,7 @@ __all__ = [
     "LLMError",
     "LLMProtocolError",
     "LLMRateLimitError",
+    "LLMStructuredOutputError",
     "LLMTimeoutError",
     "LLMUnavailableError",
     "LiteLLMClient",

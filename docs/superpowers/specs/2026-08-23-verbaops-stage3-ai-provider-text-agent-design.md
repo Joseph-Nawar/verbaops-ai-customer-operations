@@ -1,13 +1,72 @@
-# VerbaOps AI Stage 3 M3A–M3F Provider/Text-Agent Design
+# VerbaOps AI Stage 3 Source of Truth
 
 ## Purpose
 
-Stage 3 adds the AI execution boundary in six deliberately separated increments.
-M3A, the only increment implemented by this branch, establishes an
-application-owned LLM gateway client and a real LiteLLM proxy boundary. Later
-increments consume that boundary but are not part of this change.
+Stage 3 is delivered through six bounded milestones. Each milestone is planned
+from the then-current merged repository; later milestone details must not be
+invented prematurely.
 
-## Locked M3A architecture
+The current branch implements M3A only.
+
+## Exact Stage 3 milestones
+
+### M3A — LLM Gateway & Provider Layer
+
+Establish the application-owned, HTTP-only LLM gateway boundary through a
+separate, pinned LiteLLM proxy. Deliver typed request/response models, safe
+metadata and errors, immutable settings, deterministic provider-free contract
+testing, and the reusable HTTP client lifecycle needed by future application
+lifespan ownership.
+
+Exit criteria: plain and structured generation work through a real LiteLLM
+proxy; tool calls and metadata normalize safely; gateway failures become typed
+errors; secrets cannot leak; no provider SDK or paid credential is required;
+the permanent contract and all Stage 1/2 gates remain green.
+
+### M3B — Conversation & Trace Persistence
+
+Define and implement the approved conversation, turn, message, and trace
+persistence boundary, including its lifecycle and observability contract.
+
+Exit criteria: the approved persistence schema and migrations are tested from
+the then-current repository, trace ownership is explicit, and persistence
+acceptance is green without changing the M3A provider boundary.
+
+### M3C — NovaCommerce Read Client & Typed Tool Registry
+
+Add the application-owned NovaCommerce read client and typed registry for
+approved read-only tools.
+
+Exit criteria: read contracts are generated or validated from the locked
+NovaCommerce API, tool schemas and errors are typed, and no write or mutation
+operation is exposed.
+
+### M3D — First LangGraph Read-Only Agent Runtime
+
+Add the first text-only, read-only LangGraph runtime using the M3A gateway and
+M3C read-only tool registry.
+
+Exit criteria: one bounded read-only agent turn is deterministic and tested,
+tool access is allowlisted, and no writes, multi-agent architecture, HITL, or
+approval flow is introduced.
+
+### M3E — Conversation API & End-to-End Agent Acceptance
+
+Expose the approved conversation API and prove the persisted, read-only agent
+flow end to end.
+
+Exit criteria: API, persistence, gateway, agent, and read-only Commerce paths
+have an acceptance suite with safe failure behavior and no mutation surface.
+
+### M3F — Minimal Next.js Web Chat & Stage 3 Lock
+
+Add the minimal Next.js text chat client and lock the complete Stage 3 path.
+
+Exit criteria: the web chat completes the approved text-only read-only flow,
+security and regression gates are green, and Stage 3 is explicitly locked for
+follow-up work.
+
+## M3A locked architecture
 
 LiteLLM runs as a separate Docker service. VerbaOps communicates with it only
 through OpenAI-compatible HTTP using `httpx`; neither the LiteLLM Python SDK
@@ -20,88 +79,72 @@ the request, response, metadata, settings, and error models in:
 - `src/verbaops/llm/litellm.py`
 
 `LLMClient` exposes asynchronous `generate()` and `generate_structured()`.
-Callers work only with VerbaOps-owned models and capability aliases:
-`agent-fast`, `agent-reasoning`, `eval-judge`, and
-`embedding-multilingual`. Stage 3 M3A exercises only `agent-fast`.
+Callers work only with VerbaOps-owned models and exactly these capability
+aliases: `agent-fast`, `agent-reasoning`, `eval-judge`, and
+`embedding-multilingual`. M3A exercises only `agent-fast`.
 
-The gateway adapter normalizes, without inventing unavailable values, the
-capability alias, gateway request ID, gateway model ID/model, input/output
-tokens, latency, cost when supplied or reliably calculable, finish reason,
-content, and tool calls. Gateway/provider failures become typed VerbaOps
-errors. Credentials are never included in logs, representations, exception
-messages, or response metadata.
+`ResponseMetadata` preserves these distinct nullable concepts:
 
-VerbaOps configuration has an immutable `VERBAOPS_LLM` section with
-`base_url`, `api_key` as `SecretStr`, and positive `timeout_seconds`. Runtime
-`httpx` is a production dependency.
+- `capability_alias`
+- `gateway_request_id`
+- `gateway_model_id`
+- `model`
+- `provider`
+- `input_tokens`
+- `output_tokens`
+- `total_tokens`
+- `latency_ms`
+- `cost_usd`
+- `finish_reason`
 
-## LiteLLM infrastructure
+The adapter never invents unavailable metadata. Gateway/provider failures are
+typed VerbaOps errors. Structured content that cannot be parsed or validated
+against its requested Pydantic model is an `LLMStructuredOutputError`;
+malformed gateway envelopes, protocol payloads, and tool calls remain
+`LLMProtocolError`. Credentials are never included in logs, representations,
+exception messages, or response metadata.
 
-`infra/litellm/config.yaml` is the deployment configuration. It maps all four
-capability aliases and receives provider model names, base URLs, API keys, and
-the proxy master key from environment/secrets. The image is a stable,
-immutable LiteLLM release pin, never `latest`, RC, or dev.
+The caller injects and owns a reusable `httpx.AsyncClient`; `LiteLLMClient`
+never creates or closes that client. The future FastAPI lifespan owns the
+production client lifecycle.
 
-`infra/litellm/config.test.yaml` maps `agent-fast` to a deterministic local
-OpenAI-compatible provider stub. A dedicated Compose stack starts the stub and
-the real LiteLLM proxy; it never contacts an external provider and requires no
-paid credential.
+VerbaOps configuration has an immutable `VERBAOPS_LLM` section with `base_url`,
+`api_key` as `SecretStr`, and positive `timeout_seconds`. Runtime `httpx` is a
+production dependency.
 
-## VerbaOps-owned model contract
+## LiteLLM infrastructure and testing
 
-Requests contain an alias, ordered chat messages, optional generation controls,
-and optional OpenAI-shaped tool definitions represented by VerbaOps models.
-Plain responses expose text and normalized metadata. Structured responses parse
-the JSON content into a caller-supplied Pydantic model while retaining the same
-metadata and tool calls. Tool-call arguments are parsed from the gateway's JSON
-string into a JSON object when valid; malformed gateway payloads are protocol
-errors rather than silently invented calls.
+The deployment image is stable and immutably pinned to LiteLLM `v1.98.0`.
+Normal configuration receives provider model, base URL, keys, and proxy
+secrets through environment/secrets. Test configuration routes `agent-fast`
+through a deterministic local OpenAI-compatible provider stub. The permanent
+contract is:
 
-Metadata fields are nullable where LiteLLM/provider responses may omit them.
-Latency is measured by the application adapter. Cost is retained only when the
-gateway supplies it or it is reliably calculable from complete usage data; the
-adapter does not estimate it from incomplete information.
+`VerbaOps LiteLLMClient → real LiteLLM Proxy → deterministic local provider stub`
 
-## Failure contract
+It requires no external provider call or paid credential.
 
-The adapter distinguishes timeout, authentication/authorization, rate-limit,
-gateway unavailable/5xx, and malformed/protocol responses. Error text contains
-status/category and safe diagnostic context only. It never contains an API key,
-Authorization header, URL credentials, raw provider body, or serialized secret
-settings.
+Unit tests cover settings, serialization, plain and structured parsing,
+tool-call parsing, metadata, nullable provider/cost fields, transport/status
+failures, malformed protocol responses, structured-output failures, reusable
+client ownership, and secret redaction. The dedicated `llm_gateway_contract`
+marker and `make llm-gateway-contract` target run the real proxy contract.
 
-## Testing and CI
+## Explicit Stage 3 non-goals
 
-Unit tests use deterministic `httpx` transports to cover settings validation,
-serialization, plain and structured parsing, tool calls, metadata, nullable
-provider/cost fields, timeout, auth, rate limits, 5xx/unavailable,
-malformed/protocol payloads, and secret redaction.
+Stage 3 explicitly does not implement:
 
-A permanent `llm_gateway_contract` pytest marker runs through a real LiteLLM
-Proxy and the deterministic local provider stub. It covers plain generation,
-structured generation, tool-call parsing, and failure normalization. The
-`llm-gateway-contract` Make target owns the disposable Compose lifecycle.
-Ordinary unit/quality selectors exclude this marker; the independent CI job
-named `llm-gateway-contract` runs it without external provider credentials.
+- write tools;
+- cancellation, reschedule, return, or ticket mutations;
+- RAG;
+- embeddings or vector search;
+- Arabic specialization;
+- voice;
+- multi-agent architecture;
+- HITL or approval;
+- streaming UI.
 
-## Explicit non-goals for M3A
-
-This branch does not implement M3B–M3F, LangGraph, agent or conversation
-runtime, tool execution, Commerce client integration, persistence, frontend,
-RAG, writes, Arabic specialization, or voice. It does not modify NovaCommerce
-production code, Commerce migrations, the Stage 2 OpenAPI contract, or the
-canonical seed.
-
-## Future Stage 3 increments
-
-- **M3B — text-agent runtime:** compose a text-only agent runtime over the M3A
-  client, with explicit turn boundaries and no persistence.
-- **M3C — conversation state:** add the approved conversation persistence model
-  and lifecycle, keeping provider calls behind `LLMClient`.
-- **M3D — Commerce tools:** add typed read/write tool contracts and the
-  application-owned Commerce client only after the tool boundary is approved.
-- **M3E — retrieval and Arabic specialization:** add RAG, language policy,
-  prompt/evaluation assets, and Arabic-specific behavior behind measured
-  interfaces.
-- **M3F — voice and end-to-end acceptance:** add voice adapters and the final
-  end-to-end acceptance path without weakening the M3A gateway contract.
+M3A additionally does not implement M3B–M3F, LangGraph, agents, tools,
+conversation persistence, Commerce client integration, frontend, or writes.
+It does not modify NovaCommerce production code, Commerce migrations, the
+Stage 2 OpenAPI contract, or the canonical seed.

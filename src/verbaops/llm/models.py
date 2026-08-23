@@ -119,14 +119,15 @@ class ResponseMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     capability_alias: CapabilityAlias | None = None
-    request_id: str | None = None
+    gateway_request_id: str | None = None
+    gateway_model_id: str | None = None
     model: str | None = None
     provider: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
     total_tokens: int | None = None
     latency_ms: float | None = None
-    cost: float | None = None
+    cost_usd: float | None = None
     finish_reason: str | None = None
 
 

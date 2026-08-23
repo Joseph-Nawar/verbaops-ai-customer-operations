@@ -155,14 +155,15 @@ def test_response_metadata_fields_are_nullable() -> None:
     metadata = ResponseMetadata()
 
     assert metadata.capability_alias is None
-    assert metadata.request_id is None
+    assert metadata.gateway_request_id is None
+    assert metadata.gateway_model_id is None
     assert metadata.model is None
     assert metadata.provider is None
     assert metadata.input_tokens is None
     assert metadata.output_tokens is None
     assert metadata.total_tokens is None
     assert metadata.latency_ms is None
-    assert metadata.cost is None
+    assert metadata.cost_usd is None
     assert metadata.finish_reason is None
 
 
