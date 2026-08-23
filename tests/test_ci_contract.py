@@ -48,7 +48,7 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
         in text
     )
     assert "--cov=novacommerce" in text
@@ -56,11 +56,11 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")
     assert text.index("uv run mypy src tests") < text.index(
-        'uv run pytest -m "not postgres and not commerce_acceptance"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
     )
-    assert text.index('uv run pytest -m "not postgres and not commerce_acceptance"') < text.index(
-        "uv run pre-commit run --all-files"
-    )
+    assert text.index(
+        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+    ) < text.index("uv run pre-commit run --all-files")
     assert "0.12.5" in text
     assert "fail_under = 80" in Path("pyproject.toml").read_text(encoding="utf-8")
 
@@ -80,7 +80,11 @@ def test_ci_docker_job_is_quality_gated_and_does_not_publish() -> None:
 def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
 
-    assert '$(UV) run pytest -m "not postgres and not commerce_acceptance"' in text
+    assert (
+        '$(UV) run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        in text
+    )
+    assert "llm-gateway-contract:" in text
     assert "postgres-contract:" in text
     assert "postgres-concurrency:" in text
     assert "postgres-critical-race:" in text
@@ -119,8 +123,47 @@ def test_quality_uses_normal_database_independent_path_and_contract_check() -> N
     text = workflow_text()
 
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce'
         in text
     )
     assert "uv run mypy src tests scripts" in text
     assert "make commerce-contract-check" in text
+
+
+def test_ci_has_independent_credential_free_llm_gateway_contract_job() -> None:
+    text = workflow_text()
+
+    for job_name in (
+        "quality",
+        "postgres-contract",
+        "postgres-concurrency",
+        "docker-build",
+        "commerce-acceptance",
+    ):
+        assert f"  {job_name}:" in text
+
+    assert (
+        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        in text
+    )
+
+    job_match = re.search(
+        r"^  llm-gateway-contract:\n(?P<body>.*?)(?=^  [a-z0-9-]+:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert job_match is not None
+
+    job = job_match.group("body")
+    assert "name: llm-gateway-contract" in job
+    assert "runs-on: ubuntu-24.04" in job
+    assert "timeout-minutes:" in job
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in job
+    assert "astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9" in job
+    assert 'version: "0.12.5"' in job
+    assert "uv python install" in job
+    assert "uv lock --check" in job
+    assert "uv sync --locked" in job
+    assert "make llm-gateway-contract" in job
+    assert "needs:" not in job
+    assert "env:" not in job

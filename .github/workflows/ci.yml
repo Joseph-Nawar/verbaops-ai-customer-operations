@@ -50,7 +50,7 @@ jobs:
         run: uv run mypy src tests scripts
 
       - name: Tests and coverage
-        run: uv run pytest -m "not postgres and not commerce_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
+        run: uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 
       - name: Pre-commit repository checks
         run: uv run pre-commit run --all-files
@@ -203,3 +203,31 @@ jobs:
 
       - name: Run permanent black-box acceptance
         run: make commerce-acceptance
+
+  llm-gateway-contract:
+    name: llm-gateway-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Verify locked dependencies
+        run: uv lock --check
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Run LLM gateway contract suite
+        run: make llm-gateway-contract
