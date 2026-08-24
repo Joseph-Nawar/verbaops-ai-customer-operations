@@ -141,6 +141,96 @@ class LLMSettings(BaseModel):
         return value
 
 
+class CommerceSettings(BaseModel):
+    """Immutable connection settings for the authenticated NovaCommerce API."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
+
+    base_url: str = "http://localhost:8010"
+    service_token: SecretStr = SecretStr("local-development-token")
+    timeout_seconds: PositiveFloat = 15.0
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        """Validate updates instead of allowing credential-bearing URLs to bypass checks."""
+
+        if update is None:
+            return super().model_copy(update=None, deep=deep)
+        values = self.model_dump()
+        values.update(update)
+        return type(self).model_validate(values)
+
+    @classmethod
+    def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> Self:
+        """Keep the unsafe Pydantic constructor behind the same validation boundary."""
+
+        return cls.model_validate(values)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_url_credentials(cls, data: Any) -> Any:
+        """Replace credential-bearing URLs before Pydantic records an error input."""
+
+        if not isinstance(data, Mapping):
+            return data
+        data = dict(data)
+        if "base_url" not in data:
+            return data
+        value = data.get("base_url")
+        if not isinstance(value, str):
+            sanitized = dict(data)
+            sanitized["base_url"] = "[redacted]"
+            return sanitized
+        try:
+            parsed = urlsplit(value)
+            contains_credentials = (
+                parsed.username is not None
+                or parsed.password is not None
+                or bool(parsed.query)
+                or bool(parsed.fragment)
+            )
+        except ValueError:
+            contains_credentials = any(marker in value for marker in ("@", "?", "#"))
+        if not contains_credentials:
+            return data
+        sanitized = dict(data)
+        sanitized["base_url"] = "[redacted]"
+        return sanitized
+
+    @field_validator("base_url")
+    @classmethod
+    def validate_base_url(cls, value: str) -> str:
+        """Require an absolute HTTP(S) Commerce URL without credentials."""
+
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            raise ValueError("base_url must be an absolute HTTP(S) URL") from None
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("base_url must not contain credentials")
+        if parsed.query or parsed.fragment:
+            raise ValueError("base_url must not contain query or fragment data")
+        AnyHttpUrl(value)
+        return value
+
+    @field_validator("service_token")
+    @classmethod
+    def validate_service_token(cls, value: SecretStr) -> SecretStr:
+        """Reject blank credentials while keeping the value secret."""
+
+        if not value.get_secret_value().strip():
+            raise ValueError("service_token must not be blank")
+        return value
+
+
 class ObservabilitySettings(BaseModel):
     """Configuration for future observability integrations."""
 
@@ -165,6 +255,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    commerce: CommerceSettings = Field(default_factory=CommerceSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod
