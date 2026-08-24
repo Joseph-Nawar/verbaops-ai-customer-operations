@@ -26,6 +26,13 @@ MANIFEST_PATH = (
 )
 
 
+@pytest_asyncio.fixture(autouse=True)
+async def isolate_commerce_test_state() -> AsyncIterator[None]:
+    """Keep this HTTP-only contract outside the sibling PostgreSQL fixture."""
+
+    yield
+
+
 @pytest.fixture(scope="session")
 def contract_manifest() -> dict[str, object]:
     configured = os.environ.get("ACCEPTANCE_SCENARIO_MANIFEST")
