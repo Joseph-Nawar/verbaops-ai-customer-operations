@@ -7,7 +7,8 @@ changes this instruction. Detailed TDD task plans for M3B–M3F must be refined 
 start of each milestone from the then-current merged repository; this document
 does not invent their future implementation details.
 
-**Current scope:** this branch implements M3E only; M3A–M3D are merged on the base.
+**Status:** M3A–M3F are complete and the Stage 3 read-only path is locked on
+the merged Stage 3 line. Follow-up work belongs to a later stage.
 
 ## Locked global constraints
 
@@ -155,3 +156,12 @@ At the start of M3B, M3C, M3D, M3E, and M3F, create a fresh detailed TDD task
 plan after inspecting the then-current merged repository. Preserve the exact
 milestone names, scopes, non-goals, and exit criteria above; do not pre-commit
 future code structure or dependencies in this master plan.
+
+## Stage 3 lock record
+
+M3F completed the minimal Next.js text chat and server-only BFF over the M3E
+conversation API. Its focused BFF/UI tests, deterministic browser smoke, full
+backend regression suite, PostgreSQL gates, Commerce contracts, LiteLLM
+gateway contract, agent acceptance, runtime image build, and invariant checks
+passed before this roadmap was marked complete. Execution remained
+single-agent throughout; no subagents were used.

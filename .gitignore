@@ -29,6 +29,7 @@ Desktop.ini
 .env
 .env.*
 !.env.example
+!.env.local.example
 .secrets/
 .secrets/commerce_postgres_password
 *.pem

@@ -6,8 +6,8 @@ Stage 3 is delivered through six bounded milestones. Each milestone is planned
 from the then-current merged repository; later milestone details must not be
 invented prematurely.
 
-M3A–M3D are the merged prerequisites for the current milestone branch. The
-current milestone branch implements M3E only.
+M3A–M3F are complete on the merged Stage 3 line. The Stage 3 read-only path
+is now locked; follow-up work must be planned as a later stage.
 
 ## Exact Stage 3 milestones
 
@@ -145,7 +145,8 @@ Stage 3 explicitly does not implement:
 - HITL or approval;
 - streaming UI.
 
-M3E additionally does not implement M3F, frontend, writes, RAG, voice,
-Arabic specialization, HITL, multi-agent behavior, or streaming. It does not
-modify NovaCommerce production code, Commerce migrations, the Stage 2 OpenAPI
-contract, or the canonical seed.
+M3F adds only the minimal browser chat and server-only BFF over the M3E API.
+Stage 3 does not implement writes, RAG, voice, Arabic specialization, HITL,
+multi-agent behavior, streaming, or a production identity provider. It does
+not modify NovaCommerce production code, Commerce migrations, the Stage 2
+OpenAPI contract, or the canonical seed.
