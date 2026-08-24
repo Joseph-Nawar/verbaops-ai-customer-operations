@@ -9,6 +9,7 @@ from verbaops.agent.errors import (
     AgentProtocolError,
     AgentUnavailableError,
 )
+from verbaops.agent.runtime import AgentRuntime, AgentTurnResult
 
 __all__ = [
     "AgentBudgetExceededError",
@@ -17,5 +18,7 @@ __all__ = [
     "AgentError",
     "AgentInputError",
     "AgentProtocolError",
+    "AgentRuntime",
+    "AgentTurnResult",
     "AgentUnavailableError",
 ]
