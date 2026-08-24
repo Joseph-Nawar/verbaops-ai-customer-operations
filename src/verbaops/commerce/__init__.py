@@ -1,5 +1,6 @@
 """Application-owned NovaCommerce HTTP boundary."""
 
+from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import (
     CommerceAuthenticationError,
     CommerceError,
@@ -20,6 +21,7 @@ from verbaops.commerce.models import (
 
 __all__ = [
     "CommerceAuthenticationError",
+    "CommerceClient",
     "CommerceError",
     "CommerceNotFoundError",
     "CommerceProtocolError",
