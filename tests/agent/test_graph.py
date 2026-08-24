@@ -10,7 +10,6 @@ from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import AgentProtocolError
 from verbaops.agent.graph import build_agent_graph
-from verbaops.agent.versions import MAX_VISIBLE_HISTORY
 from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
@@ -109,7 +108,7 @@ async def test_model_request_exposes_exactly_the_five_read_only_tool_schemas() -
 
 
 @pytest.mark.asyncio
-async def test_model_history_is_bounded_to_latest_customer_visible_messages() -> None:
+async def test_model_request_preserves_existing_state_messages_in_order() -> None:
     llm = ScriptedLLMClient([response("I need more information.")])
     context = make_context(llm)
     history = [
@@ -133,8 +132,8 @@ async def test_model_history_is_bounded_to_latest_customer_visible_messages() ->
     )
 
     visible_messages = [message for message in llm.requests[0].messages if message.role != "system"]
-    assert len(visible_messages) == MAX_VISIBLE_HISTORY
-    assert visible_messages[0].content == "message-10"
+    assert len(visible_messages) == 30
+    assert visible_messages[0].content == "message-0"
     assert visible_messages[-1].content == "message-29"
 
 

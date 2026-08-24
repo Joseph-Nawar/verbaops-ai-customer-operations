@@ -19,6 +19,7 @@ from verbaops.agent.versions import (
     GRAPH_RECURSION_LIMIT,
     GRAPH_VERSION,
     MAX_USER_CONTENT_CHARS,
+    MAX_VISIBLE_HISTORY,
     PROMPT_VERSION,
     TOOL_SCHEMA_VERSION,
 )
@@ -163,10 +164,10 @@ class AgentRuntime:
 
 
 def _initial_state(history: list[MessageRecord]) -> AgentState:
+    visible_history = [record for record in history if record.role in ("user", "assistant")]
     messages = [
         ChatMessage(role=cast(Literal["user", "assistant"], record.role), content=record.content)
-        for record in history
-        if record.role in ("user", "assistant")
+        for record in visible_history[-MAX_VISIBLE_HISTORY:]
     ]
     return {
         "messages": messages,

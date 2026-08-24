@@ -228,6 +228,51 @@ async def test_malformed_known_arguments_receive_one_repair_round() -> None:
 
 
 @pytest.mark.asyncio
+async def test_two_tool_rounds_preserve_openai_message_chronology() -> None:
+    order_id = uuid4()
+    invalid_call = ToolCall(
+        id="invalid-1",
+        name="get_shipment_status",
+        arguments={"order_id": "not-a-uuid"},
+    )
+    valid_call = shipment_call(order_id, "valid-2")
+    llm = ScriptedLLMClient(
+        [
+            model_response(None, invalid_call),
+            model_response(None, valid_call),
+            model_response("Your shipment is in transit."),
+        ]
+    )
+    service = RecordingConversationService()
+
+    result = await build_agent_graph().ainvoke(
+        make_state(),
+        context=make_context(
+            llm,
+            service,
+            lambda _request: httpx.Response(200, json=shipment_payload(order_id)),
+        ),
+    )
+
+    assert result["final_response"] == "Your shipment is in transit."
+    third_request = llm.requests[2]
+    assert [message.role for message in third_request.messages] == [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+        "assistant",
+        "tool",
+    ]
+    assert third_request.messages[2].tool_calls is not None
+    assert third_request.messages[2].tool_calls[0].id == "invalid-1"
+    assert third_request.messages[3].tool_call_id == "invalid-1"
+    assert third_request.messages[4].tool_calls is not None
+    assert third_request.messages[4].tool_calls[0].id == "valid-2"
+    assert third_request.messages[5].tool_call_id == "valid-2"
+
+
+@pytest.mark.asyncio
 async def test_repeated_invalid_tool_calls_terminate_safely() -> None:
     invalid = ToolCall(id="bad", name="get_shipment_status", arguments={"order_id": "bad"})
     llm = ScriptedLLMClient([model_response(None, invalid), model_response(None, invalid)])

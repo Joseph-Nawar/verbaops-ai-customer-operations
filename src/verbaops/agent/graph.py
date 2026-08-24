@@ -22,7 +22,6 @@ from verbaops.agent.versions import (
     MAX_TOOL_CALLS,
     MAX_TOOL_ROUNDS,
     MAX_VALIDATION_REPAIRS,
-    MAX_VISIBLE_HISTORY,
 )
 from verbaops.commerce.errors import (
     CommerceAuthenticationError,
@@ -251,13 +250,9 @@ def _context(runtime: Runtime[AgentContext]) -> AgentContext:
 
 
 def _request_messages(messages: list[ChatMessage]) -> list[ChatMessage]:
-    visible = [message for message in messages if message.role in ("user", "assistant")]
-    bounded_visible = visible[-MAX_VISIBLE_HISTORY:]
-    tool_messages = [message for message in messages if message.role == "tool"]
     return [
         ChatMessage(role="system", content=load_system_prompt()),
-        *bounded_visible,
-        *tool_messages,
+        *messages,
     ]
 
 

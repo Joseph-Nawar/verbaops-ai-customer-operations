@@ -13,7 +13,12 @@ from pydantic import SecretStr
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.errors import AgentBusyError, AgentInputError, AgentUnavailableError
 from verbaops.agent.runtime import AgentRuntime, AgentTurnResult
-from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
+from verbaops.agent.versions import (
+    GRAPH_VERSION,
+    MAX_VISIBLE_HISTORY,
+    PROMPT_VERSION,
+    TOOL_SCHEMA_VERSION,
+)
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
 from verbaops.conversations.domain import (
@@ -170,6 +175,18 @@ def make_runtime(
     )
 
 
+class CapturingGraph:
+    def __init__(self) -> None:
+        self.initial_state: dict[str, Any] | None = None
+
+    async def ainvoke(
+        self, state: dict[str, Any], *, context: Any, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        del context, config
+        self.initial_state = state
+        return {"final_response": "bounded response"}
+
+
 def scope() -> ConversationScope:
     return ConversationScope(tenant_id=uuid4(), principal_id=uuid4())
 
@@ -227,6 +244,31 @@ async def test_two_turn_clarification_then_shipment_lookup_persists_lifecycle() 
     assert all(call["graph_version"] == GRAPH_VERSION for call in service.start_calls)
     assert all(call["prompt_version"] == PROMPT_VERSION for call in service.start_calls)
     assert all(call["tool_schema_version"] == TOOL_SCHEMA_VERSION for call in service.start_calls)
+
+
+@pytest.mark.asyncio
+async def test_runtime_bounds_only_initial_persisted_visible_history() -> None:
+    service = RecordingConversationService(
+        messages=[
+            MessageRecord(uuid4(), uuid4(), index + 1, "user", f"history-{index}", NOW)
+            for index in range(30)
+        ]
+    )
+    graph = CapturingGraph()
+    runtime = AgentRuntime(
+        conversation_service=cast(ConversationService, service),
+        llm_client=ScriptedLLMClient([]),
+        commerce_client=cast(CommerceClient, object()),
+        graph=graph,
+    )
+
+    await runtime.run_turn(scope(), uuid4(), uuid4(), "current message")
+
+    assert graph.initial_state is not None
+    messages = graph.initial_state["messages"]
+    assert len(messages) == MAX_VISIBLE_HISTORY
+    assert messages[0].content == "history-11"
+    assert messages[-1].content == "current message"
 
 
 @pytest.mark.asyncio
