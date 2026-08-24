@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +29,9 @@ def _content_text(messages: list[dict[str, Any]]) -> str:
 
 
 def _completion(request: dict[str, Any]) -> dict[str, Any]:
+    acceptance = _agent_acceptance_completion(request)
+    if acceptance is not None:
+        return acceptance
     marker = _content_text(request.get("messages", []))
     if "test:timeout" in marker:
         time.sleep(5)
@@ -76,6 +80,112 @@ def _completion(request: dict[str, Any]) -> dict[str, Any]:
         "created": 1,
         "model": "local-test-model",
         "choices": [{"index": 0, "message": message, "finish_reason": finish_reason}],
+        "usage": {
+            "prompt_tokens": 7,
+            "completion_tokens": completion_tokens,
+            "total_tokens": 7 + completion_tokens,
+        },
+    }
+
+
+def _agent_acceptance_completion(request: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the deterministic two-turn journey used by M3E acceptance."""
+
+    messages = request.get("messages", [])
+    if not isinstance(messages, list):
+        return None
+    user_contents = [
+        message.get("content")
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "user"
+    ]
+    if not user_contents or not isinstance(user_contents[-1], str):
+        return None
+    tool_messages = [
+        message
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "tool"
+    ]
+    if tool_messages:
+        try:
+            result = json.loads(tool_messages[-1].get("content", "{}"))
+        except (TypeError, json.JSONDecodeError):
+            return None
+        if not isinstance(result, dict):
+            return None
+        if result.get("status") == "not_found":
+            answer = "I couldn't find a shipment for that order."
+        else:
+            status = result.get("status")
+            carrier = result.get("carrier")
+            tracking = result.get("tracking_number") or "no tracking number"
+            if not all(isinstance(value, str) for value in (status, carrier, tracking)):
+                return None
+            answer = f"Your shipment is {status} with {carrier}. Tracking number: {tracking}."
+        return _response_payload(answer, finish_reason="stop", completion_tokens=12)
+
+    latest = user_contents[-1].strip()
+    if latest.lower() == "where is my order?":
+        return _response_payload(
+            "Please provide your order ID so I can check the shipment.",
+            finish_reason="stop",
+            completion_tokens=11,
+        )
+    if re.fullmatch(r"[0-9a-fA-F-]{36}", latest):
+        tool_name = _requested_tool_name(request, "get_shipment_status")
+        return {
+            **_response_payload(None, finish_reason="tool_calls", completion_tokens=9),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call_shipment_status",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": json.dumps({"order_id": latest}),
+                                },
+                            }
+                        ],
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+        }
+    return None
+
+
+def _requested_tool_name(request: dict[str, Any], preferred: str) -> str:
+    tools = request.get("tools", [])
+    if isinstance(tools, list):
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+            function = tool.get("function")
+            if isinstance(function, dict) and function.get("name") == preferred:
+                return preferred
+    return preferred
+
+
+def _response_payload(
+    content: str | None, *, finish_reason: str, completion_tokens: int
+) -> dict[str, Any]:
+    return {
+        "id": "stub-chat-completion",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "local-test-model",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": finish_reason,
+            }
+        ],
         "usage": {
             "prompt_tokens": 7,
             "completion_tokens": completion_tokens,

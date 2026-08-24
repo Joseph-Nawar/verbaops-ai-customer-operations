@@ -16,6 +16,10 @@ from verbaops.db.resources import DatabaseResources
 from verbaops.observability.context import bind_tenant_id
 
 if TYPE_CHECKING:
+    from verbaops.agent.runtime import AgentRuntime
+    from verbaops.conversations.service import ConversationService
+
+if TYPE_CHECKING:
     from verbaops.api.lifespan import RuntimeResources
 
 
@@ -60,6 +64,24 @@ def get_redis_client(request: Request) -> Redis:
     if resources.redis is None:
         raise RuntimeResourceUnavailableError("redis resource is unavailable")
     return resources.redis
+
+
+def get_conversation_service(request: Request) -> "ConversationService":
+    """Retrieve the lifespan-owned conversation service."""
+
+    resources = get_runtime_resources(request)
+    if resources.conversation_service is None:
+        raise RuntimeResourceUnavailableError("conversation service is unavailable")
+    return resources.conversation_service
+
+
+def get_agent_runtime(request: Request) -> "AgentRuntime":
+    """Retrieve the lifespan-owned agent runtime."""
+
+    resources = get_runtime_resources(request)
+    if resources.agent_runtime is None:
+        raise RuntimeResourceUnavailableError("agent runtime is unavailable")
+    return resources.agent_runtime
 
 
 def get_application_dependencies(request: Request) -> ApplicationDependencies:

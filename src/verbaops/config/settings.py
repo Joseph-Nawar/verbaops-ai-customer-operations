@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import (
     AnyHttpUrl,
@@ -239,6 +240,30 @@ class ObservabilitySettings(BaseModel):
     log_level: LogLevel = LogLevel.INFO
 
 
+class AuthSettings(BaseModel):
+    """Immutable development authentication mapping configuration."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
+
+    development_token: SecretStr = SecretStr("local-development-token")
+    development_principal_id: UUID = UUID("10000000-0000-0000-0000-000000000001")
+    development_tenant_id: UUID = UUID("10000000-0000-0000-0000-000000000002")
+    development_customer_id: UUID = UUID("d77809e8-6d3b-5792-9128-ff2bc88bc955")
+
+    @field_validator("development_token")
+    @classmethod
+    def validate_development_token(cls, value: SecretStr) -> SecretStr:
+        """Reject blank development credentials without exposing them."""
+
+        if not value.get_secret_value().strip():
+            raise ValueError("development token must not be blank")
+        return value
+
+
 class Settings(BaseSettings):
     """Application settings loaded from VERBAOPS_-prefixed environment variables."""
 
@@ -256,6 +281,7 @@ class Settings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     commerce: CommerceSettings = Field(default_factory=CommerceSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod

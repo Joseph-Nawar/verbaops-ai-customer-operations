@@ -45,6 +45,8 @@ class AgentTurnResult:
     assistant_message_id: UUID
     content: str
     agent_run: AgentRunRecord
+    user_message: MessageRecord
+    assistant_message: MessageRecord
 
 
 class AgentRuntime:
@@ -136,6 +138,8 @@ class AgentRuntime:
             assistant_message_id=completion.assistant_message.id,
             content=completion.assistant_message.content,
             agent_run=completion.agent_run,
+            user_message=turn_start.user_message,
+            assistant_message=completion.assistant_message,
         )
 
     @staticmethod

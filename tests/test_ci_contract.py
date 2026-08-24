@@ -48,7 +48,7 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
         in text
     )
     assert "--cov=novacommerce" in text
@@ -56,10 +56,10 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")
     assert text.index("uv run mypy src tests") < text.index(
-        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance"'
     )
     assert text.index(
-        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance"'
     ) < text.index("uv run pre-commit run --all-files")
     assert "0.12.5" in text
     assert "fail_under = 80" in Path("pyproject.toml").read_text(encoding="utf-8")
@@ -81,7 +81,7 @@ def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
 
     assert (
-        '$(UV) run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
+        '$(UV) run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance"'
         in text
     )
     assert "llm-gateway-contract:" in text
@@ -90,6 +90,7 @@ def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
     assert "postgres-critical-race:" in text
     assert "commerce-contract-check:" in text
     assert "commerce-contract-update:" in text
+    assert "agent-acceptance:" in text
     assert "scripts/require_test_database.py" in text
 
 
@@ -125,7 +126,7 @@ def test_quality_uses_normal_database_independent_path_and_contract_check() -> N
     text = workflow_text()
 
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract" --cov=verbaops --cov=novacommerce'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance" --cov=verbaops --cov=novacommerce'
         in text
     )
     assert "uv run mypy src tests scripts" in text
@@ -142,11 +143,12 @@ def test_ci_has_independent_credential_free_llm_gateway_contract_job() -> None:
         "docker-build",
         "commerce-acceptance",
         "commerce-client-contract",
+        "agent-acceptance",
     ):
         assert f"  {job_name}:" in text
 
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance"'
         in text
     )
 
@@ -169,6 +171,24 @@ def test_ci_has_independent_credential_free_llm_gateway_contract_job() -> None:
     assert "uv sync --locked" in job
     assert "make llm-gateway-contract" in job
     assert "needs:" not in job
+    assert "env:" not in job
+
+
+def test_ci_has_independent_agent_acceptance_job() -> None:
+    text = workflow_text()
+    job_match = re.search(
+        r"^  agent-acceptance:\n(?P<body>.*?)(?=^  [a-z0-9-]+:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert job_match is not None
+    job = job_match.group("body")
+    assert "name: agent-acceptance" in job
+    assert "runs-on: ubuntu-24.04" in job
+    assert "uv lock --check" in job
+    assert "uv sync --locked" in job
+    assert "make agent-acceptance" in job
+    assert "secrets." not in job
     assert "env:" not in job
 
 

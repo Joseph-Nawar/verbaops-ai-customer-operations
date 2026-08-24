@@ -30,7 +30,7 @@ async def test_lifespan_installs_and_cleans_runtime_resources(
     )
     engine = AsyncMock()
     redis = AsyncMock()
-    database = type("Database", (), {"engine": engine})()
+    database = type("Database", (), {"engine": engine, "session_factory": AsyncMock()})()
     dispose = AsyncMock()
     close = AsyncMock()
     monkeypatch.setattr("verbaops.api.lifespan.create_database_resources", lambda _: database)
@@ -76,3 +76,28 @@ async def test_lifespan_cleans_partial_startup(monkeypatch: pytest.MonkeyPatch) 
 
     dispose.assert_awaited_once_with(database)
     close.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_composes_reusable_agent_resources_and_closes_clients() -> None:
+    construct = cast(Callable[..., Settings], Settings)
+    settings = construct(_env_file=None)
+    app = FastAPI()
+    app.state.verbaops_dependencies = ApplicationDependencies(
+        settings=settings,
+        auth_provider=DevelopmentAuthProvider({}, environment=settings.environment),
+    )
+
+    async with lifespan(app):
+        resources = app.state.verbaops_runtime_resources
+        assert resources.llm_http_client is not None
+        assert resources.commerce_http_client is not None
+        assert resources.llm_client is not None
+        assert resources.commerce_client is not None
+        assert resources.conversation_service is None
+        assert resources.agent_runtime is None
+        llm_http_client = resources.llm_http_client
+        commerce_http_client = resources.commerce_http_client
+
+    assert llm_http_client.is_closed
+    assert commerce_http_client.is_closed

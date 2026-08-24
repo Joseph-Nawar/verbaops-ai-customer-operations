@@ -7,7 +7,7 @@ changes this instruction. Detailed TDD task plans for M3B–M3F must be refined 
 start of each milestone from the then-current merged repository; this document
 does not invent their future implementation details.
 
-**Current scope:** this branch implements M3B only; M3A is merged on the base.
+**Current scope:** this branch implements M3E only; M3A–M3D are merged on the base.
 
 ## Locked global constraints
 
@@ -106,6 +106,48 @@ introduced.
 
 Request review, push `stage3/m3b-agent-persistence`, create a draft PR, wait
 for hosted CI, and report the evidence. Do not merge and do not begin M3C.
+
+## M3E TDD task plan
+
+This milestone plan is intentionally derived from the merged M3D repository at
+the start of M3E. It does not introduce a new persistence schema or pre-plan
+M3F implementation details.
+
+### 1. Establish the API and composition RED suite
+
+- Add direct FastAPI tests for bearer authentication, trusted identity
+  derivation, strict request schemas, scoped 404 behavior, pagination, safe
+  error mapping, and public response serialization.
+- Add settings and lifespan tests for the development authentication mapping,
+  reusable HTTP clients, composed service/runtime dependencies, and safe
+  partial cleanup.
+- Add PostgreSQL pagination tests to the existing persistence marker/job.
+- Add contract tests for the acceptance runner/Compose topology before adding
+  the end-to-end harness.
+
+### 2. Implement the minimal M3E boundary
+
+- Extend the existing lifespan-owned runtime resource container with the
+  reusable LLM and Commerce clients and composed ConversationService and
+  AgentRuntime.
+- Add the three scoped conversation routes and the minimal service pagination
+  method; keep public responses limited to customer-visible conversation data.
+- Configure development/test authentication only from immutable settings and
+  preserve fail-closed staging/production behavior.
+- Add the dedicated disposable agent acceptance stack, deterministic provider
+  journey, trace assertions, security checks, marker, Make target, and CI job.
+
+### 3. Verify the M3E boundary
+
+Run the focused API and pagination suites, all existing Stage 1/2/M3A/M3C/M3D
+gates, and the new agent acceptance. Confirm both migration heads, the Stage 2
+OpenAPI hash, canonical seed fingerprint, exact M3C registry, M3A HTTP boundary,
+and all explicit Stage 3 non-goals remain unchanged.
+
+### 4. Review and handoff
+
+Push `stage3/m3e-conversation-api-acceptance`, open a draft PR, wait for hosted
+CI, and report the evidence. Do not merge and do not begin M3F.
 
 ## Future milestone planning rule
 
