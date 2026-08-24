@@ -1,0 +1,14 @@
+"""Frozen M3D graph, prompt, tool-schema, and budget versions."""
+
+GRAPH_VERSION = "text-agent-v1"
+PROMPT_VERSION = "text-agent-system-v1"
+TOOL_SCHEMA_VERSION = "commerce-read-tools-v1"
+
+MAX_USER_CONTENT_CHARS = 8000
+MAX_VISIBLE_HISTORY = 20
+MAX_MODEL_CALLS = 4
+MAX_TOOL_ROUNDS = 3
+MAX_TOOL_CALLS = 6
+MAX_VALIDATION_REPAIRS = 1
+TURN_DEADLINE_SECONDS = 45.0
+GRAPH_RECURSION_LIMIT = 20
