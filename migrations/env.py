@@ -11,6 +11,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from verbaops.config.settings import Settings
+from verbaops.conversations import persistence as _conversation_persistence  # noqa: F401
 from verbaops.db.base import Base
 
 config = context.config
