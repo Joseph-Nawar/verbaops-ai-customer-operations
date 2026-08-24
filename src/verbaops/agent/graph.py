@@ -1,17 +1,36 @@
 """Direct LangGraph topology for the bounded read-only text agent."""
 
+import json
+from time import perf_counter
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
+from pydantic import BaseModel, ValidationError
 
 from verbaops.agent.context import AgentContext
-from verbaops.agent.errors import AgentProtocolError, AgentUnavailableError
+from verbaops.agent.errors import (
+    AgentBudgetExceededError,
+    AgentProtocolError,
+    AgentUnavailableError,
+)
 from verbaops.agent.prompts import load_system_prompt
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
     GRAPH_RECURSION_LIMIT,
+    MAX_MODEL_CALLS,
+    MAX_TOOL_CALLS,
+    MAX_TOOL_ROUNDS,
+    MAX_VALIDATION_REPAIRS,
     MAX_VISIBLE_HISTORY,
+)
+from verbaops.commerce.errors import (
+    CommerceAuthenticationError,
+    CommerceError,
+    CommerceNotFoundError,
+    CommerceProtocolError,
+    CommerceTimeoutError,
+    CommerceUnavailableError,
 )
 from verbaops.llm.errors import LLMError
 from verbaops.llm.models import (
@@ -23,6 +42,8 @@ from verbaops.llm.models import (
 from verbaops.llm.models import (
     ToolDefinition as LLMToolDefinition,
 )
+from verbaops.tools.models import ToolExecutionContext
+from verbaops.tools.registry import UnknownToolError
 
 
 def build_agent_graph() -> Any:
@@ -49,6 +70,8 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
     """Ask the gateway for one bounded response and persist its metadata."""
 
     context = _context(runtime)
+    if state["model_call_count"] >= MAX_MODEL_CALLS:
+        raise AgentBudgetExceededError()
     request = GenerateRequest(
         capability=CapabilityAlias.AGENT_FAST,
         messages=tuple(_request_messages(state["messages"])),
@@ -97,17 +120,112 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
 async def validate_tool_calls(
     state: AgentState, runtime: Runtime[AgentContext]
 ) -> dict[str, object]:
-    """Topology placeholder for the explicit validation node."""
+    """Validate emitted tool names and arguments before any execution."""
 
-    del runtime
-    return {"pending_tool_calls": state["pending_tool_calls"]}
+    context = _context(runtime)
+    if state["tool_round_count"] >= MAX_TOOL_ROUNDS:
+        raise AgentBudgetExceededError()
+    calls = state["pending_tool_calls"]
+    if state["tool_call_count"] + len(calls) > MAX_TOOL_CALLS:
+        raise AgentBudgetExceededError()
+
+    invalid_messages: list[ChatMessage] = []
+    invalid_calls: list[tuple[Any, str, str]] = []
+    for call in calls:
+        try:
+            definition = context.tool_registry.get(call.name)
+            definition.input_model.model_validate(call.arguments)
+        except UnknownToolError:
+            invalid_calls.append((call, "unknown_tool", "unknown read-only tool"))
+        except ValidationError:
+            invalid_calls.append((call, "invalid_tool_arguments", "tool arguments are invalid"))
+
+    if invalid_calls and state["validation_repair_count"] >= MAX_VALIDATION_REPAIRS:
+        for call, error_code, _message in invalid_calls:
+            await _persist_tool_failure(context, call, error_code, {"status": "invalid_tool_call"})
+        raise AgentProtocolError()
+
+    for call, error_code, message in invalid_calls:
+        await _persist_tool_failure(context, call, error_code, {"status": "invalid_tool_call"})
+        invalid_messages.append(
+            _tool_message(
+                call,
+                {"status": "invalid_tool_call", "error": message},
+            )
+        )
+
+    return {
+        "tool_round_count": state["tool_round_count"] + 1,
+        "tool_call_count": state["tool_call_count"] + len(calls),
+        "validation_repair_count": state["validation_repair_count"] + (1 if invalid_calls else 0),
+        "last_tool_results": invalid_messages,
+    }
 
 
 async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> dict[str, object]:
-    """Topology placeholder for the explicit execution node."""
+    """Execute only validated registry calls sequentially and persist each trace."""
 
-    del runtime
-    return {"pending_tool_calls": state["pending_tool_calls"]}
+    context = _context(runtime)
+    invalid_call_ids = {message.tool_call_id for message in state["last_tool_results"]}
+    tool_messages = list(state["last_tool_results"])
+    for call in state["pending_tool_calls"]:
+        if call.id in invalid_call_ids:
+            continue
+        definition = context.tool_registry.get(call.name)
+        started_at = perf_counter()
+        try:
+            result = await context.tool_registry.execute(
+                call.name,
+                call.arguments,
+                ToolExecutionContext(customer_id=context.customer_id),
+                context.commerce_client,
+            )
+        except CommerceNotFoundError:
+            result_json = {"status": "not_found"}
+            await _persist_tool_failure(context, call, "commerce_not_found", result_json)
+            tool_messages.append(_tool_message(call, result_json))
+            continue
+        except (
+            CommerceAuthenticationError,
+            CommerceProtocolError,
+            CommerceTimeoutError,
+            CommerceUnavailableError,
+        ) as error:
+            error_code = _commerce_error_code(error)
+            result_json = {"status": "unavailable"}
+            await _persist_tool_failure(context, call, error_code, result_json)
+            raise AgentUnavailableError() from None
+        except CommerceError:
+            await _persist_tool_failure(
+                context, call, "commerce_unavailable", {"status": "unavailable"}
+            )
+            raise AgentUnavailableError() from None
+        except ValidationError:
+            await _persist_tool_failure(
+                context, call, "invalid_tool_output", {"status": "invalid_tool_output"}
+            )
+            raise AgentProtocolError() from None
+        except Exception:
+            await _persist_tool_failure(
+                context, call, "commerce_unavailable", {"status": "unavailable"}
+            )
+            raise AgentUnavailableError() from None
+
+        result_json = _model_json(result)
+        await _persist_tool_success(
+            context,
+            call,
+            definition.risk_level.value,
+            result_json,
+            (perf_counter() - started_at) * 1000,
+        )
+        tool_messages.append(_tool_message(call, result_json))
+
+    return {
+        "messages": [*state["messages"], *tool_messages],
+        "pending_tool_calls": [],
+        "last_tool_results": tool_messages,
+    }
 
 
 async def finalize(state: AgentState, runtime: Runtime[AgentContext]) -> dict[str, object]:
@@ -152,6 +270,80 @@ def _tool_schemas(context: AgentContext) -> list[LLMToolDefinition]:
         )
         for definition in context.tool_registry
     ]
+
+
+def _model_json(value: object) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    return value
+
+
+def _tool_message(call: Any, result: Any) -> ChatMessage:
+    return ChatMessage(
+        role="tool",
+        content=json.dumps(result, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        name=call.name,
+        tool_call_id=call.id,
+    )
+
+
+async def _persist_tool_success(
+    context: AgentContext,
+    call: Any,
+    risk_level: str,
+    result: Any,
+    latency_ms: float,
+) -> None:
+    try:
+        await context.conversation_service.append_tool_invocation(
+            context.scope,
+            context.conversation_id,
+            context.agent_run_id,
+            tool_call_id=call.id,
+            tool_name=call.name,
+            risk_level=risk_level,
+            arguments=call.arguments,
+            status="succeeded",
+            result=result,
+            latency_ms=max(0.0, latency_ms),
+        )
+    except Exception:
+        raise AgentUnavailableError() from None
+
+
+async def _persist_tool_failure(
+    context: AgentContext,
+    call: Any,
+    error_code: str,
+    result: Any,
+) -> None:
+    try:
+        await context.conversation_service.append_tool_invocation(
+            context.scope,
+            context.conversation_id,
+            context.agent_run_id,
+            tool_call_id=call.id,
+            tool_name=call.name,
+            risk_level="read_only",
+            arguments=call.arguments,
+            status="failed",
+            result=result,
+            error_code=error_code,
+        )
+    except Exception:
+        raise AgentUnavailableError() from None
+
+
+def _commerce_error_code(error: CommerceError) -> str:
+    if isinstance(error, CommerceAuthenticationError):
+        return "commerce_authentication"
+    if isinstance(error, CommerceProtocolError):
+        return "commerce_protocol"
+    if isinstance(error, CommerceTimeoutError):
+        return "commerce_timeout"
+    if isinstance(error, CommerceUnavailableError):
+        return "commerce_unavailable"
+    return "commerce_unavailable"
 
 
 async def _persist_failed_model_call(context: AgentContext, error_code: str) -> None:
