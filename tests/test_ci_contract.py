@@ -170,3 +170,21 @@ def test_ci_has_independent_credential_free_llm_gateway_contract_job() -> None:
     assert "make llm-gateway-contract" in job
     assert "needs:" not in job
     assert "env:" not in job
+
+
+def test_ci_has_isolated_m3d_postgres_job() -> None:
+    text = workflow_text()
+    job_match = re.search(
+        r"^  postgres-m3d:\n(?P<body>.*?)(?=^  [a-z0-9-]+:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert job_match is not None
+    job = job_match.group("body")
+    assert "name: postgres-m3d" in job
+    assert "image: pgvector/pgvector:0.8.6-pg16-bookworm" in job
+    assert "VERBAOPS_DATABASE__URL:" in job
+    assert "NOVACOMMERCE_TEST_DATABASE_URL:" in job
+    assert "uv run alembic upgrade head" in job
+    assert 'uv run pytest -m "postgres and m3d"' in job
+    assert "continue-on-error" not in job
