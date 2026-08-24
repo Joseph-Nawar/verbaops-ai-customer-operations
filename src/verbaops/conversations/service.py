@@ -11,6 +11,7 @@ from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationRecord,
     ConversationScope,
+    MessagePage,
     MessageRecord,
     ModelCallRecord,
     ToolInvocationRecord,
@@ -51,6 +52,24 @@ class ConversationService:
     ) -> list[MessageRecord]:
         async with self._session_factory() as session, session.begin():
             return await ConversationRepository(session).list_messages(scope, conversation_id)
+
+    async def list_messages_page(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        *,
+        limit: int,
+        before_sequence: int | None = None,
+    ) -> MessagePage:
+        """Return a bounded scoped page without holding a session open."""
+
+        async with self._session_factory() as session, session.begin():
+            return await ConversationRepository(session).list_messages_page(
+                scope,
+                conversation_id,
+                limit=limit,
+                before_sequence=before_sequence,
+            )
 
     async def start_turn(
         self,

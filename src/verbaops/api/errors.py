@@ -11,6 +11,16 @@ from verbaops.auth.provider import AuthenticationError
 from verbaops.observability.context import get_request_context
 
 
+class PublicAPIError(RuntimeError):
+    """A safe, application-owned error intended for the public API."""
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.public_message = message
+
+
 def _request_id() -> str | None:
     request_id = get_request_context().request_id
     return str(request_id) if request_id is not None else None
@@ -77,4 +87,13 @@ async def runtime_resource_error_handler(
     return JSONResponse(
         status_code=503,
         content=_error_payload("resource_unavailable", "required runtime resource unavailable"),
+    )
+
+
+async def public_api_error_handler(_request: Request, error: PublicAPIError) -> JSONResponse:
+    """Render a stable safe error without exposing internal exception details."""
+
+    return JSONResponse(
+        status_code=error.status_code,
+        content=_error_payload(error.code, error.public_message),
     )

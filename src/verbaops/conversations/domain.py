@@ -37,6 +37,15 @@ class MessageRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class MessagePage:
+    """One bounded, chronological page of customer-visible messages."""
+
+    messages: tuple[MessageRecord, ...]
+    has_more: bool
+    next_before_sequence: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class AgentRunRecord:
     id: UUID
     conversation_id: UUID

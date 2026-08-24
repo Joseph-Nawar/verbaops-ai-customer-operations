@@ -1,0 +1,141 @@
+services:
+  verbaops-postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: ${VERBAOPS_DB_NAME}
+      POSTGRES_USER: ${VERBAOPS_DB_USER}
+      POSTGRES_PASSWORD: ${VERBAOPS_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${VERBAOPS_DB_PORT:-0}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  verbaops-migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      VERBAOPS_ENVIRONMENT: test
+      VERBAOPS_DATABASE__URL: ${VERBAOPS_DATABASE__URL}
+    depends_on:
+      verbaops-postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  provider-stub:
+    build:
+      context: .
+      dockerfile: infra/litellm/Dockerfile.test-provider
+    environment:
+      PROVIDER_TEST_API_KEY: local-test-provider-key
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  llm-gateway:
+    image: ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4
+    command: ["--config", "/app/config.test.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${VERBAOPS_LLM__API_KEY}
+    volumes:
+      - ./infra/litellm/config.test.yaml:/app/config.test.yaml:ro
+    depends_on:
+      provider-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  commerce-postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: ${COMMERCE_DB_NAME}
+      POSTGRES_USER: ${COMMERCE_DB_USER}
+      POSTGRES_PASSWORD: ${COMMERCE_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  commerce-migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "/app/alembic-commerce.ini", "upgrade", "head"]
+
+  commerce-seed:
+    build:
+      context: .
+      target: seed
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-migrate:
+        condition: service_completed_successfully
+    command: ["--seed", "20260821", "--as-of", "2026-08-21"]
+
+  commerce-api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+      NOVACOMMERCE_SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
+    depends_on:
+      commerce-seed:
+        condition: service_completed_successfully
+    command: ["uvicorn", "novacommerce.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  verbaops-api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      VERBAOPS_ENVIRONMENT: test
+      VERBAOPS_DATABASE__URL: ${VERBAOPS_DATABASE__URL}
+      VERBAOPS_LLM__BASE_URL: http://llm-gateway:4000/v1
+      VERBAOPS_LLM__API_KEY: ${VERBAOPS_LLM__API_KEY}
+      VERBAOPS_LLM__TIMEOUT_SECONDS: "10"
+      VERBAOPS_COMMERCE__BASE_URL: http://commerce-api:8000
+      VERBAOPS_COMMERCE__SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
+      VERBAOPS_AUTH__DEVELOPMENT_TOKEN: ${VERBAOPS_AUTH__DEVELOPMENT_TOKEN}
+      VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID: ${VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID}
+      VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID: ${VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID}
+      VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID: ${VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID}
+    depends_on:
+      verbaops-migrate:
+        condition: service_completed_successfully
+      commerce-api:
+        condition: service_healthy
+      llm-gateway:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${AGENT_ACCEPTANCE_API_PORT:-18020}:8000"
+    command: ["uvicorn", "verbaops.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+

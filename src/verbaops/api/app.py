@@ -9,13 +9,16 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from verbaops import __version__
 from verbaops.api.dependencies import ApplicationDependencies, RuntimeResourceUnavailableError
 from verbaops.api.errors import (
+    PublicAPIError,
     authentication_error_handler,
     http_exception_handler,
+    public_api_error_handler,
     runtime_resource_error_handler,
     validation_error_handler,
 )
 from verbaops.api.lifespan import lifespan
 from verbaops.api.middleware import RequestContextMiddleware
+from verbaops.api.routes.conversations import router as conversations_router
 from verbaops.api.routes.operations import router as operations_router
 from verbaops.auth.provider import AuthenticationError, AuthProvider
 from verbaops.config.settings import Settings
@@ -42,7 +45,9 @@ def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
         RuntimeResourceUnavailableError,
         cast(Any, runtime_resource_error_handler),
     )
+    app.add_exception_handler(PublicAPIError, cast(Any, public_api_error_handler))
     app.add_exception_handler(RequestValidationError, cast(Any, validation_error_handler))
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.include_router(operations_router)
+    app.include_router(conversations_router)
     return app

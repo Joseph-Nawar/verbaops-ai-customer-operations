@@ -11,6 +11,7 @@ from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationRecord,
     ConversationScope,
+    MessagePage,
     MessageRecord,
     ModelCallRecord,
     ToolInvocationRecord,
@@ -71,6 +72,31 @@ class ConversationRepository:
             .order_by(Message.sequence)
         )
         return [_message_record(message) for message in result]
+
+    async def list_messages_page(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        *,
+        limit: int,
+        before_sequence: int | None = None,
+    ) -> MessagePage:
+        """Load one scoped message page directly in PostgreSQL."""
+
+        await self._conversation(scope, conversation_id)
+        statement = select(Message).where(Message.conversation_id == conversation_id)
+        if before_sequence is not None:
+            statement = statement.where(Message.sequence < before_sequence)
+        statement = statement.order_by(Message.sequence.desc()).limit(limit + 1)
+        rows = list(await self._session.scalars(statement))
+        has_more = len(rows) > limit
+        page = rows[:limit]
+        page.reverse()
+        return MessagePage(
+            messages=tuple(_message_record(message) for message in page),
+            has_more=has_more,
+            next_before_sequence=page[0].sequence if has_more and page else None,
+        )
 
     async def start_turn(
         self,

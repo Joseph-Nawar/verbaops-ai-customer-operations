@@ -50,6 +50,51 @@ def test_prefixed_nested_environment_variables_load(monkeypatch: pytest.MonkeyPa
     assert settings.observability.log_level is LogLevel.DEBUG
 
 
+def test_development_auth_settings_load_as_a_secret_server_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clear_verbaops_environment(monkeypatch)
+    monkeypatch.setenv("VERBAOPS_AUTH__DEVELOPMENT_TOKEN", "development-secret")
+    monkeypatch.setenv(
+        "VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID",
+        "20000000-0000-0000-0000-000000000001",
+    )
+    monkeypatch.setenv(
+        "VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID",
+        "20000000-0000-0000-0000-000000000002",
+    )
+    monkeypatch.setenv(
+        "VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID",
+        "20000000-0000-0000-0000-000000000003",
+    )
+
+    settings = make_settings()
+
+    assert settings.auth.development_token.get_secret_value() == "development-secret"
+    assert str(settings.auth.development_principal_id) == "20000000-0000-0000-0000-000000000001"
+    assert "development-secret" not in f"{settings!r} {settings}"
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "VERBAOPS_AUTH__DEVELOPMENT_TOKEN",
+        "VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID",
+        "VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID",
+        "VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID",
+    ],
+)
+def test_development_auth_settings_reject_invalid_values(
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+) -> None:
+    clear_verbaops_environment(monkeypatch)
+    monkeypatch.setenv(field, "" if field.endswith("TOKEN") else "not-a-uuid")
+
+    with pytest.raises(ValidationError):
+        make_settings()
+
+
 def test_old_environment_prefix_is_not_authoritative(monkeypatch: pytest.MonkeyPatch) -> None:
     clear_verbaops_environment(monkeypatch)
     monkeypatch.setenv("RELAYAI_ENVIRONMENT", "production")
