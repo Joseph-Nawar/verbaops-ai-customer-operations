@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance llm-gateway-contract postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
 
 sync:
 	$(UV) sync
@@ -15,7 +15,7 @@ typecheck:
 	$(UV) run mypy src tests scripts
 
 test:
-	$(UV) run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"
+	$(UV) run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"
 
 check:
 	$(MAKE) sync
@@ -23,7 +23,7 @@ check:
 	$(MAKE) format-check
 	$(MAKE) typecheck
 	$(MAKE) test
-	$(UV) run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing
+	$(UV) run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 	$(UV) run pre-commit run --all-files
 	git diff --check
 
@@ -50,6 +50,9 @@ commerce-seed:
 
 commerce-acceptance:
 	$(UV) run python -m scripts.run_commerce_acceptance
+
+commerce-client-contract:
+	$(UV) run python -m scripts.run_commerce_client_contract
 
 llm-gateway-contract:
 	$(UV) run python -m scripts.run_llm_gateway_contract

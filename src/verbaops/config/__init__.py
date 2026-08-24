@@ -1,6 +1,7 @@
 """Validated VerbaOps AI configuration models."""
 
 from verbaops.config.settings import (
+    CommerceSettings,
     DatabaseSettings,
     Environment,
     LLMSettings,
@@ -11,6 +12,7 @@ from verbaops.config.settings import (
 )
 
 __all__ = [
+    "CommerceSettings",
     "DatabaseSettings",
     "Environment",
     "LLMSettings",

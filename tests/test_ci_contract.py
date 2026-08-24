@@ -48,7 +48,7 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert "uv run ruff format --check ." in text
     assert "uv run mypy src tests" in text
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract" --cov=verbaops --cov=novacommerce --cov-report=term-missing'
         in text
     )
     assert "--cov=novacommerce" in text
@@ -56,10 +56,10 @@ def test_ci_quality_order_and_locked_uv_build_contract() -> None:
     assert text.index("uv run ruff check .") < text.index("uv run ruff format --check .")
     assert text.index("uv run ruff format --check .") < text.index("uv run mypy src tests")
     assert text.index("uv run mypy src tests") < text.index(
-        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
     )
     assert text.index(
-        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
     ) < text.index("uv run pre-commit run --all-files")
     assert "0.12.5" in text
     assert "fail_under = 80" in Path("pyproject.toml").read_text(encoding="utf-8")
@@ -81,7 +81,7 @@ def test_local_check_excludes_postgres_and_exposes_parity_targets() -> None:
     text = MAKEFILE.read_text(encoding="utf-8")
 
     assert (
-        '$(UV) run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        '$(UV) run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
         in text
     )
     assert "llm-gateway-contract:" in text
@@ -125,7 +125,7 @@ def test_quality_uses_normal_database_independent_path_and_contract_check() -> N
     text = workflow_text()
 
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract" --cov=verbaops --cov=novacommerce'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract" --cov=verbaops --cov=novacommerce'
         in text
     )
     assert "uv run mypy src tests scripts" in text
@@ -141,11 +141,12 @@ def test_ci_has_independent_credential_free_llm_gateway_contract_job() -> None:
         "postgres-concurrency",
         "docker-build",
         "commerce-acceptance",
+        "commerce-client-contract",
     ):
         assert f"  {job_name}:" in text
 
     assert (
-        'uv run pytest -m "not postgres and not commerce_acceptance and not llm_gateway_contract"'
+        'uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract"'
         in text
     )
 
