@@ -138,4 +138,3 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
-
