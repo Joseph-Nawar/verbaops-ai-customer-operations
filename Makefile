@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke
 
 sync:
 	$(UV) sync
@@ -77,3 +77,13 @@ commerce-contract-check:
 
 commerce-contract-update:
 	$(UV) run python scripts/normalize_openapi.py --update contracts/novacommerce-openapi.json
+
+web-check:
+	corepack pnpm --dir apps/web install --frozen-lockfile
+	corepack pnpm --dir apps/web lint
+	corepack pnpm --dir apps/web typecheck
+	corepack pnpm --dir apps/web test
+	corepack pnpm --dir apps/web build
+
+web-smoke:
+	corepack pnpm --dir apps/web smoke

@@ -208,3 +208,23 @@ def test_ci_has_isolated_m3d_postgres_job() -> None:
     assert "uv run alembic upgrade head" in job
     assert 'uv run pytest -m "postgres and m3d"' in job
     assert "continue-on-error" not in job
+
+
+def test_ci_has_pinned_node24_web_quality_job() -> None:
+    text = workflow_text()
+    job_match = re.search(
+        r"^  web-quality:\n(?P<body>.*?)(?=^  [a-z0-9-]+:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert job_match is not None
+    job = job_match.group("body")
+    assert "name: web-quality" in job
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in job
+    assert "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020" in job
+    assert "pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3" in job
+    assert 'node-version: "24.x"' in job
+    assert 'version: "11.23.0"' in job
+    assert "pnpm install --frozen-lockfile" in job
+    for command in ("pnpm lint", "pnpm typecheck", "pnpm test", "pnpm build", "pnpm smoke"):
+        assert command in job

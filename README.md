@@ -28,15 +28,21 @@ Currently implemented:
 - GitHub Actions CI;
 - testing and static-quality gates.
 
-Not implemented yet:
+**Stage 3 â€” Read-Only Text Agent and Web Chat**
 
-- LLM agent or LangGraph;
-- RAG and tool execution;
-- deterministic policy engine;
-- confirmation and human-in-the-loop workflows;
-- Arabic/multilingual hardening;
-- voice capabilities;
-- production cloud deployment.
+Currently implemented:
+
+- a separate HTTP-only LiteLLM gateway;
+- a first LangGraph read-only text agent;
+- exactly five typed READ_ONLY NovaCommerce tools;
+- durable conversations, messages, model calls, and tool traces;
+- authenticated conversation HTTP API;
+- a minimal Next.js browser chat through a server-only BFF.
+
+The Stage 3 agent is intentionally read-only. The future roadmap, outside this
+stage, may consider RAG, embeddings, Arabic specialization, voice, write or
+mutation workflows, HITL, multi-agent behavior, streaming UI, and production
+identity-provider integration.
 
 ## Architecture principles
 
@@ -55,6 +61,7 @@ See the [requirements](docs/product/requirements.md), [system overview](docs/arc
 - Docker Desktop or Docker Engine with Compose;
 - uv;
 - Python 3.12;
+- Node.js 24 LTS and pnpm 11.23.0 for the web app;
 - GNU Make (optional convenience wrapper).
 
 uv can provision the required Python version from the repository's `.python-version` file.
@@ -84,7 +91,25 @@ make check
 make dev
 make down
 make migrate
+make web-check
+make web-smoke
 ```
+
+### Local web chat
+
+The web app lives in `apps/web` and calls only same-origin BFF routes. To run
+it locally, install the locked dependencies, copy the example environment,
+set the server-only VerbaOps API URL and bearer token, then start Next.js:
+
+```bash
+corepack pnpm --dir apps/web install --frozen-lockfile
+cp apps/web/.env.local.example apps/web/.env.local
+# edit apps/web/.env.local with the development API token
+corepack pnpm --dir apps/web dev
+```
+
+The bearer token is never exposed to browser JavaScript or `NEXT_PUBLIC_*`
+configuration.
 
 `make dev` creates ignored local configuration and secrets when absent, starts PostgreSQL 16 with pgvector and Redis, runs the Alembic migration, and starts the API. It generates the local database password; no password needs to be invented or copied manually.
 
@@ -101,6 +126,16 @@ The current API intentionally exposes operational endpoints only:
 NovaCommerce exposes the locked Stage 2 HTTP contract. VerbaOps still has no
 direct Commerce database access; later AI capabilities are intentionally out
 of scope for this repository state.
+
+The authenticated conversation API also exposes:
+
+- `POST /v1/conversations` to create a trusted conversation;
+- `POST /v1/conversations/{conversation_id}/messages` to run one read-only
+  agent turn;
+- `GET /v1/conversations/{conversation_id}` for customer-visible history.
+
+NovaCommerce remains behind the typed read client; VerbaOps does not directly
+access the Commerce database.
 
 ## Permanent Commerce acceptance
 
@@ -147,6 +182,8 @@ The engineering foundation enforces:
 - at least 80% branch-aware coverage;
 - pre-commit repository checks;
 - Docker runtime image builds;
+- web linting, strict TypeScript, Vitest, Next.js production builds, and the
+  deterministic Playwright browser smoke test;
 - GitHub Actions verification on pull requests and pushes to `main`.
 
 ## Documentation
