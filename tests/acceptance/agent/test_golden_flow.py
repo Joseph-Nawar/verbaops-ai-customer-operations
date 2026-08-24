@@ -59,7 +59,7 @@ async def _trace(conversation_id: str) -> dict[str, Any]:
                 (
                     await connection.execute(
                         text(
-                            "SELECT tool_name, risk_level, status, result_json "
+                            "SELECT ti.tool_name, ti.risk_level, ti.status, ti.result_json "
                             "FROM tool_invocations ti "
                             "JOIN agent_runs ar ON ar.id = ti.agent_run_id "
                             "WHERE ar.conversation_id = :id ORDER BY ti.sequence"
