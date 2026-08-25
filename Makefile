@@ -75,7 +75,7 @@ postgres-critical-race:
 knowledge-contract:
 	$(UV) run alembic upgrade 0004_knowledge_rag_v1
 	$(UV) run python scripts/ingest_knowledge_corpus.py --check
-	$(UV) run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py tests/worker/test_knowledge_tasks.py -q
+	$(UV) run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
 
 commerce-contract-check:
 	$(UV) run python scripts/normalize_openapi.py --check contracts/novacommerce-openapi.json

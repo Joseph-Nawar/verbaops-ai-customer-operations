@@ -313,7 +313,7 @@ jobs:
       - name: Run provider-free knowledge contract
         run: >-
           uv run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py
-          tests/worker/test_knowledge_tasks.py -q
+          tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
 
   docker-build:
     name: docker-build

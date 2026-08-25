@@ -12,5 +12,6 @@ def test_knowledge_contract_ci_job_is_provider_free_and_has_postgres_redis() -> 
     assert "scripts/ingest_knowledge_corpus.py --check" in job
     assert "tests/knowledge" in job
     assert "tests/postgres" in job
+    assert 'tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q' in job
     assert "OPENAI_API_KEY" not in job
     assert "LITELLM_MASTER_KEY" not in job
