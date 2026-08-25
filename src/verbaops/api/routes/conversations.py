@@ -1,6 +1,6 @@
 """Authenticated, customer-visible conversation HTTP routes."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal, cast
 from uuid import UUID
 
@@ -56,6 +56,15 @@ class PublicMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     created_at: datetime
+    citations: list["PublicCitation"] = Field(default_factory=list)
+
+
+class PublicCitation(BaseModel):
+    number: int = Field(gt=0)
+    document: str
+    section: str
+    version: str
+    effective_date: date
 
 
 class ConversationCreatedResponse(BaseModel):
@@ -159,6 +168,16 @@ def _public_message(record: MessageRecord) -> PublicMessage:
         role=cast(Literal["user", "assistant"], record.role),
         content=record.content,
         created_at=record.created_at,
+        citations=[
+            PublicCitation(
+                number=citation.citation_ordinal,
+                document=citation.document_title,
+                section=citation.section,
+                version=citation.document_version,
+                effective_date=citation.effective_date,
+            )
+            for citation in record.citations
+        ],
     )
 
 
