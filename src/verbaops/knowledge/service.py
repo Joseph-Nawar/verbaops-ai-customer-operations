@@ -83,15 +83,12 @@ class KnowledgeService:
     ) -> IngestionJobStatus:
         async with self.session_factory() as session:
             async with session.begin():
-                bundle = await self.repository.load_job_for_processing(session, job_id)
-                if bundle is None:
+                claim = await self.repository.mark_processing(session, job_id)
+                if claim is None:
                     raise KnowledgeNotFoundError()
-                if bundle.job_status in {
-                    IngestionJobStatus.SUCCEEDED,
-                    IngestionJobStatus.QUARANTINED,
-                }:
-                    return bundle.job_status
-                await self.repository.mark_processing(session, job_id)
+                if not claim.claimed:
+                    return claim.bundle.job_status
+                bundle = claim.bundle
 
             try:
                 sections = detect_sections(bundle.source_content)
@@ -100,24 +97,26 @@ class KnowledgeService:
                 if len(vectors) != len(drafts):
                     raise KnowledgeIngestionError("embedding_partial_batch")
             except KnowledgeIngestionError as error:
-                await self._fail(job_id, error.code)
-                return IngestionJobStatus.FAILED
+                status = await self._fail(job_id, error.code)
+                return status or IngestionJobStatus.FAILED
             except Exception:
-                await self._fail(job_id, "embedding_failed")
-                return IngestionJobStatus.FAILED
+                status = await self._fail(job_id, "embedding_failed")
+                return status or IngestionJobStatus.FAILED
 
             try:
                 async with session.begin():
-                    await self.repository.store_ready_chunks(
+                    status = await self.repository.store_ready_chunks(
                         session,
                         job_id=job_id,
                         drafts=drafts,
                         vectors=vectors,
                     )
+                if status is None:
+                    raise KnowledgeNotFoundError()
+                return status
             except Exception:
-                await self._fail(job_id, "storage_failed")
-                return IngestionJobStatus.FAILED
-            return IngestionJobStatus.SUCCEEDED
+                status = await self._fail(job_id, "storage_failed")
+                return status or IngestionJobStatus.FAILED
 
     async def activate(
         self,
@@ -155,9 +154,9 @@ class KnowledgeService:
             if job is not None:
                 await self.repository.set_task_id(session, job_id, task_id)
 
-    async def _fail(self, job_id: UUID, code: str) -> None:
+    async def _fail(self, job_id: UUID, code: str) -> IngestionJobStatus | None:
         async with self.session_factory() as session, session.begin():
-            await self.repository.mark_failed(session, job_id, code)
+            return await self.repository.mark_failed(session, job_id, code)
 
 
 def make_uuid() -> UUID:

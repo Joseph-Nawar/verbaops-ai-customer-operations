@@ -23,7 +23,7 @@ from verbaops.knowledge.service import (
     KnowledgeService,
 )
 from verbaops.knowledge.tasks import enqueue_knowledge_job
-from verbaops.knowledge.validation import UploadMetadata, UploadValidationError
+from verbaops.knowledge.validation import MAX_SOURCE_BYTES, UploadMetadata, UploadValidationError
 
 router = APIRouter(prefix="/v1/admin/knowledge", tags=["knowledge-admin"])
 ContextDependency = Annotated[TrustedContext, Depends(get_trusted_context)]
@@ -82,7 +82,7 @@ async def upload_document(
 ) -> IngestionAcceptedResponse:
     _require_admin(context)
     try:
-        source = await file.read()
+        source = await file.read(MAX_SOURCE_BYTES + 1)
         identifiers = await service.queue_upload(
             context.tenant_id,
             source,

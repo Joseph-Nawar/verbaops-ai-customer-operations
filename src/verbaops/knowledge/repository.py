@@ -41,6 +41,12 @@ class ProcessingBundle:
     effective_date: Any
 
 
+@dataclass(frozen=True, slots=True)
+class ProcessingClaim:
+    bundle: ProcessingBundle
+    claimed: bool
+
+
 class KnowledgeRepository:
     """SQL statements for the four M5A tables; all lookups are tenant-safe."""
 
@@ -199,16 +205,27 @@ class KnowledgeRepository:
             effective_date=row["effective_date"],
         )
 
-    async def mark_processing(self, session: AsyncSession, job_id: UUID) -> None:
-        await session.execute(
+    async def mark_processing(self, session: AsyncSession, job_id: UUID) -> ProcessingClaim | None:
+        """Atomically claim a queued job before external embedding work."""
+
+        result = await session.execute(
             knowledge_ingestion_jobs.update()
-            .where(knowledge_ingestion_jobs.c.id == job_id)
+            .where(
+                knowledge_ingestion_jobs.c.id == job_id,
+                knowledge_ingestion_jobs.c.status == IngestionJobStatus.QUEUED.value,
+            )
             .values(
                 status=IngestionJobStatus.PROCESSING.value,
                 attempt_count=knowledge_ingestion_jobs.c.attempt_count + 1,
                 started_at=datetime.now(UTC),
             )
+            .returning(knowledge_ingestion_jobs.c.id)
         )
+        claimed = result.first() is not None
+        bundle = await self.load_job_for_processing(session, job_id)
+        if bundle is None:
+            return None
+        return ProcessingClaim(bundle=bundle, claimed=claimed)
 
     async def load_job_for_tenant(
         self, session: AsyncSession, tenant_id: UUID, job_id: UUID
@@ -261,10 +278,29 @@ class KnowledgeRepository:
         job_id: UUID,
         drafts: Sequence[ChunkDraft],
         vectors: Sequence[Sequence[float]],
-    ) -> None:
+    ) -> IngestionJobStatus | None:
+        state = (
+            (
+                await session.execute(
+                    sa.select(
+                        knowledge_ingestion_jobs.c.status,
+                        knowledge_ingestion_jobs.c.version_id,
+                    )
+                    .where(knowledge_ingestion_jobs.c.id == job_id)
+                    .with_for_update()
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if state is None:
+            return None
+        job_status = IngestionJobStatus(state["status"])
+        if job_status is not IngestionJobStatus.PROCESSING:
+            return job_status
         bundle = await self.load_job_for_processing(session, job_id)
         if bundle is None:
-            raise LookupError("job_not_found")
+            return None
         if len(drafts) != len(vectors):
             raise ValueError("embedding_partial_batch")
         await session.execute(
@@ -294,43 +330,69 @@ class KnowledgeRepository:
             await session.execute(knowledge_chunks.insert().values(values))
         await session.execute(
             knowledge_versions.update()
-            .where(knowledge_versions.c.id == bundle.version_id)
+            .where(
+                knowledge_versions.c.id == bundle.version_id,
+                knowledge_versions.c.status == VersionStatus.PROCESSING.value,
+            )
             .values(status=VersionStatus.READY.value, failure_code=None)
         )
         await session.execute(
             knowledge_ingestion_jobs.update()
-            .where(knowledge_ingestion_jobs.c.id == job_id)
+            .where(
+                knowledge_ingestion_jobs.c.id == job_id,
+                knowledge_ingestion_jobs.c.status == IngestionJobStatus.PROCESSING.value,
+            )
             .values(
                 status=IngestionJobStatus.SUCCEEDED.value,
                 completed_at=now,
                 failure_code=None,
             )
         )
+        return IngestionJobStatus.SUCCEEDED
 
-    async def mark_failed(self, session: AsyncSession, job_id: UUID, code: str) -> None:
+    async def mark_failed(
+        self, session: AsyncSession, job_id: UUID, code: str
+    ) -> IngestionJobStatus | None:
         row = (
-            await session.execute(
-                sa.select(knowledge_ingestion_jobs.c.version_id).where(
-                    knowledge_ingestion_jobs.c.id == job_id
+            (
+                await session.execute(
+                    sa.select(
+                        knowledge_ingestion_jobs.c.status,
+                        knowledge_ingestion_jobs.c.version_id,
+                    )
+                    .where(knowledge_ingestion_jobs.c.id == job_id)
+                    .with_for_update()
                 )
             )
-        ).one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
-            return
+            return None
+        job_status = IngestionJobStatus(row["status"])
+        if job_status is not IngestionJobStatus.PROCESSING:
+            return job_status
         now = datetime.now(UTC)
         await session.execute(
-            knowledge_chunks.delete().where(knowledge_chunks.c.version_id == row.version_id)
+            knowledge_chunks.delete().where(knowledge_chunks.c.version_id == row["version_id"])
         )
         await session.execute(
             knowledge_versions.update()
-            .where(knowledge_versions.c.id == row.version_id)
+            .where(
+                knowledge_versions.c.id == row["version_id"],
+                knowledge_versions.c.status == VersionStatus.PROCESSING.value,
+            )
             .values(status=VersionStatus.FAILED.value, failure_code=code)
         )
         await session.execute(
             knowledge_ingestion_jobs.update()
-            .where(knowledge_ingestion_jobs.c.id == job_id)
+            .where(
+                knowledge_ingestion_jobs.c.id == job_id,
+                knowledge_ingestion_jobs.c.status == IngestionJobStatus.PROCESSING.value,
+            )
             .values(status=IngestionJobStatus.FAILED.value, failure_code=code, completed_at=now)
         )
+        return IngestionJobStatus.FAILED
 
     async def load_version_for_tenant(
         self, session: AsyncSession, *, tenant_id: UUID, version_id: UUID
