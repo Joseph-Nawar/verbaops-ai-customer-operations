@@ -131,6 +131,14 @@ def test_completed_baseline_accepts_provider_metadata_when_gateway_omits_provide
     )
 
 
+def test_live_secret_redaction_values_exclude_nonsecret_port_literals() -> None:
+    values, secret_values = _compose_environment()
+
+    assert "0" not in secret_values
+    assert values["VERBAOPS_DB_PASSWORD"] in secret_values
+    assert values["VERBAOPS_DATABASE__URL"] in secret_values
+
+
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     plan = (ROOT / "docs/evaluation/evaluation-plan.md").read_text(encoding="utf-8")

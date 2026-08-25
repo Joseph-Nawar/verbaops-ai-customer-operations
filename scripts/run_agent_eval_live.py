@@ -186,11 +186,23 @@ def _compose_environment() -> tuple[dict[str, str], list[str]]:
         "VERBAOPS_EMBEDDING_MULTILINGUAL_BASE_URL": "http://127.0.0.1:9/v1",
         "VERBAOPS_EMBEDDING_MULTILINGUAL_API_KEY": "unused",
     }
-    hidden = [
-        *generated.values(),
-        *(os.environ.get(name, "") for name in REQUIRED_PROVIDER_VARIABLES),
-    ]
-    return generated, [value for value in hidden if value]
+    return generated, _secret_environment_values(generated)
+
+
+def _secret_environment_values(
+    generated: Mapping[str, str], environment: Mapping[str, str] | None = None
+) -> list[str]:
+    """Return actual secret material, excluding public IDs, names, and port literals."""
+
+    generated_secret_keys = tuple(
+        key
+        for key in generated
+        if key.endswith(("_PASSWORD", "_TOKEN", "_MASTER_KEY", "DATABASE__URL"))
+    )
+    values = [generated[key] for key in generated_secret_keys]
+    source = os.environ if environment is None else environment
+    values.extend(source.get(name, "") for name in REQUIRED_PROVIDER_VARIABLES)
+    return [value for value in values if value]
 
 
 def _compose_process_environment() -> dict[str, str]:
@@ -443,11 +455,8 @@ def run_managed(mode: str) -> int:
         env_file = _write_env_file(generated)
         project = f"verbaops-agent-live-{uuid.uuid4().hex[:12]}"
         resume_run_id = None
-    hidden = [
-        *generated.values(),
-        *(os.environ.get(name, "") for name in REQUIRED_PROVIDER_VARIABLES),
-    ]
     process_environment = _compose_process_environment()
+    hidden = _secret_environment_values(generated, process_environment)
     primary_error: Exception | None = None
     result_code = 0
     try:
