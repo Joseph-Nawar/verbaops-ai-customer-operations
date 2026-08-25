@@ -12,7 +12,9 @@ from verbaops.evaluation.models import ConversationTurn, EvaluationCase
 
 CUSTOMER_ID = UUID("d77809e8-6d3b-5792-9128-ff2bc88bc955")
 ORDER_ID = UUID("54d93c0f-951e-5d74-afdd-80d33d4c8c95")
-SCENARIO_MANIFEST = {"scenario_ids": {"customer_primary": str(CUSTOMER_ID), "order_cancellable": str(ORDER_ID)}}
+SCENARIO_MANIFEST = {
+    "scenario_ids": {"customer_primary": str(CUSTOMER_ID), "order_cancellable": str(ORDER_ID)}
+}
 
 
 def manifest(**overrides: Any) -> CorpusManifest:
@@ -56,7 +58,10 @@ def case(**overrides: Any) -> EvaluationCase:
         "conversation": [{"role": "user", "content": "What is the status of my order?"}],
         "expected_tool": "get_order_status",
         "expected_arguments": {"order_id": str(ORDER_ID)},
-        "expected_outcome": {"kind": "grounded_tool_answer", "authoritative_facts": {"status": "processing"}},
+        "expected_outcome": {
+            "kind": "grounded_tool_answer",
+            "authoritative_facts": {"status": "processing"},
+        },
         "requires_confirmation": False,
         "forbidden_actions": ["write"],
         "scenario_ids": [str(ORDER_ID)],
@@ -86,22 +91,39 @@ def test_auditor_accepts_valid_case_and_reports_counts() -> None:
 )
 def test_auditor_rejects_invalid_case(changes: dict[str, Any], message: str) -> None:
     if "conversation" in changes:
-        changes = {"conversation": tuple(ConversationTurn.model_validate(turn) for turn in changes["conversation"])}
+        changes = {
+            "conversation": tuple(
+                ConversationTurn.model_validate(turn) for turn in changes["conversation"]
+            )
+        }
     invalid = case().model_copy(update=changes)
     with pytest.raises(CorpusAuditError, match=message):
         audit_corpus(manifest(), (invalid,), SCENARIO_MANIFEST)
 
 
 def test_auditor_rejects_duplicate_case_id() -> None:
-    duplicate = case(case_id="case-001", conversation=({"role": "user", "content": "Another order question?"},))
+    duplicate = case(
+        case_id="case-001", conversation=({"role": "user", "content": "Another order question?"},)
+    )
     with pytest.raises(CorpusAuditError, match="duplicate"):
-        audit_corpus(manifest(expected_case_count=2, split_counts={"dev": 2, "release_holdout": 0}), (case(), duplicate), SCENARIO_MANIFEST)
+        audit_corpus(
+            manifest(expected_case_count=2, split_counts={"dev": 2, "release_holdout": 0}),
+            (case(), duplicate),
+            SCENARIO_MANIFEST,
+        )
 
 
 def test_auditor_rejects_duplicate_normalized_prompt() -> None:
-    duplicate = case(case_id="case-002", conversation=({"role": "user", "content": "WHAT IS THE STATUS OF MY ORDER?"},))
+    duplicate = case(
+        case_id="case-002",
+        conversation=({"role": "user", "content": "WHAT IS THE STATUS OF MY ORDER?"},),
+    )
     with pytest.raises(CorpusAuditError, match="duplicate prompt"):
-        audit_corpus(manifest(expected_case_count=2, split_counts={"dev": 2, "release_holdout": 0}), (case(), duplicate), SCENARIO_MANIFEST)
+        audit_corpus(
+            manifest(expected_case_count=2, split_counts={"dev": 2, "release_holdout": 0}),
+            (case(), duplicate),
+            SCENARIO_MANIFEST,
+        )
 
 
 def test_auditor_rejects_confirmation_and_wrong_counts() -> None:

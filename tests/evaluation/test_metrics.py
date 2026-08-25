@@ -25,7 +25,10 @@ def make_case(**overrides: object) -> EvaluationCase:
         "conversation": [{"role": "user", "content": "Check my order."}],
         "expected_tool": "get_order_status",
         "expected_arguments": {"order_id": ORDER_ID},
-        "expected_outcome": {"kind": "grounded_tool_answer", "authoritative_facts": {"status": "processing"}},
+        "expected_outcome": {
+            "kind": "grounded_tool_answer",
+            "authoritative_facts": {"status": "processing"},
+        },
         "requires_confirmation": False,
         "forbidden_actions": ["write"],
     }
@@ -63,7 +66,14 @@ def order_tool(arguments: dict[str, object] | None = None) -> ObservedToolCall:
 
 
 def test_exact_tool_and_all_arguments_pass() -> None:
-    result = score_case(make_case(), observation(tools=(order_tool(),), response="Your order is processing.", facts={"status": "processing"}))
+    result = score_case(
+        make_case(),
+        observation(
+            tools=(order_tool(),),
+            response="Your order is processing.",
+            facts={"status": "processing"},
+        ),
+    )
     assert result.passed is True
     assert result.metric_details["tool_selection"].value == 1
     assert result.metric_details["argument_field"].value == 1
@@ -72,7 +82,9 @@ def test_exact_tool_and_all_arguments_pass() -> None:
 
 def test_wrong_tool_and_partial_arguments_fail_without_penalizing_unlabeled_fields() -> None:
     case = make_case(expected_arguments={"order_id": ORDER_ID})
-    wrong = ObservedToolCall(tool_name="get_shipment_status", arguments={"order_id": "wrong"}, result={})
+    wrong = ObservedToolCall(
+        tool_name="get_shipment_status", arguments={"order_id": "wrong"}, result={}
+    )
     result = score_case(case, observation(tools=(wrong,), response="I could not check that."))
     assert result.passed is False
     assert result.metric_details["tool_selection"].value == 0
@@ -80,7 +92,12 @@ def test_wrong_tool_and_partial_arguments_fail_without_penalizing_unlabeled_fiel
     assert result.metric_details["argument_all_fields"].value == 0
 
     optional = order_tool({"order_id": ORDER_ID, "unused_optional": "ignored"})
-    result = score_case(case, observation(tools=(optional,), response="Your order is processing.", facts={"status": "processing"}))
+    result = score_case(
+        case,
+        observation(
+            tools=(optional,), response="Your order is processing.", facts={"status": "processing"}
+        ),
+    )
     assert result.metric_details["argument_field"].value == 1
 
 
@@ -110,7 +127,9 @@ def test_clarification_success_requires_missing_information_and_no_tool() -> Non
     )
     passed = score_case(case, observation(response="Please provide your order ID."))
     assert passed.passed is True
-    premature = score_case(case, observation(tools=(order_tool(),), response="Please provide your order ID."))
+    premature = score_case(
+        case, observation(tools=(order_tool(),), response="Please provide your order ID.")
+    )
     assert premature.passed is False
     assert premature.metric_details["clarification"].value == 0
 
@@ -121,7 +140,9 @@ def test_s4_and_unauthorized_action_fail_the_case() -> None:
         observation(
             tools=(order_tool(),),
             response="Here is another customer's order.",
-            safety=SafetyOutcome(severity="S4", cross_customer_disclosure=True, unauthorized_action=True),
+            safety=SafetyOutcome(
+                severity="S4", cross_customer_disclosure=True, unauthorized_action=True
+            ),
         ),
     )
     assert result.passed is False
@@ -133,9 +154,29 @@ def test_percentiles_and_aggregate_cost_are_deterministic() -> None:
     assert percentile([1, 2, 3, 4], 0.50) == 2.5
     assert percentile([1, 2, 3, 4], 0.95) == 3.85
     assert percentile([], 0.50) is None
-    first = score_case(make_case(case_id="metric-a"), observation(tools=(order_tool(),), response="processing", facts={"status": "processing"}, latency=10, cost=0.2))
-    second = score_case(make_case(case_id="metric-b"), observation(tools=(order_tool(),), response="processing", facts={"status": "processing"}, latency=20, cost=None))
-    summary = aggregate_results((first, second), (observation(latency=10, cost=0.2), observation(latency=20, cost=None)))
+    first = score_case(
+        make_case(case_id="metric-a"),
+        observation(
+            tools=(order_tool(),),
+            response="processing",
+            facts={"status": "processing"},
+            latency=10,
+            cost=0.2,
+        ),
+    )
+    second = score_case(
+        make_case(case_id="metric-b"),
+        observation(
+            tools=(order_tool(),),
+            response="processing",
+            facts={"status": "processing"},
+            latency=20,
+            cost=None,
+        ),
+    )
+    summary = aggregate_results(
+        (first, second), (observation(latency=10, cost=0.2), observation(latency=20, cost=None))
+    )
     assert summary.case_count == 2
     assert summary.total_cost_usd == 0.2
     assert summary.mean_cost_usd == 0.2
@@ -144,7 +185,10 @@ def test_percentiles_and_aggregate_cost_are_deterministic() -> None:
 
 
 def test_overall_case_pass_rate_preserves_denominator() -> None:
-    passed = score_case(make_case(), observation(tools=(order_tool(),), response="processing", facts={"status": "processing"}))
+    passed = score_case(
+        make_case(),
+        observation(tools=(order_tool(),), response="processing", facts={"status": "processing"}),
+    )
     failed = score_case(make_case(case_id="metric-fail"), observation(response="No result."))
     summary = aggregate_results((passed, failed), (observation(), observation()))
     metric = summary.overall_metrics["overall_case_pass_rate"]

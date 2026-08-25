@@ -25,11 +25,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run the deterministic VerbaOps text-agent evaluation harness")
+    parser = argparse.ArgumentParser(
+        description="Run the deterministic VerbaOps text-agent evaluation harness"
+    )
     parser.add_argument("--adapter", choices=("deterministic",), default="deterministic")
     parser.add_argument("--cases", type=Path, default=ROOT / "evals/agent/v0.1/cases.jsonl")
     parser.add_argument("--manifest", type=Path, default=ROOT / "evals/agent/v0.1/manifest.json")
-    parser.add_argument("--scenario-manifest", type=Path, default=ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json")
+    parser.add_argument(
+        "--scenario-manifest",
+        type=Path,
+        default=ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json",
+    )
     parser.add_argument("--output-root", type=Path, default=ROOT / "artifacts/eval_runs")
     parser.add_argument("--database-url", default=os.environ.get("VERBAOPS_DATABASE__URL"))
     return parser

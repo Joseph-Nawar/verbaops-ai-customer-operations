@@ -24,7 +24,9 @@ pytestmark = pytest.mark.evaluation_postgres
 
 @pytest.fixture(scope="module")
 def database_url() -> str:
-    url = os.environ.get("VERBAOPS_DATABASE__URL") or os.environ.get("NOVACOMMERCE_TEST_DATABASE_URL")
+    url = os.environ.get("VERBAOPS_DATABASE__URL") or os.environ.get(
+        "NOVACOMMERCE_TEST_DATABASE_URL"
+    )
     if not url:
         pytest.skip("evaluation PostgreSQL tests require VERBAOPS_DATABASE__URL")
     return url
@@ -40,7 +42,9 @@ async def engine(database_url: str) -> AsyncIterator[AsyncEngine]:
 @pytest_asyncio.fixture
 async def clean_eval_tables(engine: AsyncEngine) -> AsyncIterator[None]:
     async with engine.begin() as connection:
-        await connection.execute(text("TRUNCATE TABLE eval_results, eval_runs RESTART IDENTITY CASCADE"))
+        await connection.execute(
+            text("TRUNCATE TABLE eval_results, eval_runs RESTART IDENTITY CASCADE")
+        )
     yield
 
 
@@ -75,7 +79,9 @@ def result(case_id: str = "repo-case-001") -> CaseEvaluationResult:
         observed_tools=("get_order_status",),
         expected_arguments={"order_id": "54d93c0f-951e-5d74-afdd-80d33d4c8c95"},
         observed_arguments={"order_id": "54d93c0f-951e-5d74-afdd-80d33d4c8c95"},
-        expected_outcome=ExpectedOutcome(kind="grounded_tool_answer", authoritative_facts={"status": "processing"}),
+        expected_outcome=ExpectedOutcome(
+            kind="grounded_tool_answer", authoritative_facts={"status": "processing"}
+        ),
         observed_outcome={"status": "processing", "nested": {"ok": True}},
         metric_details={"tool_selection": metric},
         latency_ms=4.5,
@@ -84,13 +90,17 @@ def result(case_id: str = "repo-case-001") -> CaseEvaluationResult:
 
 
 @pytest.mark.asyncio
-async def test_run_lifecycle_jsonb_round_trip_and_summary_update(engine: AsyncEngine, clean_eval_tables: None) -> None:
+async def test_run_lifecycle_jsonb_round_trip_and_summary_update(
+    engine: AsyncEngine, clean_eval_tables: None
+) -> None:
     repository = EvaluationRepository()
     run = metadata()
     async with AsyncSession(engine, expire_on_commit=False) as session:
         await repository.create_run(session, run)
         await repository.add_result(session, run.id, result())
-        await repository.complete_run(session, run.id, {"overall_case_pass_rate": {"numerator": 1}}, datetime.now(UTC))
+        await repository.complete_run(
+            session, run.id, {"overall_case_pass_rate": {"numerator": 1}}, datetime.now(UTC)
+        )
         await session.commit()
         loaded = await repository.get_run(session, run.id)
         results = await repository.list_results(session, run.id)
@@ -100,7 +110,9 @@ async def test_run_lifecycle_jsonb_round_trip_and_summary_update(engine: AsyncEn
 
 
 @pytest.mark.asyncio
-async def test_unique_run_case_and_foreign_key_constraints(engine: AsyncEngine, clean_eval_tables: None) -> None:
+async def test_unique_run_case_and_foreign_key_constraints(
+    engine: AsyncEngine, clean_eval_tables: None
+) -> None:
     repository = EvaluationRepository()
     run = metadata()
     async with AsyncSession(engine, expire_on_commit=False) as session:
@@ -115,7 +127,9 @@ async def test_unique_run_case_and_foreign_key_constraints(engine: AsyncEngine, 
 
 
 @pytest.mark.asyncio
-async def test_same_case_id_is_isolated_between_runs(engine: AsyncEngine, clean_eval_tables: None) -> None:
+async def test_same_case_id_is_isolated_between_runs(
+    engine: AsyncEngine, clean_eval_tables: None
+) -> None:
     repository = EvaluationRepository()
     first, second = metadata(), metadata()
     async with AsyncSession(engine, expire_on_commit=False) as session:
@@ -131,7 +145,9 @@ async def test_same_case_id_is_isolated_between_runs(engine: AsyncEngine, clean_
 
 
 @pytest.mark.asyncio
-async def test_nonnegative_run_constraints_are_enforced(engine: AsyncEngine, clean_eval_tables: None) -> None:
+async def test_nonnegative_run_constraints_are_enforced(
+    engine: AsyncEngine, clean_eval_tables: None
+) -> None:
     run = metadata()
     async with engine.begin() as connection:
         with pytest.raises(IntegrityError):

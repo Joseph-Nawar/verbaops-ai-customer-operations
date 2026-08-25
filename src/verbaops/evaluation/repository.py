@@ -87,7 +87,10 @@ class EvaluationRepository:
                 observed_arguments=result.observed_arguments,
                 expected_outcome=result.expected_outcome.model_dump(mode="json"),
                 observed_outcome=result.observed_outcome,
-                metric_details={name: metric.model_dump(mode="json") for name, metric in result.metric_details.items()},
+                metric_details={
+                    name: metric.model_dump(mode="json")
+                    for name, metric in result.metric_details.items()
+                },
                 failure_reasons=list(result.failure_reasons),
                 latency_ms=result.latency_ms,
                 cost_usd=result.cost_usd,
@@ -108,7 +111,9 @@ class EvaluationRepository:
         summary_json = _summary_dict(summary)
         latency_ms = summary.latency_p95_ms if isinstance(summary, EvaluationSummary) else None
         cost_usd = summary.total_cost_usd if isinstance(summary, EvaluationSummary) else None
-        existing_id = await session.scalar(select(eval_runs.c.id).where(eval_runs.c.id == eval_run_id))
+        existing_id = await session.scalar(
+            select(eval_runs.c.id).where(eval_runs.c.id == eval_run_id)
+        )
         if existing_id is None:
             raise EvaluationRepositoryError("evaluation run does not exist")
         await session.execute(
@@ -126,7 +131,11 @@ class EvaluationRepository:
     async def get_run(self, session: AsyncSession, eval_run_id: UUID) -> EvaluationRunMetadata:
         """Read one run into its application-owned metadata model."""
 
-        row = (await session.execute(select(eval_runs).where(eval_runs.c.id == eval_run_id))).mappings().one_or_none()
+        row = (
+            (await session.execute(select(eval_runs).where(eval_runs.c.id == eval_run_id)))
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise EvaluationRepositoryError("evaluation run does not exist")
         return EvaluationRunMetadata(
@@ -160,7 +169,9 @@ class EvaluationRepository:
 
         rows = (
             await session.execute(
-                select(eval_results).where(eval_results.c.eval_run_id == eval_run_id).order_by(eval_results.c.case_id)
+                select(eval_results)
+                .where(eval_results.c.eval_run_id == eval_run_id)
+                .order_by(eval_results.c.case_id)
             )
         ).mappings()
         return tuple(

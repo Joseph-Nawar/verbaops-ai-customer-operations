@@ -13,7 +13,9 @@ ROOT = Path(__file__).parents[2]
 
 
 @pytest.mark.asyncio
-async def test_deterministic_runner_scores_representative_fixture_without_provider(tmp_path: Path) -> None:
+async def test_deterministic_runner_scores_representative_fixture_without_provider(
+    tmp_path: Path,
+) -> None:
     cases = load_cases(ROOT / "evals/agent/v0.1/cases.jsonl")[:3]
     manifest = load_manifest(ROOT / "evals/agent/v0.1/manifest.json")
     manifest = manifest.model_copy(
@@ -33,7 +35,9 @@ async def test_deterministic_runner_scores_representative_fixture_without_provid
             },
         }
     )
-    scenario_manifest = json.loads((ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text())
+    scenario_manifest = json.loads(
+        (ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text()
+    )
     summary = await run_evaluation(
         cases,
         DeterministicFixtureAdapter(),
@@ -55,7 +59,9 @@ async def test_deterministic_runner_scores_representative_fixture_without_provid
 async def test_full_corpus_is_audited_before_adapter_execution() -> None:
     cases = load_cases(ROOT / "evals/agent/v0.1/cases.jsonl")
     manifest = load_manifest(ROOT / "evals/agent/v0.1/manifest.json")
-    scenario_manifest = json.loads((ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text())
+    scenario_manifest = json.loads(
+        (ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text()
+    )
     summary = await run_evaluation(
         cases,
         DeterministicFixtureAdapter(),

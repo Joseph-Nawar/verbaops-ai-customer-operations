@@ -21,7 +21,9 @@ def main() -> int:
         cases_path = CORPUS_DIR / "cases.jsonl"
         cases = load_cases(cases_path)
         scenario_manifest = json.loads(
-            (ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text(encoding="utf-8")
+            (ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json").read_text(
+                encoding="utf-8"
+            )
         )
         audit = audit_corpus(manifest, cases, scenario_manifest)
     except (OSError, json.JSONDecodeError, CorpusAuditError) as error:
@@ -31,7 +33,9 @@ def main() -> int:
     print("VerbaOps Text Agent Evaluation Corpus v0.1")
     print(f"Dataset: {manifest.dataset_version}")
     print(f"Cases: {audit.case_count}")
-    print(f"Splits: dev: {audit.split_counts['dev']}, release_holdout: {audit.split_counts['release_holdout']}")
+    print(
+        f"Splits: dev: {audit.split_counts['dev']}, release_holdout: {audit.split_counts['release_holdout']}"
+    )
     print("Categories:")
     for category, count in audit.category_counts.items():
         print(f"  {category}: {count}")

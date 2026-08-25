@@ -50,12 +50,15 @@ def test_evaluation_markers_are_registered(pytestconfig):
 
 
 def test_eval_artifacts_are_ignored() -> None:
-    assert subprocess.run(
-        ["git", "check-ignore", "artifacts/eval_runs/example/summary.json"],
-        check=False,
-        capture_output=True,
-        text=True,
-    ).returncode == 0
+    assert (
+        subprocess.run(
+            ["git", "check-ignore", "artifacts/eval_runs/example/summary.json"],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode
+        == 0
+    )
 ```
 
 - [ ] **Step 2: Run the focused tests to confirm the intended failure.**

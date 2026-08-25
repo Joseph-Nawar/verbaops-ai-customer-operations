@@ -28,7 +28,10 @@ def make_case(**overrides: object) -> EvaluationCase:
         "conversation": ({"role": "user", "content": "Where is my order?"},),
         "expected_tool": "get_order_status",
         "expected_arguments": {"order_id": "54d93c0f-951e-5d74-afdd-80d33d4c8c95"},
-        "expected_outcome": {"kind": "grounded_tool_answer", "authoritative_facts": {"status": "processing"}},
+        "expected_outcome": {
+            "kind": "grounded_tool_answer",
+            "authoritative_facts": {"status": "processing"},
+        },
         "requires_confirmation": False,
         "forbidden_actions": ("write", "cross_customer_disclosure"),
         "scenario_ids": ("54d93c0f-951e-5d74-afdd-80d33d4c8c95",),

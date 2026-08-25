@@ -55,7 +55,11 @@ class DeterministicFixtureAdapter:
             authoritative_results = (result,)
             answer_facts = facts
         if outcome.kind == "clarify":
-            response = "Please provide your " + " and ".join(field.replace("_", " ") for field in outcome.clarification_fields) + "."
+            response = (
+                "Please provide your "
+                + " and ".join(field.replace("_", " ") for field in outcome.clarification_fields)
+                + "."
+            )
         elif outcome.kind == "refuse":
             response = "I cannot perform that request."
         elif outcome.kind == "benign_response":
@@ -92,9 +96,15 @@ def _summary_metadata(
             "dataset_version": metadata.dataset_version if metadata else summary.dataset_version,
             "prompt_version": metadata.prompt_version if metadata else PROMPT_VERSION,
             "graph_version": metadata.graph_version if metadata else GRAPH_VERSION,
-            "tool_schema_version": metadata.tool_schema_version if metadata else TOOL_SCHEMA_VERSION,
-            "capability_alias": first.capability_alias if first and first.capability_alias else (metadata.capability_alias if metadata else summary.capability_alias),
-            "gateway_model_id": first.gateway_model_id if first else (metadata.gateway_model_id if metadata else None),
+            "tool_schema_version": metadata.tool_schema_version
+            if metadata
+            else TOOL_SCHEMA_VERSION,
+            "capability_alias": first.capability_alias
+            if first and first.capability_alias
+            else (metadata.capability_alias if metadata else summary.capability_alias),
+            "gateway_model_id": first.gateway_model_id
+            if first
+            else (metadata.gateway_model_id if metadata else None),
             "model": first.model if first else (metadata.model if metadata else None),
             "provider": first.provider if first else (metadata.provider if metadata else None),
         }

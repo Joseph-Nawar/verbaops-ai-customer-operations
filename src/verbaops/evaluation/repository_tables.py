@@ -42,7 +42,12 @@ eval_results = Table(
     "eval_results",
     metadata,
     Column("id", UUID(as_uuid=True), primary_key=True),
-    Column("eval_run_id", UUID(as_uuid=True), ForeignKey("eval_runs.id", ondelete="CASCADE"), nullable=False),
+    Column(
+        "eval_run_id",
+        UUID(as_uuid=True),
+        ForeignKey("eval_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     Column("case_id", String(255), nullable=False),
     Column("split", String(32), nullable=False),
     Column("category", String(128), nullable=False),

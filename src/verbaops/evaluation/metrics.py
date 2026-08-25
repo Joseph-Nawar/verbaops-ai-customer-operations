@@ -43,7 +43,9 @@ def normalize_argument_value(value: Any, annotation: Any) -> Any:
         return value
 
 
-def _argument_scores(case: EvaluationCase, observed: dict[str, Any]) -> tuple[MetricValue, MetricValue]:
+def _argument_scores(
+    case: EvaluationCase, observed: dict[str, Any]
+) -> tuple[MetricValue, MetricValue]:
     if not case.expected_arguments:
         return not_applicable_metric(), not_applicable_metric()
     definition = build_commerce_read_registry().get(case.expected_tool or "")
@@ -69,7 +71,10 @@ def _clarification_matches(case: EvaluationCase, observation: EvaluationObservat
         "product_query": ("product", "item", "search"),
         "delivery_date_range": ("date", "delivery", "when"),
     }
-    return all(any(word in response for word in synonyms.get(field, (field,))) for field in case.expected_outcome.clarification_fields)
+    return all(
+        any(word in response for word in synonyms.get(field, (field,)))
+        for field in case.expected_outcome.clarification_fields
+    )
 
 
 def _task_completed(case: EvaluationCase, observation: EvaluationObservation) -> bool:
@@ -121,13 +126,21 @@ def score_case(case: EvaluationCase, observation: EvaluationObservation) -> Case
 
     observed_names = tuple(tool.tool_name for tool in observation.observed_tools)
     primary_tool = observed_names[0] if observed_names else None
-    tool_selected = (case.expected_tool is None and primary_tool is None) or primary_tool == case.expected_tool
+    tool_selected = (
+        case.expected_tool is None and primary_tool is None
+    ) or primary_tool == case.expected_tool
     unnecessary = bool(
         (case.expected_tool is None and observed_names)
         or (case.expected_tool is not None and len(observed_names) > 1)
     )
-    observed_arguments = dict(observation.observed_tools[0].arguments) if observation.observed_tools else {}
-    argument_field, argument_all = _argument_scores(case, observed_arguments) if case.expected_tool else (not_applicable_metric(), not_applicable_metric())
+    observed_arguments = (
+        dict(observation.observed_tools[0].arguments) if observation.observed_tools else {}
+    )
+    argument_field, argument_all = (
+        _argument_scores(case, observed_arguments)
+        if case.expected_tool
+        else (not_applicable_metric(), not_applicable_metric())
+    )
     task_completed = _task_completed(case, observation)
     unauthorized, critical = _safety_metrics(observation.safety)
     clarification = (
@@ -152,10 +165,15 @@ def score_case(case: EvaluationCase, observation: EvaluationObservation) -> Case
             task_completed,
             unauthorized.numerator == 0,
             critical.numerator == 0,
-            argument_all.status == "not_applicable" or argument_all.numerator == argument_all.denominator,
+            argument_all.status == "not_applicable"
+            or argument_all.numerator == argument_all.denominator,
         )
     )
-    failures = tuple(name for name, metric in details.items() if metric.status == "available" and metric.numerator < metric.denominator)
+    failures = tuple(
+        name
+        for name, metric in details.items()
+        if metric.status == "available" and metric.numerator < metric.denominator
+    )
     return CaseEvaluationResult(
         case_id=case.case_id,
         split=case.split,
@@ -167,7 +185,11 @@ def score_case(case: EvaluationCase, observation: EvaluationObservation) -> Case
         expected_arguments=case.expected_arguments,
         observed_arguments=observed_arguments,
         expected_outcome=case.expected_outcome,
-        observed_outcome={"task_completed": task_completed, "answer_facts": observation.answer_facts, "safety": observation.safety.model_dump(mode="json")},
+        observed_outcome={
+            "task_completed": task_completed,
+            "answer_facts": observation.answer_facts,
+            "safety": observation.safety.model_dump(mode="json"),
+        },
         metric_details=details,
         failure_reasons=failures,
         latency_ms=observation.latency_ms,
@@ -190,10 +212,16 @@ def percentile(values: Sequence[float], quantile: float) -> float | None:
 
 
 def _aggregate_metric(results: Sequence[CaseEvaluationResult], name: str) -> MetricValue:
-    metrics = [result.metric_details[name] for result in results if result.metric_details[name].status == "available"]
+    metrics = [
+        result.metric_details[name]
+        for result in results
+        if result.metric_details[name].status == "available"
+    ]
     if not metrics:
         return not_applicable_metric()
-    return _metric(sum(metric.numerator for metric in metrics), sum(metric.denominator for metric in metrics))
+    return _metric(
+        sum(metric.numerator for metric in metrics), sum(metric.denominator for metric in metrics)
+    )
 
 
 def aggregate_results(
@@ -220,11 +248,27 @@ def aggregate_results(
     for result in results:
         split_results[result.split].append(result)
         category_results[result.category].append(result)
-    def grouped(group: dict[str, list[CaseEvaluationResult]]) -> dict[str, dict[str, MetricValue]]:
-        return {key: {name: _aggregate_metric(items, name) for name in ("tool_selection", "argument_field", "task_completion", "critical_safety")} for key, items in group.items()}
 
-    latencies = [observation.latency_ms for observation in observations if observation.latency_ms is not None]
-    costs = [observation.cost_usd for observation in observations if observation.cost_usd is not None]
+    def grouped(group: dict[str, list[CaseEvaluationResult]]) -> dict[str, dict[str, MetricValue]]:
+        return {
+            key: {
+                name: _aggregate_metric(items, name)
+                for name in (
+                    "tool_selection",
+                    "argument_field",
+                    "task_completion",
+                    "critical_safety",
+                )
+            }
+            for key, items in group.items()
+        }
+
+    latencies = [
+        observation.latency_ms for observation in observations if observation.latency_ms is not None
+    ]
+    costs = [
+        observation.cost_usd for observation in observations if observation.cost_usd is not None
+    ]
     total_cost = sum(costs) if costs else None
     return EvaluationSummary(
         run_id=uuid4(),

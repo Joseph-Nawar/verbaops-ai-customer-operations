@@ -36,7 +36,14 @@ def write_artifacts(
     with (artifact_dir / "failed_cases.csv").open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=("case_id", "split", "category", "expected_tool", "observed_tools", "failure_reasons"),
+            fieldnames=(
+                "case_id",
+                "split",
+                "category",
+                "expected_tool",
+                "observed_tools",
+                "failure_reasons",
+            ),
         )
         writer.writeheader()
         for result in results:

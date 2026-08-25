@@ -19,7 +19,9 @@ def summary() -> EvaluationSummary:
         dataset_version="text-agent-v0.1",
         dataset_sha256="a" * 64,
         case_count=2,
-        overall_metrics={"overall_case_pass_rate": MetricValue(status="available", numerator=1, denominator=2)},
+        overall_metrics={
+            "overall_case_pass_rate": MetricValue(status="available", numerator=1, denominator=2)
+        },
         prompt_version="text-agent-system-v1",
         graph_version="text-agent-v1",
         tool_schema_version="commerce-read-tools-v1",
@@ -49,7 +51,9 @@ def result(case_id: str, passed: bool) -> CaseEvaluationResult:
 
 def test_write_artifacts_has_stable_files_and_failed_only_csv(tmp_path: Path) -> None:
     run_id = summary().run_id
-    artifact_dir = write_artifacts(run_id, summary(), (result("pass", True), result("fail", False)), tmp_path)
+    artifact_dir = write_artifacts(
+        run_id, summary(), (result("pass", True), result("fail", False)), tmp_path
+    )
     summary_json = json.loads((artifact_dir / "summary.json").read_text(encoding="utf-8"))
     results = (artifact_dir / "results.jsonl").read_text(encoding="utf-8").splitlines()
     failed_csv = (artifact_dir / "failed_cases.csv").read_text(encoding="utf-8")
