@@ -44,6 +44,21 @@ stage, may consider RAG, embeddings, Arabic specialization, voice, write or
 mutation workflows, HITL, multi-agent behavior, streaming UI, and production
 identity-provider integration.
 
+### Stage 4 M4A evaluation system
+
+M4A builds the evaluation system: a versioned 120-case English corpus,
+deterministic auditing and metrics, persistence, runner, and artifacts. Run the
+provider-free checks with:
+
+```bash
+make eval-corpus-check
+make eval-agent
+```
+
+The first genuine model baseline is M4B and has not yet been recorded. M4A
+makes no quality percentage claim and does not optimize the locked Stage 3
+agent.
+
 ## Architecture principles
 
 - The LLM is not an authorization authority.

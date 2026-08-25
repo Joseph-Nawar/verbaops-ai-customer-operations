@@ -427,3 +427,60 @@ jobs:
       - name: Run browser smoke
         run: pnpm smoke
         working-directory: apps/web
+
+  evaluation-contract:
+    name: evaluation-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_USER: verbaops_test
+          POSTGRES_PASSWORD: verbaops_test_password
+          POSTGRES_DB: verbaops_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U verbaops_test -d verbaops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      VERBAOPS_DATABASE__URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5432/verbaops_test
+      VERBAOPS_ENVIRONMENT: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Verify locked dependencies
+        run: uv lock --check
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply VerbaOps migrations
+        run: uv run alembic upgrade head
+
+      - name: Audit golden corpus
+        run: make eval-corpus-check
+
+      - name: Run deterministic evaluation tests
+        run: uv run pytest tests/evaluation -m "not evaluation_postgres" -q
+
+      - name: Run evaluation PostgreSQL tests
+        run: uv run pytest -m "evaluation_postgres" -q
+
+      - name: Run deterministic evaluation adapter
+        run: make eval-agent
