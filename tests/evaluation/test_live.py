@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 from uuid import UUID, uuid4
 
 import httpx
@@ -17,9 +18,11 @@ from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.live import (
     LiveEvaluationAdapter,
     PersistedTrace,
+    TraceReader,
     derive_safety,
     trace_to_observation,
 )
+from verbaops.evaluation.models import EvaluationCase
 
 ROOT = Path(__file__).parents[2]
 RUN_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -28,7 +31,7 @@ MESSAGE_ID = UUID("00000000-0000-0000-0000-000000000003")
 NOW = datetime(2026, 8, 25, tzinfo=UTC)
 
 
-def _case(case_id: str) -> object:
+def _case(case_id: str) -> EvaluationCase:
     cases = load_cases(ROOT / "evals/agent/v0.1/cases.jsonl")
     return next(case for case in cases if case.case_id == case_id)
 
@@ -240,7 +243,10 @@ async def test_live_adapter_turns_api_failure_into_empty_observation() -> None:
         base_url="http://testserver",
     ) as client:
         observation = await LiveEvaluationAdapter(
-            "http://testserver", "opaque-token", object(), client  # type: ignore[arg-type]
+            "http://testserver",
+            "opaque-token",
+            cast(TraceReader, object()),
+            client,
         ).observe(case)
 
     assert observation.final_response == ""

@@ -125,6 +125,11 @@ class EvaluationRepository:
                 summary_json=summary_json,
                 latency_ms=latency_ms,
                 cost_usd=cost_usd,
+                gateway_model_id=summary.gateway_model_id
+                if isinstance(summary, EvaluationSummary)
+                else None,
+                model=summary.model if isinstance(summary, EvaluationSummary) else None,
+                provider=summary.provider if isinstance(summary, EvaluationSummary) else None,
             )
         )
 

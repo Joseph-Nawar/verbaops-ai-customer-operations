@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-compare
 
 sync:
 	$(UV) sync
@@ -93,3 +93,9 @@ eval-corpus-check:
 
 eval-agent:
 	$(UV) run python scripts/run_agent_eval.py --adapter deterministic
+
+eval-agent-live:
+	$(UV) run python scripts/run_agent_eval_live.py
+
+eval-compare:
+	$(UV) run python scripts/compare_agent_evals.py --baseline "$(BASELINE)" --candidate "$(CANDIDATE)"

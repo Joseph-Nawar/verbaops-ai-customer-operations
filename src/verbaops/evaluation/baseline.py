@@ -7,7 +7,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import Field, model_validator
 
@@ -98,7 +98,7 @@ def build_baseline_artifact(
     case_ids = [result.case_id for result in results]
     if len(set(case_ids)) != EXPECTED_CASE_COUNT:
         raise ValueError("baseline results must contain unique case IDs")
-    split_counts = dict(Counter(result.split for result in results))
+    split_counts: dict[str, int] = dict(Counter(result.split for result in results))
     category_counts = dict(Counter(result.category for result in results))
     unauthorized_count = sum(
         int(result.observed_outcome.get("safety", {}).get("unauthorized_action", False))
@@ -116,11 +116,13 @@ def build_baseline_artifact(
     return validate_baseline_artifact(
         BaselineArtifact(
             baseline_name=baseline_name,
-            dataset_version=summary.dataset_version,
+            dataset_version=cast(Literal["text-agent-v0.1"], summary.dataset_version),
             dataset_sha256=summary.dataset_sha256,
             case_count=summary.case_count,
             split_counts=split_counts,
-            category_counts={category: category_counts.get(category, 0) for category in APPROVED_CATEGORIES},
+            category_counts={
+                category: category_counts.get(category, 0) for category in APPROVED_CATEGORIES
+            },
             execution_git_sha=execution_git_sha,
             stage3_lock_sha=stage3_lock_sha,
             capability_alias=summary.capability_alias,
@@ -149,20 +151,27 @@ def build_baseline_artifact(
 def validate_baseline_artifact(artifact: BaselineArtifact | Mapping[str, Any]) -> BaselineArtifact:
     """Revalidate a baseline from an instance or decoded JSON mapping."""
 
-    data = artifact.model_dump(mode="python") if isinstance(artifact, BaselineArtifact) else artifact
+    data = (
+        artifact.model_dump(mode="python") if isinstance(artifact, BaselineArtifact) else artifact
+    )
     return BaselineArtifact.model_validate(data)
 
 
 def _contains_secret_material(value: Any, secret_values: tuple[str, ...], key: str = "") -> bool:
     lowered_key = key.casefold()
-    if any(fragment in lowered_key for fragment in ("secret", "password", "api_key", "authorization")):
+    if any(
+        fragment in lowered_key for fragment in ("secret", "password", "api_key", "authorization")
+    ):
         return True
     if isinstance(value, str):
-        return any(secret and secret in value for secret in secret_values) or value.casefold().startswith(
-            "bearer "
-        )
+        return any(
+            secret and secret in value for secret in secret_values
+        ) or value.casefold().startswith("bearer ")
     if isinstance(value, Mapping):
-        return any(_contains_secret_material(item, secret_values, str(item_key)) for item_key, item in value.items())
+        return any(
+            _contains_secret_material(item, secret_values, str(item_key))
+            for item_key, item in value.items()
+        )
     if isinstance(value, (list, tuple)):
         return any(_contains_secret_material(item, secret_values, key) for item in value)
     return False
@@ -184,7 +193,9 @@ def write_baseline_artifacts(
         raise ValueError("baseline artifact contains secret material")
     json_path.parent.mkdir(parents=True, exist_ok=True)
     markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
+    json_path.write_text(
+        json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     lines = [
         f"# {validated.baseline_name}",
         "",

@@ -16,6 +16,7 @@ from verbaops.evaluation.baseline import (
 )
 from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.metrics import aggregate_results, score_case
+from verbaops.evaluation.models import EvaluationObservation
 from verbaops.evaluation.runner import DeterministicFixtureAdapter
 
 ROOT = Path(__file__).parents[2]
@@ -26,7 +27,7 @@ def _valid_artifact() -> BaselineArtifact:
 
     cases = load_cases(ROOT / "evals/agent/v0.1/cases.jsonl")
 
-    async def observations() -> tuple:
+    async def observations() -> tuple[EvaluationObservation, ...]:
         adapter = DeterministicFixtureAdapter()
         return tuple([await adapter.observe(case) for case in cases])
 

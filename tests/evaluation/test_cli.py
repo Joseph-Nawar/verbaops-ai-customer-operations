@@ -28,6 +28,24 @@ def test_evaluation_cli_is_deterministic_and_provider_free() -> None:
     assert "asyncio.run" in script
 
 
+def test_m4b_commands_are_local_only_and_use_real_config_path() -> None:
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    live_script = (ROOT / "scripts/run_agent_eval_live.py").read_text(encoding="utf-8")
+    compare_script = (ROOT / "scripts/compare_agent_evals.py").read_text(encoding="utf-8")
+    assert "eval-agent-live:" in makefile
+    assert "eval-compare:" in makefile
+    for variable in (
+        "VERBAOPS_AGENT_FAST_MODEL",
+        "VERBAOPS_AGENT_FAST_BASE_URL",
+        "VERBAOPS_AGENT_FAST_API_KEY",
+    ):
+        assert variable in live_script
+    assert "infra/litellm/config.yaml" in live_script
+    assert "config.test.yaml" not in live_script
+    assert "BASELINE" in compare_script
+    assert "CANDIDATE" in compare_script
+
+
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     plan = (ROOT / "docs/evaluation/evaluation-plan.md").read_text(encoding="utf-8")
