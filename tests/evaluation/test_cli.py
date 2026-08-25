@@ -56,6 +56,11 @@ def test_live_preflight_names_missing_provider_variables_without_values() -> Non
     )
 
 
+def test_live_build_context_excludes_local_worktrees() -> None:
+    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
+    assert ".worktrees" in dockerignore
+
+
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     plan = (ROOT / "docs/evaluation/evaluation-plan.md").read_text(encoding="utf-8")

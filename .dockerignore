@@ -6,6 +6,7 @@
 .secrets
 .secrets/commerce_postgres_password
 .venv
+.worktrees
 __pycache__
 *.py[cod]
 .pytest_cache
