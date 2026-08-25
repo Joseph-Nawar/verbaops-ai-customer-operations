@@ -1,9 +1,11 @@
 """Minimal mutable state passed between LangGraph nodes."""
 
 from typing import TypedDict
+from uuid import UUID
 
 from verbaops.agent.errors import AgentError
 from verbaops.llm.models import ChatMessage, ToolCall
+from verbaops.retrieval.models import RetrievalEvidence
 
 
 class AgentState(TypedDict):
@@ -18,3 +20,7 @@ class AgentState(TypedDict):
     validation_repair_count: int
     final_response: str | None
     failure: AgentError | None
+    knowledge_status: str | None
+    knowledge_evidence: list[RetrievalEvidence]
+    retrieval_invocation_id: UUID | None
+    grounded_citations: list[RetrievalEvidence]

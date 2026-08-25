@@ -8,6 +8,8 @@ from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
 from verbaops.tools.registry import ToolRegistry
+from verbaops.retrieval.grounding import CitationFinalizer
+from verbaops.retrieval.service import RetrievalService
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,3 +24,5 @@ class AgentContext:
     commerce_client: CommerceClient
     tool_registry: ToolRegistry
     conversation_service: ConversationService
+    retrieval_service: RetrievalService | None = None
+    citation_finalizer: CitationFinalizer | None = None
