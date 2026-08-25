@@ -3,7 +3,7 @@
 import subprocess
 from pathlib import Path
 
-from scripts.run_agent_eval_live import missing_provider_variables
+from scripts.run_agent_eval_live import _compose_environment, missing_provider_variables
 
 ROOT = Path(__file__).parents[2]
 
@@ -59,6 +59,18 @@ def test_live_preflight_names_missing_provider_variables_without_values() -> Non
 def test_live_build_context_excludes_local_worktrees() -> None:
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     assert ".worktrees" in dockerignore
+
+
+def test_live_compose_satisfies_unused_litellm_alias_config_without_credentials() -> None:
+    values, _ = _compose_environment()
+    for prefix in (
+        "VERBAOPS_AGENT_REASONING",
+        "VERBAOPS_EVAL_JUDGE",
+        "VERBAOPS_EMBEDDING_MULTILINGUAL",
+    ):
+        assert values[f"{prefix}_MODEL"].startswith("openai/unused-")
+        assert values[f"{prefix}_BASE_URL"] == "http://127.0.0.1:9/v1"
+        assert values[f"{prefix}_API_KEY"] == "unused"
 
 
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:

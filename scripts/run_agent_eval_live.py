@@ -170,6 +170,17 @@ def _compose_environment() -> tuple[dict[str, str], list[str]]:
         "LITELLM_MASTER_KEY": gateway_key,
         "AGENT_LIVE_API_PORT": "0",
         "AGENT_LIVE_GATEWAY_PORT": "0",
+        # LiteLLM v1.98.0 parses every model entry at startup. These aliases
+        # are intentionally inert and are never selected by the locked agent.
+        "VERBAOPS_AGENT_REASONING_MODEL": "openai/unused-agent-reasoning",
+        "VERBAOPS_AGENT_REASONING_BASE_URL": "http://127.0.0.1:9/v1",
+        "VERBAOPS_AGENT_REASONING_API_KEY": "unused",
+        "VERBAOPS_EVAL_JUDGE_MODEL": "openai/unused-eval-judge",
+        "VERBAOPS_EVAL_JUDGE_BASE_URL": "http://127.0.0.1:9/v1",
+        "VERBAOPS_EVAL_JUDGE_API_KEY": "unused",
+        "VERBAOPS_EMBEDDING_MULTILINGUAL_MODEL": "openai/unused-embedding",
+        "VERBAOPS_EMBEDDING_MULTILINGUAL_BASE_URL": "http://127.0.0.1:9/v1",
+        "VERBAOPS_EMBEDDING_MULTILINGUAL_API_KEY": "unused",
     }
     hidden = [
         *generated.values(),
