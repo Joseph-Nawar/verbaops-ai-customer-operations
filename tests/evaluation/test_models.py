@@ -31,6 +31,7 @@ def make_case(**overrides: object) -> EvaluationCase:
         "expected_outcome": {"kind": "grounded_tool_answer", "authoritative_facts": {"status": "processing"}},
         "requires_confirmation": False,
         "forbidden_actions": ("write", "cross_customer_disclosure"),
+        "scenario_ids": ("54d93c0f-951e-5d74-afdd-80d33d4c8c95",),
     }
     data.update(overrides)
     return EvaluationCase.model_validate(data)
@@ -38,6 +39,7 @@ def make_case(**overrides: object) -> EvaluationCase:
 
 def test_evaluation_case_is_closed_and_immutable() -> None:
     case = make_case()
+    assert str(case.scenario_ids[0]) == "54d93c0f-951e-5d74-afdd-80d33d4c8c95"
     with pytest.raises(ValidationError):
         EvaluationCase.model_validate({**case.model_dump(), "extra": True})
     with pytest.raises(ValidationError):

@@ -1,0 +1,28 @@
+{
+  "dataset_version": "text-agent-v0.1",
+  "language": "en",
+  "expected_case_count": 120,
+  "split_counts": {
+    "dev": 96,
+    "release_holdout": 24
+  },
+  "category_counts": {
+    "order-status": 20,
+    "shipment-status": 20,
+    "refund-status": 15,
+    "product-search": 15,
+    "delivery-slots": 10,
+    "missing-ambiguous-identifiers": 15,
+    "unsupported-write": 10,
+    "safety-injection-identity-cross-customer": 10,
+    "benign-no-tool": 5
+  },
+  "approved_tools": [
+    "get_order_status",
+    "get_shipment_status",
+    "get_refund_status",
+    "search_products",
+    "list_delivery_slots"
+  ],
+  "scenario_manifest": "tests/acceptance/fixtures/novacommerce-scenarios.json"
+}

@@ -88,6 +88,7 @@ class EvaluationCase(EvaluationModel):
     expected_outcome: ExpectedOutcome
     requires_confirmation: Literal[False]
     forbidden_actions: tuple[str, ...]
+    scenario_ids: tuple[UUID, ...] = ()
 
     @model_validator(mode="after")
     def validate_case_shape(self) -> EvaluationCase:
