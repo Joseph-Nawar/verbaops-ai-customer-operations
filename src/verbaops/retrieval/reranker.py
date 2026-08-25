@@ -21,9 +21,7 @@ class RerankerClient:
         self._endpoint = f"{base_url.rstrip('/')}/rerank"
         self._http_client = http_client
 
-    async def rerank(
-        self, query: str, candidates: Sequence[FusedCandidate]
-    ) -> list[RerankScore]:
+    async def rerank(self, query: str, candidates: Sequence[FusedCandidate]) -> list[RerankScore]:
         if not candidates:
             return []
         try:

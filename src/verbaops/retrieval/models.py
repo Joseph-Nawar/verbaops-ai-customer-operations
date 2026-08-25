@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date
+from enum import StrEnum
 from uuid import UUID
 
 
@@ -54,3 +55,32 @@ class RerankScore:
     index: int
     score: float
 
+
+class RetrievalStatus(StrEnum):
+    SUCCEEDED = "succeeded"
+    INSUFFICIENT = "insufficient"
+    UNAVAILABLE = "unavailable"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalEvidence:
+    evidence_key: str
+    chunk_id: UUID
+    document_id: UUID
+    version_id: UUID
+    document_title: str
+    document_slug: str
+    document_version: str
+    section: str
+    effective_date: date
+    content: str
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalResult:
+    invocation_id: UUID
+    status: RetrievalStatus
+    evidence: tuple[RetrievalEvidence, ...]
+    top_score: float | None = None
+    error_code: str | None = None

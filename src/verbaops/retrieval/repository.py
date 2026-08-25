@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -13,8 +14,10 @@ from verbaops.knowledge.repository_tables import (
     knowledge_chunks,
     knowledge_documents,
     knowledge_versions,
+    retrieval_candidates,
+    retrieval_invocations,
 )
-from verbaops.retrieval.models import DenseHit, KnowledgeHit, LexicalHit
+from verbaops.retrieval.models import DenseHit, FusedCandidate, KnowledgeHit, LexicalHit
 from verbaops.retrieval.rrf import dense_similarity_from_cosine_distance
 
 
@@ -74,6 +77,78 @@ class RetrievalRepository:
             LexicalHit(chunk=_knowledge_hit(row), rank=rank, score=float(row["score"]))
             for rank, row in enumerate(rows, start=1)
         ]
+
+    async def persist_trace(
+        self,
+        connection: AsyncConnection,
+        *,
+        invocation_id: UUID,
+        agent_run_id: UUID,
+        tenant_id: UUID,
+        sequence: int,
+        retrieval_version: str,
+        strategy: str,
+        language: str,
+        status: str,
+        dense_candidate_count: int,
+        lexical_candidate_count: int,
+        fused_candidate_count: int,
+        reranked_candidate_count: int,
+        selected_count: int,
+        top_score: float | None,
+        latency_ms: float,
+        embedding_model: str | None,
+        reranker_model: str | None,
+        error_code: str | None,
+        candidates: Sequence[FusedCandidate],
+    ) -> None:
+        created_at = datetime.now(UTC)
+        await connection.execute(
+            retrieval_invocations.insert().values(
+                id=invocation_id,
+                agent_run_id=agent_run_id,
+                tenant_id=tenant_id,
+                sequence=sequence,
+                retrieval_version=retrieval_version,
+                strategy=strategy,
+                language=language,
+                status=status,
+                dense_candidate_count=dense_candidate_count,
+                lexical_candidate_count=lexical_candidate_count,
+                fused_candidate_count=fused_candidate_count,
+                reranked_candidate_count=reranked_candidate_count,
+                selected_count=selected_count,
+                top_score=top_score,
+                latency_ms=latency_ms,
+                embedding_model=embedding_model,
+                reranker_model=reranker_model,
+                error_code=error_code,
+                created_at=created_at,
+            )
+        )
+        if candidates:
+            await connection.execute(
+                retrieval_candidates.insert().values(
+                    [
+                        {
+                            "id": uuid4(),
+                            "retrieval_invocation_id": invocation_id,
+                            "chunk_id": candidate.chunk.chunk_id,
+                            "dense_rank": candidate.dense_rank,
+                            "dense_score": candidate.dense_score,
+                            "lexical_rank": candidate.lexical_rank,
+                            "lexical_score": candidate.lexical_score,
+                            "rrf_rank": candidate.rrf_rank,
+                            "rrf_score": candidate.rrf_score,
+                            "rerank_rank": candidate.rerank_rank,
+                            "rerank_score": candidate.rerank_score,
+                            "selected": candidate.selected,
+                            "evidence_key": candidate.evidence_key,
+                        }
+                        for candidate in candidates
+                    ]
+                )
+            )
 
     @staticmethod
     def _base_statement(*, tenant_id: UUID, language: str) -> sa.Select[tuple[object, ...]]:

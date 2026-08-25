@@ -93,4 +93,3 @@ def reciprocal_rank_fusion(
         )
         for index, item in enumerate(ordered, start=1)
     ]
-
