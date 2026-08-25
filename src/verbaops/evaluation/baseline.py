@@ -157,6 +157,12 @@ def validate_baseline_artifact(artifact: BaselineArtifact | Mapping[str, Any]) -
     return BaselineArtifact.model_validate(data)
 
 
+def contains_secret_material(value: Any, secret_values: Iterable[str] = ()) -> bool:
+    """Return whether serialized evidence contains a known secret or secret field."""
+
+    return _contains_secret_material(value, tuple(secret_values))
+
+
 def _contains_secret_material(value: Any, secret_values: tuple[str, ...], key: str = "") -> bool:
     lowered_key = key.casefold()
     if any(
@@ -189,13 +195,7 @@ def write_baseline_artifacts(
     validated = validate_baseline_artifact(artifact)
     data = validated.model_dump(mode="json")
     secrets = tuple(secret_values)
-    if _contains_secret_material(data, secrets):
-        raise ValueError("baseline artifact contains secret material")
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(
-        json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    json_text = json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     lines = [
         f"# {validated.baseline_name}",
         "",
@@ -214,4 +214,10 @@ def write_baseline_artifacts(
         value = "N/A" if metric.status == "not_applicable" else f"{metric.value:.6f}"
         lines.append(f"| `{name}` | {metric.numerator} | {metric.denominator} | {value} |")
     lines.extend(["", f"Failed cases: `{len(validated.failed_case_ids)}`"])
-    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    markdown_text = "\n".join(lines) + "\n"
+    if contains_secret_material(data, secrets) or contains_secret_material(markdown_text, secrets):
+        raise ValueError("baseline artifact contains secret material")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(json_text, encoding="utf-8")
+    markdown_path.write_text(markdown_text, encoding="utf-8")

@@ -9,8 +9,6 @@ from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
 from verbaops.evaluation.corpus import CorpusManifest, audit_corpus
 from verbaops.evaluation.errors import (
@@ -29,7 +27,7 @@ from verbaops.evaluation.models import (
     SafetyOutcome,
 )
 from verbaops.evaluation.reports import write_artifacts
-from verbaops.evaluation.repository import EvaluationRepository, EvaluationRepositoryError
+from verbaops.evaluation.repository import EvaluationRepositoryError
 
 
 class EvaluationAdapter(Protocol):
@@ -37,6 +35,42 @@ class EvaluationAdapter(Protocol):
 
     async def observe(self, case: EvaluationCase) -> EvaluationObservation:
         """Execute one case and return application-owned observations."""
+
+
+class EvaluationRepositoryPort(Protocol):
+    """Minimal persistence surface required by the resumable runner."""
+
+    async def create_run(self, session: Any, metadata: EvaluationRunMetadata) -> UUID: ...
+
+    async def get_run(self, session: Any, run_id: UUID) -> EvaluationRunMetadata: ...
+
+    async def list_results(
+        self, session: Any, run_id: UUID
+    ) -> tuple[CaseEvaluationResult, ...]: ...
+
+    async def add_result(
+        self, session: Any, eval_run_id: UUID, result: CaseEvaluationResult
+    ) -> UUID: ...
+
+    async def update_progress(
+        self,
+        session: Any,
+        eval_run_id: UUID,
+        summary: EvaluationSummary,
+        metadata: EvaluationRunMetadata,
+    ) -> None: ...
+
+    async def interrupt_run(
+        self, session: Any, eval_run_id: UUID, summary: dict[str, Any], completed_at: datetime
+    ) -> None: ...
+
+    async def complete_run(
+        self,
+        session: Any,
+        eval_run_id: UUID,
+        summary: EvaluationSummary,
+        completed_at: datetime,
+    ) -> None: ...
 
 
 class DeterministicFixtureAdapter:
@@ -152,8 +186,8 @@ async def run_evaluation(
     output_root: Path = Path("artifacts/eval_runs"),
     run_id: UUID | None = None,
     metadata: EvaluationRunMetadata | None = None,
-    repository: EvaluationRepository | None = None,
-    session: AsyncSession | None = None,
+    repository: EvaluationRepositoryPort | None = None,
+    session: Any | None = None,
 ) -> EvaluationSummary:
     """Audit, execute, score, optionally persist, aggregate, and artifact a run."""
 

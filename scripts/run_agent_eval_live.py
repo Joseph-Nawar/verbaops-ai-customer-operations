@@ -25,13 +25,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
 from verbaops.evaluation.baseline import (
     EXPECTED_DATASET_SHA256,
-    BaselineArtifact,
-    build_baseline_artifact,
-    write_baseline_artifacts,
 )
 from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.corpus import CorpusManifest
 from verbaops.evaluation.errors import ProviderQuotaExceeded
+from verbaops.evaluation.finalization import (
+    finalize_recovery_bundle,
+    write_recovery_bundle,
+)
 from verbaops.evaluation.live import LiveEvaluationAdapter, TraceReader, assert_live_corpus_contract
 from verbaops.evaluation.models import EvaluationSummary
 from verbaops.evaluation.repository import EvaluationRepository
@@ -46,11 +47,13 @@ SCENARIO_FILE = ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json"
 BASELINE_JSON = ROOT / "evals/baselines/stage4-agent-v0.1-baseline.json"
 BASELINE_MARKDOWN = ROOT / "evals/baselines/stage4-agent-v0.1-baseline.md"
 RESUME_STATE_FILE = ROOT / ".stage4-agent-v0.1-resume.json"
+RECOVERY_ROOT = ROOT / "artifacts/eval_runs"
 REQUIRED_PROVIDER_VARIABLES = (
     "VERBAOPS_AGENT_FAST_MODEL",
     "VERBAOPS_AGENT_FAST_BASE_URL",
     "VERBAOPS_AGENT_FAST_API_KEY",
 )
+SENSITIVE_PROVIDER_VARIABLES = ("VERBAOPS_AGENT_FAST_API_KEY",)
 
 
 class LiveEvaluationError(RuntimeError):
@@ -201,7 +204,7 @@ def _secret_environment_values(
     )
     values = [generated[key] for key in generated_secret_keys]
     source = os.environ if environment is None else environment
-    values.extend(source.get(name, "") for name in REQUIRED_PROVIDER_VARIABLES)
+    values.extend(source.get(name, "") for name in SENSITIVE_PROVIDER_VARIABLES)
     return [value for value in values if value]
 
 
@@ -356,7 +359,7 @@ async def _run_baseline(
     execution_sha: str,
     output_root: Path,
     secret_values: tuple[str, ...],
-) -> BaselineArtifact:
+) -> EvaluationSummary:
     engine: AsyncEngine = create_async_engine(database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     started_at = datetime.now(UTC)
@@ -408,19 +411,51 @@ async def _run_baseline(
             raise LiveEvaluationError("baseline persistence did not contain exactly 120 results")
         if len({result.case_id for result in results}) != len(cases):
             raise LiveEvaluationError("baseline persistence contains duplicate case IDs")
-        artifact = build_baseline_artifact(summary, results, execution_sha, datetime.now(UTC))
-        write_baseline_artifacts(
-            artifact,
+        recovery_bundle = write_recovery_bundle(
+            RECOVERY_ROOT / str(run_id) / "recovery",
+            summary,
+            results,
+            execution_sha,
+            secret_values=secret_values,
+        )
+        finalize_recovery_bundle(
+            recovery_bundle,
             BASELINE_JSON,
             BASELINE_MARKDOWN,
             secret_values=secret_values,
         )
-        return artifact
+        return summary
     finally:
         await engine.dispose()
 
 
-def run_managed(mode: str) -> int:
+def _finalize_existing_run(run_id: str) -> int:
+    try:
+        parsed_run_id = uuid.UUID(run_id)
+    except ValueError as error:
+        raise LiveEvaluationError("finalization run ID is invalid") from error
+    bundle = RECOVERY_ROOT / str(parsed_run_id) / "recovery"
+    if not bundle.is_dir():
+        raise LiveEvaluationError("the requested recovery bundle does not exist")
+    secret_values = tuple(os.environ.get(name, "") for name in ("VERBAOPS_AGENT_FAST_API_KEY",))
+    summary = finalize_recovery_bundle(
+        bundle,
+        BASELINE_JSON,
+        BASELINE_MARKDOWN,
+        secret_values=tuple(value for value in secret_values if value),
+    )
+    print(
+        f"Finalized evaluation run: run_id={summary.run_id}, cases={summary.case_count}, "
+        f"model={summary.model or 'N/A'}, provider={summary.provider or 'N/A'}"
+    )
+    return 0
+
+
+def run_managed(mode: str, finalize_run_id: str | None = None) -> int:
+    if mode == "finalize":
+        if finalize_run_id is None:
+            raise LiveEvaluationError("--finalize requires --run-id")
+        return _finalize_existing_run(finalize_run_id)
     missing = missing_provider_variables()
     if missing:
         print("Missing required provider variables: " + ", ".join(missing))
@@ -429,6 +464,8 @@ def run_managed(mode: str) -> int:
         raise LiveEvaluationError("real LiteLLM deployment config is unavailable")
     if mode == "baseline" and (BASELINE_JSON.exists() or BASELINE_MARKDOWN.exists()):
         raise LiveEvaluationError("the first genuine baseline artifact already exists")
+    if mode == "baseline" and any(path.is_dir() for path in RECOVERY_ROOT.glob("*/recovery")):
+        raise LiveEvaluationError("a completed run requires provider-free finalization first")
 
     manifest, cases, scenario_manifest = _load_corpus()
     resume_state = _load_resume_state() if mode == "baseline" else None
@@ -542,7 +579,7 @@ def run_managed(mode: str) -> int:
                 encoding="utf-8",
             )
         with tempfile.TemporaryDirectory(prefix="verbaops-live-artifacts-") as artifact_directory:
-            artifact = asyncio.run(
+            summary = asyncio.run(
                 _run_baseline(
                     base_url,
                     generated["VERBAOPS_AUTH__DEVELOPMENT_TOKEN"],
@@ -556,12 +593,11 @@ def run_managed(mode: str) -> int:
                     tuple(hidden),
                 )
             )
-        print(
-            f"Genuine baseline recorded: {artifact.case_count} cases, "
-            f"unauthorized={artifact.unauthorized_action_count}, "
-            f"critical_safety={artifact.critical_safety_violation_count}"
-        )
-        if artifact.unauthorized_action_count or artifact.critical_safety_violation_count:
+        print(f"Genuine baseline recorded: {summary.case_count} cases, run_id={summary.run_id}")
+        artifact_data = json.loads(BASELINE_JSON.read_text(encoding="utf-8"))
+        unauthorized = int(artifact_data["unauthorized_action_count"])
+        critical_safety = int(artifact_data["critical_safety_violation_count"])
+        if unauthorized or critical_safety:
             print("Safety evidence was preserved; Stage 4 is not locked.")
             return 3
         return 0
@@ -569,7 +605,10 @@ def run_managed(mode: str) -> int:
         primary_error = error
     finally:
         teardown_error: Exception | None = None
-        preserve_resume = isinstance(primary_error, ProviderQuotaExceeded)
+        recovery_exists = any(path.is_dir() for path in RECOVERY_ROOT.glob("*/recovery"))
+        preserve_resume = isinstance(primary_error, ProviderQuotaExceeded) or (
+            primary_error is not None and recovery_exists
+        )
         try:
             teardown_arguments = ["down", "--remove-orphans"]
             if not preserve_resume:
@@ -604,7 +643,13 @@ def main() -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--smoke", action="store_true")
     group.add_argument("--baseline", action="store_true")
+    group.add_argument("--finalize", action="store_true")
+    parser.add_argument("--run-id", metavar="RUN_ID")
     args = parser.parse_args()
+    if args.finalize:
+        return run_managed("finalize", args.run_id)
+    if args.run_id is not None:
+        parser.error("--run-id is only valid with --finalize")
     return run_managed("smoke" if args.smoke else "baseline")
 
 

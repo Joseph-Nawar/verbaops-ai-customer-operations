@@ -11,6 +11,7 @@ from verbaops.evaluation.baseline import (
     EXPECTED_STAGE3_LOCK_SHA,
     BaselineArtifact,
     build_baseline_artifact,
+    contains_secret_material,
     validate_baseline_artifact,
     write_baseline_artifacts,
 )
@@ -105,3 +106,59 @@ def test_baseline_models_preserve_not_applicable_cost() -> None:
     assert artifact.prompt_version == PROMPT_VERSION
     assert artifact.graph_version == GRAPH_VERSION
     assert artifact.tool_schema_version == TOOL_SCHEMA_VERSION
+
+
+@pytest.mark.parametrize(
+    "safe_value",
+    [
+        "0",
+        "5432",
+        "https://api.groq.com/openai/v1",
+        "groq/openai/gpt-oss-120b",
+        "Groq",
+    ],
+)
+def test_nonsecret_runtime_values_do_not_trigger_secret_scan(
+    tmp_path: Path, safe_value: str
+) -> None:
+    artifact = _valid_artifact().model_copy(update={"model": safe_value})
+    write_baseline_artifacts(
+        artifact,
+        tmp_path / "safe.json",
+        tmp_path / "safe.md",
+    )
+
+
+@pytest.mark.parametrize("output_kind", ["json", "markdown"])
+def test_sensitive_synthetic_api_key_is_rejected_in_each_output_kind(
+    tmp_path: Path, output_kind: str
+) -> None:
+    synthetic_key = "sk-synthetic-api-key-1234567890"
+    artifact = _valid_artifact().model_copy(update={"model": synthetic_key})
+    with pytest.raises(ValueError, match="secret material"):
+        write_baseline_artifacts(
+            artifact,
+            tmp_path / f"{output_kind}.json",
+            tmp_path / f"{output_kind}.md",
+            secret_values=(synthetic_key,),
+        )
+
+
+def test_sensitive_synthetic_master_key_is_rejected_in_json_and_markdown(
+    tmp_path: Path,
+) -> None:
+    synthetic_master_key = "sk-master-synthetic-1234567890"
+    artifact = _valid_artifact().model_copy(update={"execution_git_sha": synthetic_master_key})
+    with pytest.raises(ValueError, match="secret material"):
+        write_baseline_artifacts(
+            artifact,
+            tmp_path / "master.json",
+            tmp_path / "master.md",
+            secret_values=(synthetic_master_key,),
+        )
+
+
+def test_secret_scanner_checks_json_and_markdown_content() -> None:
+    synthetic_key = "sk-synthetic-json-markdown-1234567890"
+    assert contains_secret_material({"model": synthetic_key}, (synthetic_key,))
+    assert contains_secret_material(f"model: `{synthetic_key}`", (synthetic_key,))
