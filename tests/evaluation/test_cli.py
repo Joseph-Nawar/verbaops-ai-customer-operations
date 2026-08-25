@@ -145,7 +145,8 @@ def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:
     for command in ("make eval-corpus-check", "make eval-agent"):
         assert command in readme
     assert "M4A builds the evaluation system" in readme
-    assert "first genuine model baseline is M4B" in readme
+    assert "M4B recorded the first genuine" in readme
+    assert "stage4-m4b-evidence.md" in readme
     assert "implementation status" in plan.casefold()
 
 
