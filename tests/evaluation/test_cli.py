@@ -2,12 +2,17 @@
 
 import subprocess
 from pathlib import Path
+from uuid import UUID
 
 from scripts.run_agent_eval_live import (
     _compose_environment,
+    baseline_persistence_is_complete,
     build_resume_state,
     missing_provider_variables,
 )
+
+from verbaops.evaluation.baseline import EXPECTED_DATASET_SHA256
+from verbaops.evaluation.models import EvaluationSummary
 
 ROOT = Path(__file__).parents[2]
 
@@ -98,6 +103,32 @@ def test_resume_state_contains_no_provider_credential() -> None:
     assert state["run_id"] == "11111111-1111-1111-1111-111111111111"
     assert "must-not-be-persisted" not in str(state)
     assert "VERBAOPS_AGENT_FAST_API_KEY" not in state
+
+
+def test_completed_baseline_accepts_provider_metadata_when_gateway_omits_provider() -> None:
+    summary = EvaluationSummary(
+        run_id=UUID("33333333-3333-3333-3333-333333333333"),
+        dataset_version="text-agent-v0.1",
+        dataset_sha256=EXPECTED_DATASET_SHA256,
+        case_count=120,
+        prompt_version="text-agent-system-v1",
+        graph_version="text-agent-v1",
+        tool_schema_version="commerce-read-tools-v1",
+        capability_alias="agent-fast",
+        gateway_model_id="gateway-model-id",
+        model="groq/openai/gpt-oss-120b",
+        provider=None,
+        failure_count=0,
+    )
+
+    assert baseline_persistence_is_complete(
+        persisted_status="completed",
+        persisted_dataset_sha256=EXPECTED_DATASET_SHA256,
+        persisted_capability_alias="agent-fast",
+        result_count=120,
+        expected_case_count=120,
+        summary=summary,
+    )
 
 
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:

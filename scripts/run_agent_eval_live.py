@@ -33,6 +33,7 @@ from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.corpus import CorpusManifest
 from verbaops.evaluation.errors import ProviderQuotaExceeded
 from verbaops.evaluation.live import LiveEvaluationAdapter, TraceReader, assert_live_corpus_contract
+from verbaops.evaluation.models import EvaluationSummary
 from verbaops.evaluation.repository import EvaluationRepository
 from verbaops.evaluation.runner import run_evaluation
 
@@ -282,6 +283,29 @@ def _load_corpus() -> tuple[CorpusManifest, tuple[Any, ...], dict[str, Any]]:
     return manifest, cases, scenario_manifest
 
 
+def baseline_persistence_is_complete(
+    *,
+    persisted_status: str,
+    persisted_dataset_sha256: str,
+    persisted_capability_alias: str,
+    result_count: int,
+    expected_case_count: int,
+    summary: EvaluationSummary,
+) -> bool:
+    """Validate baseline completeness without requiring optional provider metadata."""
+
+    return bool(
+        persisted_status == "completed"
+        and result_count == expected_case_count
+        and persisted_dataset_sha256 == EXPECTED_DATASET_SHA256
+        and persisted_capability_alias == "agent-fast"
+        and summary.case_count == expected_case_count
+        and summary.capability_alias == "agent-fast"
+        and summary.gateway_model_id is not None
+        and summary.model is not None
+    )
+
+
 async def _run_smoke(
     base_url: str,
     token: str,
@@ -361,15 +385,13 @@ async def _run_baseline(
             repository = EvaluationRepository()
             persisted_run = await repository.get_run(session, run_id)
             results = await repository.list_results(session, run_id)
-        if (
-            persisted_run.status != "completed"
-            or len(results) != len(cases)
-            or persisted_run.dataset_sha256 != EXPECTED_DATASET_SHA256
-            or persisted_run.capability_alias != "agent-fast"
-            or summary.capability_alias != "agent-fast"
-            or summary.gateway_model_id is None
-            or summary.model is None
-            or summary.provider is None
+        if not baseline_persistence_is_complete(
+            persisted_status=persisted_run.status,
+            persisted_dataset_sha256=persisted_run.dataset_sha256,
+            persisted_capability_alias=persisted_run.capability_alias,
+            result_count=len(results),
+            expected_case_count=len(cases),
+            summary=summary,
         ):
             raise LiveEvaluationError("baseline persistence did not contain exactly 120 results")
         if len({result.case_id for result in results}) != len(cases):
