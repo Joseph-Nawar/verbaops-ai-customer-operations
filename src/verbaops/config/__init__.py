@@ -7,6 +7,7 @@ from verbaops.config.settings import (
     LLMSettings,
     LogLevel,
     ObservabilitySettings,
+    RAGSettings,
     RedisSettings,
     Settings,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "LLMSettings",
     "LogLevel",
     "ObservabilitySettings",
+    "RAGSettings",
     "RedisSettings",
     "Settings",
 ]

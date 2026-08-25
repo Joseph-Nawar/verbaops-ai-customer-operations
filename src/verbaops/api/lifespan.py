@@ -22,6 +22,9 @@ from verbaops.knowledge.embeddings import EmbeddingClient
 from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.service import KnowledgeService
 from verbaops.llm.litellm import LiteLLMClient
+from verbaops.retrieval.grounding import CitationFinalizer
+from verbaops.retrieval.reranker import RerankerClient
+from verbaops.retrieval.service import RetrievalService
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,12 +35,15 @@ class RuntimeResources:
     redis: Redis | None = field(repr=False)
     llm_http_client: httpx.AsyncClient | None = field(default=None, repr=False)
     commerce_http_client: httpx.AsyncClient | None = field(default=None, repr=False)
+    rag_http_client: httpx.AsyncClient | None = field(default=None, repr=False)
     llm_client: LiteLLMClient | None = field(default=None, repr=False)
     commerce_client: CommerceClient | None = field(default=None, repr=False)
     conversation_service: ConversationService | None = field(default=None, repr=False)
     agent_runtime: AgentRuntime | None = field(default=None, repr=False)
     embedding_client: EmbeddingClient | None = field(default=None, repr=False)
     knowledge_service: KnowledgeService | None = field(default=None, repr=False)
+    reranker_client: RerankerClient | None = field(default=None, repr=False)
+    retrieval_service: RetrievalService | None = field(default=None, repr=False)
 
 
 @asynccontextmanager
@@ -52,12 +58,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     redis: Redis | None = None
     llm_http_client: httpx.AsyncClient | None = None
     commerce_http_client: httpx.AsyncClient | None = None
+    rag_http_client: httpx.AsyncClient | None = None
     llm_client: LiteLLMClient | None = None
     commerce_client: CommerceClient | None = None
     conversation_service: ConversationService | None = None
     agent_runtime: AgentRuntime | None = None
     embedding_client: EmbeddingClient | None = None
     knowledge_service: KnowledgeService | None = None
+    reranker_client: RerankerClient | None = None
+    retrieval_service: RetrievalService | None = None
     try:
         if (
             dependencies.settings.database.url is not None
@@ -71,8 +80,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             redis = create_redis_client(dependencies.settings)
         llm_http_client = httpx.AsyncClient()
         commerce_http_client = httpx.AsyncClient()
+        rag_http_client = httpx.AsyncClient()
         llm_client = LiteLLMClient(dependencies.settings.llm, llm_http_client)
         embedding_client = EmbeddingClient(dependencies.settings.llm, llm_http_client)
+        reranker_client = RerankerClient(
+            dependencies.settings.rag.reranker_url,
+            rag_http_client,
+            timeout_seconds=dependencies.settings.rag.timeout_seconds,
+        )
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
             conversation_service = ConversationService(database.session_factory)
@@ -80,22 +95,32 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 database.session_factory,
                 repository=KnowledgeRepository(),
             )
+            retrieval_service = RetrievalService(
+                database.session_factory,
+                embedding_client=embedding_client,
+                reranker_client=reranker_client,
+            )
             agent_runtime = AgentRuntime(
                 conversation_service=conversation_service,
                 llm_client=llm_client,
                 commerce_client=commerce_client,
+                retrieval_service=retrieval_service,
+                citation_finalizer=CitationFinalizer(),
             )
         app.state.verbaops_runtime_resources = RuntimeResources(
             database=database,
             redis=redis,
             llm_http_client=llm_http_client,
             commerce_http_client=commerce_http_client,
+            rag_http_client=rag_http_client,
             llm_client=llm_client,
             commerce_client=commerce_client,
             conversation_service=conversation_service,
             agent_runtime=agent_runtime,
             embedding_client=embedding_client,
             knowledge_service=knowledge_service,
+            reranker_client=reranker_client,
+            retrieval_service=retrieval_service,
         )
         yield
     finally:
@@ -105,8 +130,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 await commerce_http_client.aclose()
         finally:
             try:
-                if llm_http_client is not None:
-                    await llm_http_client.aclose()
+                try:
+                    if rag_http_client is not None:
+                        await rag_http_client.aclose()
+                finally:
+                    if llm_http_client is not None:
+                        await llm_http_client.aclose()
             finally:
                 try:
                     if redis is not None:

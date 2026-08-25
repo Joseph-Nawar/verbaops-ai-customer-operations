@@ -25,6 +25,69 @@ services:
       timeout: 5s
       retries: 12
 
+  tei-embedding:
+    profiles: ["rag-models"]
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9@sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48
+    command:
+      [
+        "--model-id",
+        "intfloat/multilingual-e5-base",
+        "--revision",
+        "d128750597153bb5987e10b1c3493a34e5a4502a",
+        "--port",
+        "80",
+      ]
+    ports:
+      - "${TEI_EMBEDDING_HOST_PORT:-8081}:80"
+    volumes:
+      - tei_embedding_cache:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  tei-reranker:
+    profiles: ["rag-models"]
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9@sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48
+    command:
+      [
+        "--model-id",
+        "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        "--revision",
+        "1427fd652930e4ba29e8149678df786c240d8825",
+        "--port",
+        "80",
+      ]
+    ports:
+      - "${TEI_RERANKER_HOST_PORT:-8082}:80"
+    volumes:
+      - tei_reranker_cache:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  rag-llm-gateway:
+    profiles: ["rag-models"]
+    image: ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4
+    command: ["--config", "/app/config.rag.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${RAG_LITELLM_MASTER_KEY:-local-rag-gateway-key}
+    volumes:
+      - ./infra/litellm/config.rag.yaml:/app/config.rag.yaml:ro
+    ports:
+      - "${RAG_LLM_GATEWAY_HOST_PORT:-14000}:4000"
+    depends_on:
+      tei-embedding:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
   migrate:
     build:
       context: .
@@ -159,3 +222,5 @@ secrets:
 volumes:
   postgres_data:
   commerce_postgres_data:
+  tei_embedding_cache:
+  tei_reranker_cache:

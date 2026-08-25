@@ -60,16 +60,22 @@ EMBEDDING_PROFILE = "multilingual-e5-base-v1"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-base"
 RERANKER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
 
+
 def format_query(normalized_query: str) -> str: ...
 def format_passage(chunk_content: str) -> str: ...
+
 
 class KnowledgeRetriever(Protocol):
     async def retrieve(
         self, *, agent_run_id: UUID, tenant_id: UUID, query: str, language: str = "en"
     ) -> RetrievalResult: ...
 
+
 class RerankerClient(Protocol):
-    async def rerank(self, query: str, candidates: Sequence[RetrievalCandidate]) -> list[RerankScore]: ...
+    async def rerank(
+        self, query: str, candidates: Sequence[RetrievalCandidate]
+    ) -> list[RerankScore]: ...
+
 
 class CitationFinalizer(Protocol):
     def finalize(self, content: str, evidence: Sequence[EvidenceItem]) -> GroundedResponse: ...

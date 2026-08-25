@@ -53,26 +53,26 @@ def reciprocal_rank_fusion(
                 rrf_score=current.rrf_score + contribution,
             )
 
-    for item in lexical:
-        current = candidates.get(item.chunk.chunk_id)
-        contribution = 1.0 / (k + item.rank)
+    for lexical_item in lexical:
+        current = candidates.get(lexical_item.chunk.chunk_id)
+        contribution = 1.0 / (k + lexical_item.rank)
         if current is None:
-            candidates[item.chunk.chunk_id] = FusedCandidate(
-                chunk=item.chunk,
+            candidates[lexical_item.chunk.chunk_id] = FusedCandidate(
+                chunk=lexical_item.chunk,
                 dense_rank=None,
                 dense_score=None,
-                lexical_rank=item.rank,
-                lexical_score=item.score,
+                lexical_rank=lexical_item.rank,
+                lexical_score=lexical_item.score,
                 rrf_rank=0,
                 rrf_score=contribution,
             )
         else:
-            candidates[item.chunk.chunk_id] = FusedCandidate(
+            candidates[lexical_item.chunk.chunk_id] = FusedCandidate(
                 chunk=current.chunk,
                 dense_rank=current.dense_rank,
                 dense_score=current.dense_score,
-                lexical_rank=item.rank,
-                lexical_score=item.score,
+                lexical_rank=lexical_item.rank,
+                lexical_score=lexical_item.score,
                 rrf_rank=0,
                 rrf_score=current.rrf_score + contribution,
             )

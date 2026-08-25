@@ -142,6 +142,62 @@ class LLMSettings(BaseModel):
         return value
 
 
+class RAGSettings(BaseModel):
+    """Immutable settings for the direct TEI reranker endpoint."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
+
+    reranker_url: str = "http://localhost:8082"
+    timeout_seconds: PositiveFloat = 30.0
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_url_credentials(cls, data: Any) -> Any:
+        """Avoid echoing credential-bearing URLs in validation errors."""
+
+        if not isinstance(data, Mapping):
+            return data
+        data = dict(data)
+        value = data.get("reranker_url")
+        if not isinstance(value, str):
+            return data
+        try:
+            parsed = urlsplit(value)
+            contains_credentials = (
+                parsed.username is not None
+                or parsed.password is not None
+                or bool(parsed.query)
+                or bool(parsed.fragment)
+            )
+        except ValueError:
+            contains_credentials = any(marker in value for marker in ("@", "?", "#"))
+        if not contains_credentials:
+            return data
+        sanitized = dict(data)
+        sanitized["reranker_url"] = "[redacted]"
+        return sanitized
+
+    @field_validator("reranker_url")
+    @classmethod
+    def validate_reranker_url(cls, value: str) -> str:
+        """Require an absolute HTTP(S) URL without credentials or query data."""
+
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            raise ValueError("reranker_url must be an absolute HTTP(S) URL") from None
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("reranker_url must not contain credentials")
+        if parsed.query or parsed.fragment:
+            raise ValueError("reranker_url must not contain query or fragment data")
+        AnyHttpUrl(value)
+        return value
+
+
 class CommerceSettings(BaseModel):
     """Immutable connection settings for the authenticated NovaCommerce API."""
 
@@ -280,6 +336,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    rag: RAGSettings = Field(default_factory=RAGSettings)
     commerce: CommerceSettings = Field(default_factory=CommerceSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)

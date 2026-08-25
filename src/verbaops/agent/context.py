@@ -7,9 +7,9 @@ from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
-from verbaops.tools.registry import ToolRegistry
 from verbaops.retrieval.grounding import CitationFinalizer
 from verbaops.retrieval.service import RetrievalService
+from verbaops.tools.registry import ToolRegistry
 
 
 @dataclass(frozen=True, slots=True)

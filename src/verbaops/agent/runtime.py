@@ -122,21 +122,24 @@ class AgentRuntime:
             final_response = final_state.get("final_response")
             if not isinstance(final_response, str) or not final_response.strip():
                 raise AgentProtocolError()
-            completion_kwargs: dict[str, object] = {}
             retrieval_invocation_id = final_state.get("retrieval_invocation_id")
             grounded_citations = final_state.get("grounded_citations", [])
             if retrieval_invocation_id is not None or grounded_citations:
-                completion_kwargs = {
-                    "retrieval_invocation_id": retrieval_invocation_id,
-                    "citations": grounded_citations,
-                }
-            completion = await self._conversation_service.complete_turn(
-                scope,
-                conversation_id,
-                turn_start.agent_run.id,
-                final_response,
-                **completion_kwargs,
-            )
+                completion = await self._conversation_service.complete_turn(
+                    scope,
+                    conversation_id,
+                    turn_start.agent_run.id,
+                    final_response,
+                    retrieval_invocation_id=retrieval_invocation_id,
+                    citations=grounded_citations,
+                )
+            else:
+                completion = await self._conversation_service.complete_turn(
+                    scope,
+                    conversation_id,
+                    turn_start.agent_run.id,
+                    final_response,
+                )
         except TimeoutError:
             error = AgentUnavailableError()
             await self._fail_run(scope, conversation_id, turn_start.agent_run.id, error)

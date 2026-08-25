@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
 
 sync:
 	$(UV) sync
@@ -56,6 +56,9 @@ commerce-client-contract:
 
 llm-gateway-contract:
 	$(UV) run python -m scripts.run_llm_gateway_contract
+
+rag-contract:
+	$(UV) run pytest tests/retrieval tests/knowledge/test_embeddings.py -m "contract" -q
 
 agent-acceptance:
 	$(UV) run python -m scripts.run_agent_acceptance

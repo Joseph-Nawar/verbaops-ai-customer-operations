@@ -17,9 +17,16 @@ class RerankerProtocolError(RuntimeError):
 class RerankerClient:
     """Call TEI directly and reject partial or ambiguous rankings."""
 
-    def __init__(self, base_url: str, http_client: httpx.AsyncClient) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        http_client: httpx.AsyncClient,
+        *,
+        timeout_seconds: float = 30.0,
+    ) -> None:
         self._endpoint = f"{base_url.rstrip('/')}/rerank"
         self._http_client = http_client
+        self._timeout_seconds = timeout_seconds
 
     async def rerank(self, query: str, candidates: Sequence[FusedCandidate]) -> list[RerankScore]:
         if not candidates:
@@ -32,6 +39,7 @@ class RerankerClient:
                     "texts": [candidate.chunk.content for candidate in candidates],
                     "raw_scores": False,
                 },
+                timeout=self._timeout_seconds,
             )
         except httpx.HTTPError as error:
             raise RerankerProtocolError() from error

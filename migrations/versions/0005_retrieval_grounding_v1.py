@@ -174,7 +174,9 @@ def upgrade() -> None:
             "message_id", "citation_ordinal", name="uq_message_citations_message_ordinal"
         ),
         sa.CheckConstraint("citation_ordinal > 0", name="message_citation_ordinal_positive"),
-        sa.CheckConstraint("length(btrim(evidence_key)) > 0", name="message_citation_key_non_empty"),
+        sa.CheckConstraint(
+            "length(btrim(evidence_key)) > 0", name="message_citation_key_non_empty"
+        ),
     )
 
     op.create_index(
@@ -187,9 +189,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_message_citations_tenant_message", table_name="message_citations")
     op.drop_table("message_citations")
-    op.drop_index(
-        "ix_retrieval_candidates_invocation_selected", table_name="retrieval_candidates"
-    )
+    op.drop_index("ix_retrieval_candidates_invocation_selected", table_name="retrieval_candidates")
     op.drop_table("retrieval_candidates")
     op.drop_index("ix_retrieval_invocations_tenant_created", table_name="retrieval_invocations")
     op.drop_table("retrieval_invocations")

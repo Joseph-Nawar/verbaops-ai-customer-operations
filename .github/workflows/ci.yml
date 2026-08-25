@@ -52,6 +52,9 @@ jobs:
       - name: Tests and coverage
         run: uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 
+      - name: Provider-free RAG contract
+        run: make rag-contract
+
       - name: Pre-commit repository checks
         run: uv run pre-commit run --all-files
 
