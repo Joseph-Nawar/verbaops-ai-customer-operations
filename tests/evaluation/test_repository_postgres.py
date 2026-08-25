@@ -32,7 +32,7 @@ def database_url() -> str:
     return url
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture
 async def engine(database_url: str) -> AsyncIterator[AsyncEngine]:
     database_engine = create_async_engine(database_url, pool_pre_ping=True, echo=False)
     yield database_engine
