@@ -3,6 +3,8 @@
 import subprocess
 from pathlib import Path
 
+from scripts.run_agent_eval_live import missing_provider_variables
+
 ROOT = Path(__file__).parents[2]
 
 
@@ -44,6 +46,14 @@ def test_m4b_commands_are_local_only_and_use_real_config_path() -> None:
     assert "config.test.yaml" not in live_script
     assert "BASELINE" in compare_script
     assert "CANDIDATE" in compare_script
+
+
+def test_live_preflight_names_missing_provider_variables_without_values() -> None:
+    assert missing_provider_variables({}) == (
+        "VERBAOPS_AGENT_FAST_MODEL",
+        "VERBAOPS_AGENT_FAST_BASE_URL",
+        "VERBAOPS_AGENT_FAST_API_KEY",
+    )
 
 
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:
