@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
 
 sync:
 	$(UV) sync
@@ -71,6 +71,11 @@ postgres-concurrency:
 postgres-critical-race:
 	$(UV) run python scripts/require_test_database.py
 	$(UV) run pytest -m "postgres and concurrency and critical_race"
+
+knowledge-contract:
+	$(UV) run alembic upgrade 0004_knowledge_rag_v1
+	$(UV) run python scripts/ingest_knowledge_corpus.py --check
+	$(UV) run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py tests/worker/test_knowledge_tasks.py -q
 
 commerce-contract-check:
 	$(UV) run python scripts/normalize_openapi.py --check contracts/novacommerce-openapi.json

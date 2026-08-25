@@ -1,0 +1,23 @@
+{
+  "corpus": "novacommerce",
+  "language": "en",
+  "documents": [
+    {"path": "en/shipping-policy.md", "slug": "shipping-policy", "title": "NovaCommerce Shipping Policy", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/returns-policy.md", "slug": "returns-policy", "title": "NovaCommerce Returns Policy", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/refund-policy.md", "slug": "refund-policy", "title": "NovaCommerce Refund Policy", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/warranty.md", "slug": "warranty", "title": "NovaCommerce Warranty", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/payment-policy.md", "slug": "payment-policy", "title": "NovaCommerce Payment Policy", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/privacy.md", "slug": "privacy", "title": "NovaCommerce Privacy Notice", "document_type": "policy", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/product-guides/phones-and-tablets.md", "slug": "phones-and-tablets", "title": "Phones and Tablets Guide", "document_type": "product_guide", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/product-guides/laptops.md", "slug": "laptops", "title": "Laptops Guide", "document_type": "product_guide", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/product-guides/accessories.md", "slug": "accessories", "title": "Accessories Guide", "document_type": "product_guide", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/product-guides/smart-home.md", "slug": "smart-home", "title": "Smart Home Guide", "document_type": "product_guide", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/faq/orders.md", "slug": "faq-orders", "title": "Order FAQ", "document_type": "faq", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/faq/shipping.md", "slug": "faq-shipping", "title": "Shipping FAQ", "document_type": "faq", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/faq/returns.md", "slug": "faq-returns", "title": "Returns FAQ", "document_type": "faq", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/faq/payments.md", "slug": "faq-payments", "title": "Payments FAQ", "document_type": "faq", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/faq/warranty.md", "slug": "faq-warranty", "title": "Warranty FAQ", "document_type": "faq", "language": "en", "version": "2026.1", "effective_date": "2026-01-01", "intent": "current"},
+    {"path": "en/history/returns-policy-v1.md", "slug": "returns-policy", "title": "NovaCommerce Returns Policy", "document_type": "policy", "language": "en", "version": "2025.1", "effective_date": "2025-01-01", "intent": "historical"},
+    {"path": "en/history/refund-policy-v1.md", "slug": "refund-policy", "title": "NovaCommerce Refund Policy", "document_type": "policy", "language": "en", "version": "2025.1", "effective_date": "2025-01-01", "intent": "historical"}
+  ]
+}

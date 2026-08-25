@@ -5,6 +5,11 @@ model_list:
       model: openai/local-test-model
       api_base: http://provider-stub:8000/v1
       api_key: local-test-provider-key
+  - model_name: embedding-multilingual
+    litellm_params:
+      model: openai/local-test-model
+      api_base: http://provider-stub:8000/v1
+      api_key: local-test-provider-key
 
 litellm_settings:
   master_key: sk-test-gateway
