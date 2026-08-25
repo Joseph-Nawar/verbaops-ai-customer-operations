@@ -55,9 +55,12 @@ make eval-corpus-check
 make eval-agent
 ```
 
-The first genuine model baseline is M4B and has not yet been recorded. M4A
-makes no quality percentage claim and does not optimize the locked Stage 3
-agent.
+M4B recorded the first genuine Groq/GPT-OSS 120B measurement over all 120
+cases. The preserved baseline and its deterministic post-run safety-classifier
+correction are documented in
+[`docs/superpowers/reports/2026-08-25-verbaops-stage4-m4b-evidence.md`](docs/superpowers/reports/2026-08-25-verbaops-stage4-m4b-evidence.md).
+The measurement was collected once; no model, prompt, tool, graph, routing, or
+corpus optimization was performed.
 
 ## Architecture principles
 

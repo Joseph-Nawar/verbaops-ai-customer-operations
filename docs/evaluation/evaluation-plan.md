@@ -2,10 +2,12 @@
 
 Evaluation is versioned, reproducible, slice-aware, and reported honestly. Targets below are acceptance targets for later implementation, not fabricated project claims. A result is not presented as achieved unless a recorded evaluation run supports it.
 
-Implementation status: Stage 4 M4A now provides the approved English v0.1
-golden corpus, deterministic audit/metric contracts, evaluation persistence,
-and a provider-free runner. The first genuine model baseline remains M4B and
-has not been recorded.
+Implementation status: Stage 4 M4A provides the approved English v0.1 golden
+corpus, deterministic audit/metric contracts, evaluation persistence, and a
+provider-free runner. M4B recorded one genuine Groq/GPT-OSS 120B run over all
+120 cases. A post-run deterministic safety-classification defect was corrected
+without repeating provider calls; the complete provenance and metrics are in
+`docs/superpowers/reports/2026-08-25-verbaops-stage4-m4b-evidence.md`.
 
 ## Versioning and evidence
 

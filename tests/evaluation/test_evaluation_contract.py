@@ -3,6 +3,12 @@
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from verbaops.evaluation.cases import load_cases
+from verbaops.evaluation.live import LiveCorpusContractError, assert_live_corpus_contract
+from verbaops.evaluation.models import ConversationTurn
+
 ROOT = Path(__file__).parents[2]
 
 
@@ -16,6 +22,22 @@ def test_evaluation_make_targets_are_present() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
     assert "eval-corpus-check:" in makefile
     assert "eval-agent:" in makefile
+
+
+def test_live_corpus_contract_accepts_current_cases_and_rejects_history() -> None:
+    cases = load_cases(ROOT / "evals/agent/v0.1/cases.jsonl")
+    assert_live_corpus_contract(cases)
+
+    invalid = cases[0].model_copy(
+        update={
+            "conversation": (
+                ConversationTurn(role="assistant", content="Earlier answer."),
+                *cases[0].conversation,
+            )
+        }
+    )
+    with pytest.raises(LiveCorpusContractError, match="exactly one user turn"):
+        assert_live_corpus_contract((invalid,))
 
 
 def test_eval_artifacts_are_ignored() -> None:

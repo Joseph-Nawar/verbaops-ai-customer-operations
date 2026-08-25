@@ -45,3 +45,4 @@ Desktop.ini
 .npm/
 node_modules/
 artifacts/eval_runs/
+.stage4-agent-v0.1-resume.json
