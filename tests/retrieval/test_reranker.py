@@ -81,4 +81,3 @@ async def test_reranker_rejects_partial_duplicate_invalid_or_non_numeric_respons
 
     with pytest.raises(RerankerProtocolError):
         await client.rerank("return window", [candidate(0), candidate(1)])
-

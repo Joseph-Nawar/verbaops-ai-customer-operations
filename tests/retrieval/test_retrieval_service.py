@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from datetime import date
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -98,8 +99,8 @@ async def test_retrieval_service_formats_query_fuses_reranks_and_persists_select
     repository = FakeRepository([knowledge(0), knowledge(1)])
     embedding = FakeEmbedding()
     service = RetrievalService(
-        session_factory,
-        repository=repository,
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
         embedding_client=embedding,
         reranker_client=FakeReranker(0.9),
     )
@@ -124,8 +125,8 @@ async def test_retrieval_service_formats_query_fuses_reranks_and_persists_select
 async def test_retrieval_service_abstains_when_top_score_is_below_provisional_threshold() -> None:
     repository = FakeRepository([knowledge(0)])
     service = RetrievalService(
-        session_factory,
-        repository=repository,
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
         embedding_client=FakeEmbedding(),
         reranker_client=FakeReranker(0.49),
     )
@@ -142,8 +143,8 @@ async def test_retrieval_service_abstains_when_top_score_is_below_provisional_th
 async def test_retrieval_service_returns_no_evidence_when_embedding_is_unavailable() -> None:
     repository = FakeRepository([knowledge(0)])
     service = RetrievalService(
-        session_factory,
-        repository=repository,
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
         embedding_client=FailingEmbedding(),
         reranker_client=FakeReranker(0.9),
     )

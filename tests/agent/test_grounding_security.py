@@ -33,4 +33,3 @@ async def test_fabricated_citation_handle_never_reaches_customer_as_valid_proven
         "I'm unable to verify that information from the available company knowledge."
     )
     assert result["knowledge_evidence"] == []
-

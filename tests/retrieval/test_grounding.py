@@ -45,4 +45,3 @@ def test_grounding_preserves_no_citation_messages() -> None:
 
     assert result.content == "Where is my order?"
     assert result.citations == ()
-

@@ -115,13 +115,16 @@ async def test_dense_and_lexical_retrieval_apply_all_scope_and_version_filters(
     ]
 
     async with postgres_engine.connect() as connection:
-        assert await repository.search_dense(
-            connection,
-            tenant_id=TENANT_C,
-            vector=[0.0, 1.0] + [0.0] * 766,
-            embedding_profile=PROFILE,
-            language="en",
-        ) == []
+        assert (
+            await repository.search_dense(
+                connection,
+                tenant_id=TENANT_C,
+                vector=[0.0, 1.0] + [0.0] * 766,
+                embedding_profile=PROFILE,
+                language="en",
+            )
+            == []
+        )
         assert await repository.search_lexical(
             connection,
             tenant_id=TENANT_B,

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 MIGRATION = Path("migrations/versions/0005_retrieval_grounding_v1.py")
 
 
@@ -32,10 +31,9 @@ def test_retrieval_grounding_migration_contains_audit_constraints_and_indexes() 
 
 
 def test_commerce_migration_remains_independent() -> None:
-    migration = Path(
-        "commerce_migrations/versions/0001_create_commerce_schema.py"
-    ).read_text(encoding="utf-8")
+    migration = Path("commerce_migrations/versions/0001_create_commerce_schema.py").read_text(
+        encoding="utf-8"
+    )
 
     assert 'revision = "0001_create_commerce_schema"' in migration
     assert "down_revision = None" in migration
-

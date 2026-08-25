@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -14,12 +15,12 @@ from verbaops.retrieval.service import RetrievalService, RetrievalStatus
 
 
 class DeterministicEmbedding:
-    async def embed(self, texts: list[str]) -> list[list[float]]:
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
         return [[1.0] + [0.0] * 767 for _ in texts]
 
 
 class DeterministicReranker:
-    async def rerank(self, _query: str, candidates: list[object]) -> list[RerankScore]:
+    async def rerank(self, _query: str, candidates: Sequence[object]) -> list[RerankScore]:
         return [RerankScore(index=index, score=0.9) for index in range(len(candidates))]
 
 

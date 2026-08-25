@@ -58,7 +58,7 @@ def response(content: str) -> GenerateResponse:
     )
 
 
-def context(llm: ScriptedLLMClient, retrieval: RecordingRetrieval) -> AgentContext:
+def context(llm: ScriptedLLMClient, retrieval: Any) -> AgentContext:
     return AgentContext(
         conversation_id=uuid4(),
         agent_run_id=uuid4(),

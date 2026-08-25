@@ -79,11 +79,11 @@ async def test_post_and_get_conversation_expose_persisted_public_citations(app: 
             headers=headers,
         )
         assert fetched.status_code == 200
-        assert fetched.json()["messages"][-1]["citations"] == sent.json()[
-            "assistant_message"
-        ]["citations"]
+        assert (
+            fetched.json()["messages"][-1]["citations"]
+            == sent.json()["assistant_message"]["citations"]
+        )
         assert "document_slug" not in fetched.text
         assert "version_id" not in fetched.text
     finally:
         app.dependency_overrides.clear()
-

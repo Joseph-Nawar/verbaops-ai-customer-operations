@@ -13,4 +13,3 @@ def test_multilingual_e5_profile_formats_queries_and_passages_once() -> None:
     assert EMBEDDING_DIMENSION == 768
     assert format_query("  return window? ") == "query: return window?"
     assert format_passage("Return window: 30 days.") == "passage: Return window: 30 days."
-
