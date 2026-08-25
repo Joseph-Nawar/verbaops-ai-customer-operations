@@ -2,6 +2,11 @@
 
 Evaluation is versioned, reproducible, slice-aware, and reported honestly. Targets below are acceptance targets for later implementation, not fabricated project claims. A result is not presented as achieved unless a recorded evaluation run supports it.
 
+Implementation status: Stage 4 M4A now provides the approved English v0.1
+golden corpus, deterministic audit/metric contracts, evaluation persistence,
+and a provider-free runner. The first genuine model baseline remains M4B and
+has not been recorded.
+
 ## Versioning and evidence
 
 Every evaluation case belongs to a version. Each run records the case version, prompt/instruction configuration, retrieval and knowledge version, tool schema version, policy version, model/provider version, language slice, and environment. Results retain input, expected behavior, observed behavior, safety outcome, latency, and cost metadata with PII minimized.

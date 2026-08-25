@@ -44,3 +44,4 @@ Desktop.ini
 .cache/
 .npm/
 node_modules/
+artifacts/eval_runs/

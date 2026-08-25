@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent
 
 sync:
 	$(UV) sync
@@ -87,3 +87,9 @@ web-check:
 
 web-smoke:
 	corepack pnpm --dir apps/web smoke
+
+eval-corpus-check:
+	$(UV) run python scripts/check_eval_corpus.py
+
+eval-agent:
+	$(UV) run python scripts/run_agent_eval.py --adapter deterministic

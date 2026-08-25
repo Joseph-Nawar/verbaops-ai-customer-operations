@@ -24,6 +24,7 @@ dependencies = [
 dev = [
     "Faker==40.36.0",
     "mypy>=1.15,<2",
+    "pandas>=2.2,<3",
     "pre-commit>=4,<5",
     "pytest>=8.3,<9",
     "pytest-cov>=6,<7",
@@ -72,6 +73,8 @@ markers = [
     "commerce_client_contract: application CommerceClient contract against ephemeral Dockerized NovaCommerce",
     "llm_gateway_contract: real LiteLLM proxy and deterministic local provider contract",
     "agent_acceptance: black-box VerbaOps agent acceptance through the real service stack",
+    "evaluation: deterministic Stage 4 evaluation tests",
+    "evaluation_postgres: PostgreSQL evaluation persistence tests",
 ]
 
 [tool.coverage.run]
