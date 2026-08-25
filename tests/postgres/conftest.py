@@ -28,6 +28,9 @@ async def postgres_engine() -> AsyncIterator[AsyncEngine]:
 @pytest_asyncio.fixture(autouse=True)
 async def clean_knowledge_tables(postgres_engine: AsyncEngine) -> AsyncIterator[None]:
     async with postgres_engine.begin() as connection:
+        await connection.execute(text("DELETE FROM message_citations"))
+        await connection.execute(text("DELETE FROM retrieval_candidates"))
+        await connection.execute(text("DELETE FROM retrieval_invocations"))
         await connection.execute(text("DELETE FROM knowledge_ingestion_jobs"))
         await connection.execute(text("DELETE FROM knowledge_chunks"))
         await connection.execute(text("DELETE FROM knowledge_versions"))
