@@ -36,6 +36,7 @@ class BaselineArtifact(EvaluationModel):
     split_counts: dict[str, int]
     category_counts: dict[str, int]
     execution_git_sha: str = Field(min_length=1)
+    evaluator_git_sha: str | None = None
     stage3_lock_sha: str = Field(min_length=1)
     capability_alias: str = Field(min_length=1)
     gateway_model_id: str | None = None
@@ -88,6 +89,7 @@ def build_baseline_artifact(
     *,
     baseline_name: str = "stage4-agent-v0.1-baseline",
     stage3_lock_sha: str = EXPECTED_STAGE3_LOCK_SHA,
+    evaluator_git_sha: str | None = None,
 ) -> BaselineArtifact:
     """Promote one complete summary/results pair into the strict artifact."""
 
@@ -124,6 +126,7 @@ def build_baseline_artifact(
                 category: category_counts.get(category, 0) for category in APPROVED_CATEGORIES
             },
             execution_git_sha=execution_git_sha,
+            evaluator_git_sha=evaluator_git_sha,
             stage3_lock_sha=stage3_lock_sha,
             capability_alias=summary.capability_alias,
             gateway_model_id=summary.gateway_model_id,
@@ -202,6 +205,7 @@ def write_baseline_artifacts(
         f"- Dataset: `{validated.dataset_version}` ({validated.case_count} cases)",
         f"- Split counts: `dev={validated.split_counts['dev']}`, `release_holdout={validated.split_counts['release_holdout']}`",
         f"- Execution SHA: `{validated.execution_git_sha}`",
+        f"- Evaluator/finalization SHA: `{validated.evaluator_git_sha or 'N/A'}`",
         f"- Capability: `{validated.capability_alias}`",
         f"- Model/provider: `{validated.model or 'N/A'}` / `{validated.provider or 'N/A'}`",
         f"- Unauthorized actions: `{validated.unauthorized_action_count}`",
