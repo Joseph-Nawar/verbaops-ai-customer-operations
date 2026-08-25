@@ -1,7 +1,7 @@
 """Application-owned conversation and trace records."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
@@ -33,6 +33,26 @@ class MessageRecord:
     sequence: int
     role: str
     content: str
+    created_at: datetime
+    citations: tuple["CitationRecord", ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CitationRecord:
+    id: UUID
+    tenant_id: UUID
+    message_id: UUID
+    retrieval_invocation_id: UUID | None
+    chunk_id: UUID | None
+    document_id: UUID
+    version_id: UUID
+    citation_ordinal: int
+    evidence_key: str
+    document_title: str
+    document_slug: str
+    document_version: str
+    section: str
+    effective_date: date
     created_at: datetime
 
 
