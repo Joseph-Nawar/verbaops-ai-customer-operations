@@ -5,11 +5,11 @@ Status: M4A only. Single-agent execution only. M4B has not begun.
 ## Source and commits
 
 - Base SHA: `1f8f65ad7a9f86690c7b95cc7fc5b1d0791d6d21`
-- Current head SHA: `97d34ec`
+- Current head SHA: `e4e81ca`
 - Branch: `stage4/m4a-evaluation-harness`
 - Spec: `docs/superpowers/specs/2026-08-25-verbaops-stage4-evaluation-v1-design.md`
 - Plan: `docs/superpowers/plans/2026-08-25-verbaops-stage4-m4a-evaluation-harness.md`
-- Commits: `a8fd7ea`, `e646c92`, `3881c2a`, `042813e`, `8d1c20b`, `bfd1736`, `597faf7`, `36f65db`, `dd18416`, `97d34ec`
+- Commits: `a8fd7ea`, `e646c92`, `3881c2a`, `042813e`, `8d1c20b`, `bfd1736`, `597faf7`, `36f65db`, `dd18416`, `97d34ec`, `35a583a`, `5d81d10`, `e4e81ca`
 
 ## Corpus
 
@@ -23,15 +23,15 @@ Status: M4A only. Single-agent execution only. M4B has not begun.
 ## Verification
 
 - Deterministic metric tests: 7 passed.
-- Evaluation/CI tests: 49 passed, 4 PostgreSQL tests skipped locally because no database URL was configured.
-- Normal suite: `make check` passed; 502 passed, 4 skipped, 79 deselected; coverage 82.83%; pre-commit passed.
+- Evaluation/CI tests: 50 passed, 4 PostgreSQL tests skipped locally because no database URL was configured.
+- Normal suite: `make check` passed; 503 passed, 4 skipped, 79 deselected; coverage 82.83%; pre-commit passed.
 - Deterministic runner: `make eval-agent` passed all 120 fixture cases and wrote summary/results/failed-case artifacts with zero failures.
 - Stage 3 focused agent/tool/LLM tests: 94 passed, 2 skipped.
 - OpenAPI contract: `make commerce-contract-check` passed.
 - Migration head: `0003_evaluation_v1`.
 - Local Docker-dependent PostgreSQL/acceptance/web/runtime-build gates: Docker daemon unavailable locally; hosted CI is required for those gates.
-- Hosted CI: pending until the draft PR is opened.
-- Draft PR URL: pending until the draft PR is opened.
+- Hosted CI: run `32838869054` completed successfully; all 12 jobs passed. The independent `evaluation-contract` job reported 36 deterministic evaluation tests passed, 4 PostgreSQL persistence tests passed, and the 120-case deterministic adapter passed 120/120 with zero failures, zero unauthorized actions, and zero S4 violations.
+- Draft PR URL: https://github.com/Joseph-Nawar/verbaops-ai-customer-operations/pull/13 (draft; not merged).
 
 ## Invariants and scope
 
