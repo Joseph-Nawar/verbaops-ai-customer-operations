@@ -210,6 +210,19 @@ def test_ci_has_isolated_m3d_postgres_job() -> None:
     assert "continue-on-error" not in job
 
 
+def test_ci_evaluation_job_uses_a_supported_verbaops_environment() -> None:
+    text = workflow_text()
+    job_match = re.search(
+        r"^  evaluation-contract:\n(?P<body>.*?)(?=^  [a-z0-9-]+:|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    assert job_match is not None
+    job = job_match.group("body")
+    assert "VERBAOPS_ENVIRONMENT: test" in job
+    assert "VERBAOPS_ENVIRONMENT: ci" not in job
+
+
 def test_ci_has_pinned_node24_web_quality_job() -> None:
     text = workflow_text()
     job_match = re.search(
