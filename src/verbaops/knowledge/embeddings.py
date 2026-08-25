@@ -8,8 +8,7 @@ import httpx
 
 from verbaops.config.settings import LLMSettings
 from verbaops.llm.models import CapabilityAlias
-
-EMBEDDING_DIMENSION = 768
+from verbaops.knowledge.profiles import EMBEDDING_DIMENSION
 
 
 class EmbeddingProtocolError(RuntimeError):
