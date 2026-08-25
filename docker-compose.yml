@@ -63,6 +63,24 @@ services:
     secrets:
       - postgres_password
 
+  worker:
+    build:
+      context: .
+      target: runtime
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["celery", "-A", "verbaops.worker.celery_app:celery_app", "worker", "--loglevel=INFO"]
+    secrets:
+      - postgres_password
+
   commerce-postgres:
     image: postgres:16.6-alpine
     environment:

@@ -252,6 +252,69 @@ jobs:
       - name: Run M3D PostgreSQL runtime suite
         run: uv run pytest -m "postgres and m3d"
 
+  knowledge-contract:
+    name: knowledge-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_USER: verbaops_test
+          POSTGRES_PASSWORD: verbaops_test_password
+          POSTGRES_DB: verbaops_test
+        ports:
+          - 5430:5432
+        options: >-
+          --health-cmd "pg_isready -U verbaops_test -d verbaops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:8.2.8-bookworm
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      VERBAOPS_DATABASE__URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5430/verbaops_test
+      VERBAOPS_REDIS__URL: redis://localhost:6379/0
+      VERBAOPS_ENVIRONMENT: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Verify locked dependencies
+        run: uv lock --check
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply VerbaOps migrations through M5A
+        run: uv run alembic upgrade 0004_knowledge_rag_v1
+
+      - name: Validate committed corpus
+        run: uv run python scripts/ingest_knowledge_corpus.py --check
+
+      - name: Run provider-free knowledge contract
+        run: >-
+          uv run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py
+          tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
+
   docker-build:
     name: docker-build
     needs: [quality, postgres-contract, postgres-concurrency]

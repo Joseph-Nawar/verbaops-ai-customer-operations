@@ -18,6 +18,7 @@ from verbaops.observability.context import bind_tenant_id
 if TYPE_CHECKING:
     from verbaops.agent.runtime import AgentRuntime
     from verbaops.conversations.service import ConversationService
+    from verbaops.knowledge.service import KnowledgeService
 
 if TYPE_CHECKING:
     from verbaops.api.lifespan import RuntimeResources
@@ -82,6 +83,15 @@ def get_agent_runtime(request: Request) -> "AgentRuntime":
     if resources.agent_runtime is None:
         raise RuntimeResourceUnavailableError("agent runtime is unavailable")
     return resources.agent_runtime
+
+
+def get_knowledge_service(request: Request) -> "KnowledgeService":
+    """Retrieve the lifespan-owned knowledge service."""
+
+    resources = get_runtime_resources(request)
+    if resources.knowledge_service is None:
+        raise RuntimeResourceUnavailableError("knowledge service is unavailable")
+    return resources.knowledge_service
 
 
 def get_application_dependencies(request: Request) -> ApplicationDependencies:

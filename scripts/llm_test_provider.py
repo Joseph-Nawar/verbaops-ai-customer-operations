@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -86,6 +87,20 @@ def _completion(request: dict[str, Any]) -> dict[str, Any]:
             "total_tokens": 7 + completion_tokens,
         },
     }
+
+
+def _embedding(request: dict[str, Any]) -> dict[str, Any]:
+    values = request.get("input")
+    if isinstance(values, str):
+        values = [values]
+    if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+        return _error("invalid embedding input", "invalid_request_error", "invalid_input")
+    data = []
+    for index, value in enumerate(values):
+        digest = hashlib.sha256(value.encode("utf-8")).digest()
+        vector = [((digest[offset % len(digest)] / 255.0) * 2.0) - 1.0 for offset in range(768)]
+        data.append({"object": "embedding", "index": index, "embedding": vector})
+    return {"object": "list", "data": data, "model": "local-test-embedding"}
 
 
 def _agent_acceptance_completion(request: dict[str, Any]) -> dict[str, Any] | None:
@@ -223,7 +238,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
             )
 
     def do_POST(self) -> None:
-        if self.path != "/v1/chat/completions":
+        if self.path not in ("/v1/chat/completions", "/v1/embeddings"):
             self._send(
                 HTTPStatus.NOT_FOUND, _error("not found", "invalid_request_error", "not_found")
             )
@@ -242,6 +257,9 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 HTTPStatus.BAD_REQUEST,
                 _error("invalid JSON", "invalid_request_error", "invalid_json"),
             )
+            return
+        if self.path == "/v1/embeddings":
+            self._send(HTTPStatus.OK, _embedding(request))
             return
         if "test:malformed" in _content_text(request.get("messages", [])):
             self._send(HTTPStatus.OK, {}, raw=b"{not-json")

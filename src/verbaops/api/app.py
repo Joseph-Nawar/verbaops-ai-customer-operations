@@ -19,6 +19,7 @@ from verbaops.api.errors import (
 from verbaops.api.lifespan import lifespan
 from verbaops.api.middleware import RequestContextMiddleware
 from verbaops.api.routes.conversations import router as conversations_router
+from verbaops.api.routes.knowledge_admin import router as knowledge_admin_router
 from verbaops.api.routes.operations import router as operations_router
 from verbaops.auth.provider import AuthenticationError, AuthProvider
 from verbaops.config.settings import Settings
@@ -50,4 +51,5 @@ def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.include_router(operations_router)
     app.include_router(conversations_router)
+    app.include_router(knowledge_admin_router)
     return app

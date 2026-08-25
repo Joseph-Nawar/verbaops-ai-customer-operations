@@ -18,6 +18,9 @@ from verbaops.db.resources import (
     create_database_resources,
     dispose_database_resources,
 )
+from verbaops.knowledge.embeddings import EmbeddingClient
+from verbaops.knowledge.repository import KnowledgeRepository
+from verbaops.knowledge.service import KnowledgeService
 from verbaops.llm.litellm import LiteLLMClient
 
 
@@ -33,6 +36,8 @@ class RuntimeResources:
     commerce_client: CommerceClient | None = field(default=None, repr=False)
     conversation_service: ConversationService | None = field(default=None, repr=False)
     agent_runtime: AgentRuntime | None = field(default=None, repr=False)
+    embedding_client: EmbeddingClient | None = field(default=None, repr=False)
+    knowledge_service: KnowledgeService | None = field(default=None, repr=False)
 
 
 @asynccontextmanager
@@ -51,6 +56,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     commerce_client: CommerceClient | None = None
     conversation_service: ConversationService | None = None
     agent_runtime: AgentRuntime | None = None
+    embedding_client: EmbeddingClient | None = None
+    knowledge_service: KnowledgeService | None = None
     try:
         if (
             dependencies.settings.database.url is not None
@@ -65,9 +72,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         llm_http_client = httpx.AsyncClient()
         commerce_http_client = httpx.AsyncClient()
         llm_client = LiteLLMClient(dependencies.settings.llm, llm_http_client)
+        embedding_client = EmbeddingClient(dependencies.settings.llm, llm_http_client)
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
             conversation_service = ConversationService(database.session_factory)
+            knowledge_service = KnowledgeService(
+                database.session_factory,
+                repository=KnowledgeRepository(),
+            )
             agent_runtime = AgentRuntime(
                 conversation_service=conversation_service,
                 llm_client=llm_client,
@@ -82,6 +94,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             commerce_client=commerce_client,
             conversation_service=conversation_service,
             agent_runtime=agent_runtime,
+            embedding_client=embedding_client,
+            knowledge_service=knowledge_service,
         )
         yield
     finally:
