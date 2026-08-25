@@ -3,7 +3,11 @@
 import subprocess
 from pathlib import Path
 
-from scripts.run_agent_eval_live import _compose_environment, missing_provider_variables
+from scripts.run_agent_eval_live import (
+    _compose_environment,
+    build_resume_state,
+    missing_provider_variables,
+)
 
 ROOT = Path(__file__).parents[2]
 
@@ -75,6 +79,25 @@ def test_live_compose_satisfies_unused_litellm_alias_config_without_credentials(
         assert f"{prefix}_MODEL" in compose
         assert f"{prefix}_BASE_URL" in compose
         assert f"{prefix}_API_KEY" in compose
+
+
+def test_resume_state_contains_no_provider_credential() -> None:
+    state = build_resume_state(
+        project="verbaops-agent-live-test",
+        env_file=ROOT / "temporary.env",
+        run_id="11111111-1111-1111-1111-111111111111",
+        execution_sha="a" * 40,
+        environment={
+            "VERBAOPS_AGENT_FAST_MODEL": "groq/openai/gpt-oss-120b",
+            "VERBAOPS_AGENT_FAST_BASE_URL": "https://api.groq.com/openai/v1",
+            "VERBAOPS_AGENT_FAST_API_KEY": "must-not-be-persisted",
+        },
+    )
+
+    assert state["project"] == "verbaops-agent-live-test"
+    assert state["run_id"] == "11111111-1111-1111-1111-111111111111"
+    assert "must-not-be-persisted" not in str(state)
+    assert "VERBAOPS_AGENT_FAST_API_KEY" not in state
 
 
 def test_readme_and_evaluation_plan_state_m4a_boundary() -> None:

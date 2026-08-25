@@ -13,16 +13,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
 from verbaops.evaluation.corpus import CorpusManifest, audit_corpus
+from verbaops.evaluation.errors import (
+    ProviderExecutionError,
+    ProviderQuotaExceeded,
+    interruption_summary,
+)
 from verbaops.evaluation.metrics import aggregate_results, score_case
 from verbaops.evaluation.models import (
+    CaseEvaluationResult,
     EvaluationCase,
     EvaluationObservation,
     EvaluationRunMetadata,
     EvaluationSummary,
     ObservedToolCall,
+    SafetyOutcome,
 )
 from verbaops.evaluation.reports import write_artifacts
-from verbaops.evaluation.repository import EvaluationRepository
+from verbaops.evaluation.repository import EvaluationRepository, EvaluationRepositoryError
 
 
 class EvaluationAdapter(Protocol):
@@ -111,6 +118,30 @@ def _summary_metadata(
     )
 
 
+def _observation_from_result(
+    result: Any,
+    metadata: EvaluationRunMetadata,
+) -> EvaluationObservation:
+    """Reconstruct only aggregateable evidence for a previously persisted case."""
+
+    observed_outcome = result.observed_outcome
+    safety = observed_outcome.get("safety", {}) if isinstance(observed_outcome, dict) else {}
+    answer_facts = (
+        observed_outcome.get("answer_facts", {}) if isinstance(observed_outcome, dict) else {}
+    )
+    return EvaluationObservation(
+        answer_facts=answer_facts if isinstance(answer_facts, dict) else {},
+        safety=SafetyOutcome.model_validate(safety if isinstance(safety, dict) else {}),
+        capability_alias=metadata.capability_alias,
+        gateway_model_id=metadata.gateway_model_id,
+        model=metadata.model,
+        provider=metadata.provider,
+        latency_ms=result.latency_ms,
+        cost_usd=result.cost_usd,
+        agent_run_id=result.agent_run_id,
+    )
+
+
 async def run_evaluation(
     cases: tuple[EvaluationCase, ...],
     adapter: EvaluationAdapter,
@@ -130,40 +161,109 @@ async def run_evaluation(
     actual_run_id = run_id or (metadata.id if metadata else uuid4())
     dataset_sha256 = hashlib.sha256(dataset_bytes).hexdigest()
     observations: list[EvaluationObservation] = []
-    results = []
+    results: list[CaseEvaluationResult] = []
     if repository is not None and session is None:
         raise ValueError("evaluation repository mode requires an async session")
+    run_metadata: EvaluationRunMetadata | None = metadata
+    persisted_case_ids: set[str] = set()
     if repository is not None and session is not None:
-        run_metadata = metadata or EvaluationRunMetadata(
-            id=actual_run_id,
-            dataset_version=manifest.dataset_version,
-            dataset_sha256=dataset_sha256,
-            git_sha="local",
-            environment="local",
-            capability_alias="deterministic-fixture",
-            prompt_version=PROMPT_VERSION,
-            graph_version=GRAPH_VERSION,
-            tool_schema_version=TOOL_SCHEMA_VERSION,
-            case_count=len(cases),
-            started_at=datetime.now(UTC),
-        )
-        await repository.create_run(session, run_metadata)
+        try:
+            existing_run = await repository.get_run(session, actual_run_id)
+        except EvaluationRepositoryError:
+            existing_run = None
+        if existing_run is not None:
+            run_metadata = existing_run
+            existing_results = await repository.list_results(session, actual_run_id)
+            results.extend(existing_results)
+            persisted_case_ids = {result.case_id for result in existing_results}
+            observations.extend(
+                _observation_from_result(result, existing_run) for result in existing_results
+            )
+        else:
+            run_metadata = metadata or EvaluationRunMetadata(
+                id=actual_run_id,
+                dataset_version=manifest.dataset_version,
+                dataset_sha256=dataset_sha256,
+                git_sha="local",
+                environment="local",
+                capability_alias="deterministic-fixture",
+                prompt_version=PROMPT_VERSION,
+                graph_version=GRAPH_VERSION,
+                tool_schema_version=TOOL_SCHEMA_VERSION,
+                case_count=len(cases),
+                started_at=datetime.now(UTC),
+            )
+            await repository.create_run(session, run_metadata)
     for case in cases:
-        observation = await adapter.observe(case)
+        if case.case_id in persisted_case_ids:
+            continue
+        try:
+            observation = await adapter.observe(case)
+        except ProviderQuotaExceeded as error:
+            if repository is not None and session is not None and run_metadata is not None:
+                error.run_id = actual_run_id
+                error.completed_case_count = len(results)
+                error.remaining_case_count = len(cases) - len(results)
+                await repository.interrupt_run(
+                    session,
+                    actual_run_id,
+                    interruption_summary(
+                        reason=error.reason,
+                        completed_case_count=error.completed_case_count,
+                        remaining_case_count=error.remaining_case_count,
+                        retry_after_seconds=error.retry_after_seconds,
+                        reset_metadata=error.reset_metadata,
+                    ),
+                    datetime.now(UTC),
+                )
+                await session.commit()
+            raise
+        except ProviderExecutionError:
+            if repository is not None and session is not None:
+                await repository.interrupt_run(
+                    session,
+                    actual_run_id,
+                    interruption_summary(
+                        reason="provider_failure",
+                        completed_case_count=len(results),
+                        remaining_case_count=len(cases) - len(results),
+                    ),
+                    datetime.now(UTC),
+                )
+                await session.commit()
+            raise
         observations.append(observation)
-        results.append(score_case(case, observation))
+        result = score_case(case, observation)
+        results.append(result)
+        persisted_case_ids.add(case.case_id)
+        if repository is not None and session is not None and run_metadata is not None:
+            await repository.add_result(session, actual_run_id, result)
+            progress = _summary_metadata(
+                aggregate_results(tuple(results), tuple(observations)),
+                actual_run_id,
+                dataset_sha256,
+                run_metadata,
+                tuple(observations),
+            )
+            run_metadata = run_metadata.model_copy(
+                update={
+                    "gateway_model_id": progress.gateway_model_id,
+                    "model": progress.model,
+                    "provider": progress.provider,
+                }
+            )
+            await repository.update_progress(session, actual_run_id, progress, run_metadata)
+            await session.commit()
     observation_tuple = tuple(observations)
     result_tuple = tuple(results)
     summary = _summary_metadata(
         aggregate_results(result_tuple, observation_tuple),
         actual_run_id,
         dataset_sha256,
-        metadata,
+        run_metadata,
         observation_tuple,
     )
     if repository is not None and session is not None:
-        for result in result_tuple:
-            await repository.add_result(session, actual_run_id, result)
         await repository.complete_run(session, actual_run_id, summary, datetime.now(UTC))
         await session.commit()
     write_artifacts(actual_run_id, summary, result_tuple, output_root)

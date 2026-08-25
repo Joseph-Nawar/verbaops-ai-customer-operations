@@ -7,6 +7,8 @@ services:
       POSTGRES_PASSWORD: ${VERBAOPS_DB_PASSWORD}
     ports:
       - "127.0.0.1:${VERBAOPS_DB_PORT:-0}:5432"
+    volumes:
+      - verbaops-live-verbaops-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 3s
@@ -63,6 +65,8 @@ services:
       interval: 3s
       timeout: 5s
       retries: 20
+    volumes:
+      - verbaops-live-commerce-data:/var/lib/postgresql/data
 
   commerce-migrate:
     build:
@@ -129,11 +133,15 @@ services:
         condition: service_healthy
       llm-gateway:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:${AGENT_LIVE_API_PORT:-0}:8000"
-    command: ["uvicorn", "verbaops.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 3s
       timeout: 5s
       retries: 30
+    ports:
+      - "127.0.0.1:${AGENT_LIVE_API_PORT:-0}:8000"
+    command: ["uvicorn", "verbaops.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+
+volumes:
+  verbaops-live-verbaops-data:
+  verbaops-live-commerce-data:

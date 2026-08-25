@@ -133,6 +133,55 @@ class EvaluationRepository:
             )
         )
 
+    async def update_progress(
+        self,
+        session: AsyncSession,
+        eval_run_id: UUID,
+        summary: EvaluationSummary,
+        metadata: EvaluationRunMetadata,
+    ) -> None:
+        """Persist resumable progress without marking the run complete."""
+
+        existing_id = await session.scalar(
+            select(eval_runs.c.id).where(eval_runs.c.id == eval_run_id)
+        )
+        if existing_id is None:
+            raise EvaluationRepositoryError("evaluation run does not exist")
+        await session.execute(
+            update(eval_runs)
+            .where(eval_runs.c.id == eval_run_id)
+            .values(
+                status="running",
+                summary_json=summary.model_dump(mode="json"),
+                latency_ms=summary.latency_p95_ms,
+                cost_usd=summary.total_cost_usd,
+                gateway_model_id=summary.gateway_model_id,
+                model=summary.model,
+                provider=summary.provider,
+                case_count=metadata.case_count,
+            )
+        )
+
+    async def interrupt_run(
+        self,
+        session: AsyncSession,
+        eval_run_id: UUID,
+        summary: Mapping[str, Any],
+        completed_at: datetime,
+    ) -> None:
+        """Persist a safe resumable interruption marker using the existing schema."""
+
+        existing_id = await session.scalar(
+            select(eval_runs.c.id).where(eval_runs.c.id == eval_run_id)
+        )
+        if existing_id is None:
+            raise EvaluationRepositoryError("evaluation run does not exist")
+        await session.execute(
+            update(eval_runs)
+            .where(eval_runs.c.id == eval_run_id)
+            .values(status="failed", summary_json=dict(summary), completed_at=completed_at)
+        )
+
     async def get_run(self, session: AsyncSession, eval_run_id: UUID) -> EvaluationRunMetadata:
         """Read one run into its application-owned metadata model."""
 

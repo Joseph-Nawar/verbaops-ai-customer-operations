@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -12,7 +13,7 @@ import stat
 import subprocess
 import tempfile
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -30,6 +31,7 @@ from verbaops.evaluation.baseline import (
 )
 from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.corpus import CorpusManifest
+from verbaops.evaluation.errors import ProviderQuotaExceeded
 from verbaops.evaluation.live import LiveEvaluationAdapter, TraceReader, assert_live_corpus_contract
 from verbaops.evaluation.repository import EvaluationRepository
 from verbaops.evaluation.runner import run_evaluation
@@ -42,6 +44,7 @@ MANIFEST_FILE = ROOT / "evals/agent/v0.1/manifest.json"
 SCENARIO_FILE = ROOT / "tests/acceptance/fixtures/novacommerce-scenarios.json"
 BASELINE_JSON = ROOT / "evals/baselines/stage4-agent-v0.1-baseline.json"
 BASELINE_MARKDOWN = ROOT / "evals/baselines/stage4-agent-v0.1-baseline.md"
+RESUME_STATE_FILE = ROOT / ".stage4-agent-v0.1-resume.json"
 REQUIRED_PROVIDER_VARIABLES = (
     "VERBAOPS_AGENT_FAST_MODEL",
     "VERBAOPS_AGENT_FAST_BASE_URL",
@@ -213,6 +216,64 @@ def _write_env_file(values: dict[str, str]) -> Path:
     return path
 
 
+def _provider_config_fingerprint(environment: Mapping[str, str] | None = None) -> str:
+    """Hash only non-secret provider routing inputs for resume consistency."""
+
+    values = os.environ if environment is None else environment
+    model = values.get("VERBAOPS_AGENT_FAST_MODEL", "")
+    base_url = values.get("VERBAOPS_AGENT_FAST_BASE_URL", "")
+    return hashlib.sha256(f"{model}\0{base_url}".encode()).hexdigest()
+
+
+def build_resume_state(
+    *,
+    project: str,
+    env_file: Path,
+    run_id: str,
+    execution_sha: str,
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Build local control state without serializing provider credentials."""
+
+    return {
+        "project": project,
+        "env_file": str(env_file),
+        "run_id": run_id,
+        "execution_sha": execution_sha,
+        "provider_config_fingerprint": _provider_config_fingerprint(environment),
+    }
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    """Read only the generated non-provider compose environment file."""
+
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key] = value
+    return values
+
+
+def _load_resume_state() -> dict[str, str] | None:
+    if not RESUME_STATE_FILE.is_file():
+        return None
+    raw = json.loads(RESUME_STATE_FILE.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not all(
+        isinstance(raw.get(key), str)
+        for key in (
+            "project",
+            "env_file",
+            "run_id",
+            "execution_sha",
+            "provider_config_fingerprint",
+        )
+    ):
+        raise LiveEvaluationError("baseline resume state is invalid")
+    return raw
+
+
 def _load_corpus() -> tuple[CorpusManifest, tuple[Any, ...], dict[str, Any]]:
     manifest = CorpusManifest.model_validate(json.loads(MANIFEST_FILE.read_text(encoding="utf-8")))
     cases = load_cases(CASES_FILE)
@@ -255,13 +316,13 @@ async def _run_baseline(
     manifest: CorpusManifest,
     cases: tuple[Any, ...],
     scenario_manifest: dict[str, Any],
+    run_id: uuid.UUID,
     execution_sha: str,
     output_root: Path,
     secret_values: tuple[str, ...],
 ) -> BaselineArtifact:
     engine: AsyncEngine = create_async_engine(database_url)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    run_id = uuid.uuid4()
     started_at = datetime.now(UTC)
     metadata = {
         "id": run_id,
@@ -336,11 +397,37 @@ def run_managed(mode: str) -> int:
         raise LiveEvaluationError("the first genuine baseline artifact already exists")
 
     manifest, cases, scenario_manifest = _load_corpus()
-    generated, hidden = _compose_environment()
-    env_file = _write_env_file(generated)
+    resume_state = _load_resume_state() if mode == "baseline" else None
+    if resume_state is not None:
+        if resume_state["provider_config_fingerprint"] != _provider_config_fingerprint():
+            raise LiveEvaluationError("provider configuration changed during baseline resume")
+        if (
+            resume_state["execution_sha"]
+            != run_command(
+                ["git", "rev-parse", "HEAD"],
+                environment=_compose_process_environment(),
+                secrets_to_hide=(),
+            ).strip()
+        ):
+            raise LiveEvaluationError("execution code changed during baseline resume")
+        env_file = Path(resume_state["env_file"])
+        if not env_file.is_file():
+            raise LiveEvaluationError("baseline resume environment is unavailable")
+        generated = _read_env_file(env_file)
+        project = resume_state["project"]
+        resume_run_id = uuid.UUID(resume_state["run_id"])
+    else:
+        generated, _ = _compose_environment()
+        env_file = _write_env_file(generated)
+        project = f"verbaops-agent-live-{uuid.uuid4().hex[:12]}"
+        resume_run_id = None
+    hidden = [
+        *generated.values(),
+        *(os.environ.get(name, "") for name in REQUIRED_PROVIDER_VARIABLES),
+    ]
     process_environment = _compose_process_environment()
-    project = f"verbaops-agent-live-{uuid.uuid4().hex[:12]}"
     primary_error: Exception | None = None
+    result_code = 0
     try:
         run_command(
             compose_command(
@@ -383,21 +470,46 @@ def run_managed(mode: str) -> int:
             "postgresql+asyncpg://verbaops_live_eval:"
             f"{generated['VERBAOPS_DB_PASSWORD']}@127.0.0.1:{db_port}/verbaops_live_eval"
         )
-        asyncio.run(
-            _run_smoke(
-                base_url,
-                generated["VERBAOPS_AUTH__DEVELOPMENT_TOKEN"],
-                database_url,
-                cases,
-                tuple(hidden),
+        if resume_state is None:
+            asyncio.run(
+                _run_smoke(
+                    base_url,
+                    generated["VERBAOPS_AUTH__DEVELOPMENT_TOKEN"],
+                    database_url,
+                    cases,
+                    tuple(hidden),
+                )
             )
-        )
-        print("Live smoke: 5 cases, genuine provider trace metadata verified; not a baseline.")
+            print("Live smoke: 5 cases, genuine provider trace metadata verified; not a baseline.")
+        else:
+            print("Resuming the interrupted genuine baseline; pre-baseline smoke already passed.")
         if mode == "smoke":
             return 0
-        execution_sha = run_command(
-            ["git", "rev-parse", "HEAD"], environment=process_environment, secrets_to_hide=hidden
-        ).strip()
+        execution_sha = (
+            resume_state["execution_sha"]
+            if resume_state is not None
+            else run_command(
+                ["git", "rev-parse", "HEAD"],
+                environment=process_environment,
+                secrets_to_hide=hidden,
+            ).strip()
+        )
+        run_id = resume_run_id or uuid.uuid4()
+        if resume_state is None:
+            RESUME_STATE_FILE.write_text(
+                json.dumps(
+                    build_resume_state(
+                        project=project,
+                        env_file=env_file,
+                        run_id=str(run_id),
+                        execution_sha=execution_sha,
+                        environment=process_environment,
+                    ),
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         with tempfile.TemporaryDirectory(prefix="verbaops-live-artifacts-") as artifact_directory:
             artifact = asyncio.run(
                 _run_baseline(
@@ -407,6 +519,7 @@ def run_managed(mode: str) -> int:
                     manifest,
                     cases,
                     scenario_manifest,
+                    run_id,
                     execution_sha,
                     Path(artifact_directory),
                     tuple(hidden),
@@ -425,20 +538,34 @@ def run_managed(mode: str) -> int:
         primary_error = error
     finally:
         teardown_error: Exception | None = None
+        preserve_resume = isinstance(primary_error, ProviderQuotaExceeded)
         try:
+            teardown_arguments = ["down", "--remove-orphans"]
+            if not preserve_resume:
+                teardown_arguments.insert(1, "--volumes")
             run_command(
-                compose_command(project, env_file, "down", "--volumes", "--remove-orphans"),
+                compose_command(project, env_file, *teardown_arguments),
                 environment=process_environment,
                 secrets_to_hide=hidden,
             )
         except Exception as error:
             teardown_error = error
-        env_file.unlink(missing_ok=True)
+        if not preserve_resume:
+            env_file.unlink(missing_ok=True)
+            RESUME_STATE_FILE.unlink(missing_ok=True)
         if primary_error is None and teardown_error is not None:
             primary_error = LiveEvaluationError("live evaluation teardown failed")
-        if primary_error is not None:
+        if primary_error is not None and not isinstance(primary_error, ProviderQuotaExceeded):
             raise primary_error
-    return 0
+        if isinstance(primary_error, ProviderQuotaExceeded):
+            print(
+                "Baseline interrupted by provider quota: "
+                f"run_id={primary_error.run_id}, "
+                f"completed={primary_error.completed_case_count}, "
+                f"remaining={primary_error.remaining_case_count}"
+            )
+            result_code = 4
+    return result_code
 
 
 def main() -> int:

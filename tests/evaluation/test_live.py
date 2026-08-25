@@ -15,6 +15,7 @@ from verbaops.conversations.domain import (
     ToolInvocationRecord,
 )
 from verbaops.evaluation.cases import load_cases
+from verbaops.evaluation.errors import ProviderQuotaExceeded
 from verbaops.evaluation.live import (
     LiveEvaluationAdapter,
     PersistedTrace,
@@ -252,3 +253,27 @@ async def test_live_adapter_turns_api_failure_into_empty_observation() -> None:
     assert observation.final_response == ""
     assert observation.observed_tools == ()
     assert observation.authoritative_tool_results == ()
+
+
+@pytest.mark.asyncio
+async def test_live_adapter_classifies_http_429_as_resumable_provider_quota() -> None:
+    case = _case("order-status-001")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/v1/conversations":
+            return httpx.Response(201, json={"conversation_id": str(CONVERSATION_ID)})
+        return httpx.Response(429, headers={"Retry-After": "17"})
+
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="http://testserver",
+    ) as client:
+        with pytest.raises(ProviderQuotaExceeded) as interruption:
+            await LiveEvaluationAdapter(
+                "http://testserver",
+                "opaque-token",
+                cast(TraceReader, object()),
+                client,
+            ).observe(case)
+
+    assert interruption.value.retry_after_seconds == 17

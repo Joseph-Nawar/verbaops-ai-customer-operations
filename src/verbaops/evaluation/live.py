@@ -20,6 +20,7 @@ from verbaops.conversations.domain import (
     ToolInvocationRecord,
 )
 from verbaops.conversations.persistence import AgentRun, Message, ModelCall, ToolInvocation
+from verbaops.evaluation.errors import ProviderQuotaExceeded
 from verbaops.evaluation.models import (
     APPROVED_TOOLS,
     EvaluationCase,
@@ -328,6 +329,7 @@ class LiveEvaluationAdapter:
             conversation_response = await self._http_client.post(
                 f"{self._base_url}/v1/conversations", json={}, headers=headers
             )
+            _raise_for_provider_quota(conversation_response)
             if conversation_response.is_error:
                 return _empty_observation(started_at, perf_counter() - started)
             conversation_id = conversation_response.json()["conversation_id"]
@@ -336,6 +338,7 @@ class LiveEvaluationAdapter:
                 json={"content": content},
                 headers=headers,
             )
+            _raise_for_provider_quota(message_response)
             if message_response.is_error:
                 return _empty_observation(started_at, perf_counter() - started)
             run_id = UUID(str(message_response.json()["run_id"]))
@@ -353,3 +356,20 @@ class LiveEvaluationAdapter:
 
 def _empty_observation(started_at: datetime, elapsed_seconds: float) -> EvaluationObservation:
     return EvaluationObservation(started_at=started_at, latency_ms=elapsed_seconds * 1000)
+
+
+def _raise_for_provider_quota(response: httpx.Response) -> None:
+    """Promote only an explicit public 429 into a resumable run interruption."""
+
+    if response.status_code != 429:
+        return
+    retry_after = response.headers.get("Retry-After")
+    retry_after_seconds: int | None = None
+    if retry_after is not None:
+        try:
+            parsed = int(retry_after)
+        except ValueError:
+            parsed = -1
+        if parsed >= 0:
+            retry_after_seconds = parsed
+    raise ProviderQuotaExceeded(retry_after_seconds=retry_after_seconds)
