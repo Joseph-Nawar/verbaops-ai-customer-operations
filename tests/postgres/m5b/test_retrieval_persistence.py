@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
-
 from tests.postgres.m5b.test_retrieval_repository import TENANT_A, seed_retrieval_rows
+
 from verbaops.conversations.persistence import AgentRun, Conversation, Message
 from verbaops.knowledge.repository_tables import retrieval_candidates, retrieval_invocations
 from verbaops.retrieval.models import RerankScore
