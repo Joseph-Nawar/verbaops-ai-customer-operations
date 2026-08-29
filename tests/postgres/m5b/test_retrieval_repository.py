@@ -131,3 +131,74 @@ async def test_dense_and_lexical_retrieval_apply_all_scope_and_version_filters(
             query="return window 30 days",
             language="en",
         )
+
+
+@pytest.mark.postgres
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_retrieval_rejects_inconsistent_document_and_chunk_tenants(
+    postgres_engine: AsyncEngine,
+) -> None:
+    document_id = uid(901)
+    version_id = uid(902)
+    chunk_id = uid(903)
+    async with postgres_engine.begin() as connection:
+        await connection.execute(
+            insert(knowledge_documents).values(
+                id=document_id,
+                tenant_id=TENANT_B,
+                slug="inconsistent-policy",
+                title="Inconsistent Policy",
+                document_type="policy",
+                language="en",
+            )
+        )
+        await connection.execute(
+            insert(knowledge_versions).values(
+                id=version_id,
+                document_id=document_id,
+                version="2026.1",
+                effective_date=date(2026, 1, 1),
+                status="active",
+                source_content="# Returns\nReturn window is 30 days.",
+                source_hash="b" * 64,
+                embedding_profile=PROFILE,
+                embedding_model="intfloat/multilingual-e5-base",
+            )
+        )
+        await connection.execute(
+            insert(knowledge_chunks).values(
+                id=chunk_id,
+                version_id=version_id,
+                tenant_id=TENANT_A,
+                document_id=document_id,
+                document_version="2026.1",
+                section="Return Window",
+                language="en",
+                effective_date=date(2026, 1, 1),
+                chunk_index=0,
+                content="Return window is 30 days.",
+                content_hash="c" * 64,
+                embedding=[1.0] + [0.0] * 767,
+                search_vector=func.to_tsvector("english", "Return window is 30 days."),
+            )
+        )
+
+    repository = RetrievalRepository()
+    async with postgres_engine.connect() as connection:
+        dense = await repository.search_dense(
+            connection,
+            tenant_id=TENANT_A,
+            vector=[1.0] + [0.0] * 767,
+            embedding_profile=PROFILE,
+            language="en",
+        )
+        lexical = await repository.search_lexical(
+            connection,
+            tenant_id=TENANT_A,
+            query="return window 30 days",
+            language="en",
+        )
+
+    assert all(item.chunk.chunk_id != chunk_id for item in dense)
+    assert all(item.chunk.chunk_id != chunk_id for item in lexical)

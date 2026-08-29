@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-unit-contract rag-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
 
 sync:
 	$(UV) sync
@@ -57,8 +57,14 @@ commerce-client-contract:
 llm-gateway-contract:
 	$(UV) run python -m scripts.run_llm_gateway_contract
 
-rag-contract:
+rag-unit-contract:
 	$(UV) run pytest tests/retrieval tests/knowledge/test_embeddings.py -m "contract" -q
+
+rag-contract:
+	$(UV) run python scripts/require_test_database.py
+	$(UV) run alembic upgrade 0005_retrieval_grounding_v1
+	$(UV) run pytest tests/postgres/m5b -m "postgres and contract" -q
+	$(UV) run pytest tests/retrieval tests/agent/test_retrieval_graph.py tests/agent/test_grounding_security.py tests/api/test_conversations_m5b.py -m "not postgres and not llm_gateway_contract and not agent_acceptance" -q
 
 agent-acceptance:
 	$(UV) run python -m scripts.run_agent_acceptance
@@ -78,7 +84,7 @@ postgres-critical-race:
 knowledge-contract:
 	$(UV) run alembic upgrade 0004_knowledge_rag_v1
 	$(UV) run python scripts/ingest_knowledge_corpus.py --check
-	$(UV) run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
+	$(UV) run pytest tests/knowledge tests/postgres/m5a tests/api/test_knowledge_admin.py tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
 
 commerce-contract-check:
 	$(UV) run python scripts/normalize_openapi.py --check contracts/novacommerce-openapi.json

@@ -295,7 +295,24 @@ def _request_messages(state: AgentState) -> list[ChatMessage]:
     evidence = state.get("knowledge_evidence", [])
     messages = [ChatMessage(role="system", content=load_system_prompt())]
     if evidence:
-        messages.append(ChatMessage(role="system", content=_evidence_envelope(evidence)))
+        outbound_messages = list(state["messages"])
+        latest_user_index = next(
+            (
+                index
+                for index in range(len(outbound_messages) - 1, -1, -1)
+                if outbound_messages[index].role == "user"
+            ),
+            None,
+        )
+        if latest_user_index is not None:
+            original_message = outbound_messages[latest_user_index]
+            outbound_messages[latest_user_index] = original_message.model_copy(
+                update={
+                    "content": f"{original_message.content or ''}\n\n{_evidence_envelope(evidence)}"
+                }
+            )
+        messages.extend(outbound_messages)
+        return messages
     messages.extend(state["messages"])
     return messages
 

@@ -177,6 +177,7 @@ class RetrievalRepository:
             )
             .where(
                 knowledge_chunks.c.tenant_id == tenant_id,
+                knowledge_documents.c.tenant_id == tenant_id,
                 knowledge_chunks.c.language == language,
                 knowledge_documents.c.language == language,
                 knowledge_versions.c.status == "active",

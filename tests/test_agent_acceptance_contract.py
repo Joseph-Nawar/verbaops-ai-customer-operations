@@ -4,6 +4,9 @@ from pathlib import Path
 
 from scripts.llm_test_provider import _completion
 
+from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
+from verbaops.tools.registry import build_commerce_read_registry
+
 COMPOSE = Path("docker-compose.agent-acceptance.yml")
 RUNNER = Path("scripts/run_agent_acceptance.py")
 
@@ -25,6 +28,19 @@ def test_agent_acceptance_stack_contains_only_required_backend_services() -> Non
     assert "ghcr.io/berriai/litellm:v1.98.0@sha256:" in text
     assert "latest" not in text.lower()
     assert "redis:" not in text
+
+
+def test_agent_acceptance_provenance_is_m5b_and_commerce_tools_are_unchanged() -> None:
+    assert GRAPH_VERSION == "text-agent-v2"
+    assert PROMPT_VERSION == "text-agent-system-v2"
+    assert TOOL_SCHEMA_VERSION == "commerce-read-tools-v1"
+    assert [tool.name for tool in build_commerce_read_registry()] == [
+        "get_order_status",
+        "get_shipment_status",
+        "get_refund_status",
+        "search_products",
+        "list_delivery_slots",
+    ]
 
 
 def test_agent_acceptance_runner_generates_and_destroys_ephemeral_secrets() -> None:
