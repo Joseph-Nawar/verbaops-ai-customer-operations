@@ -1,5 +1,6 @@
 """Short-transaction lifecycle service for future agent turns."""
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -21,6 +22,7 @@ from verbaops.conversations.domain import (
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.repository import ConversationRepository
 from verbaops.llm.models import ResponseMetadata
+from verbaops.retrieval.models import RetrievalEvidence
 
 
 class ConversationService:
@@ -154,11 +156,23 @@ class ConversationService:
             )
 
     async def complete_turn(
-        self, scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, content: str
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        content: str,
+        *,
+        retrieval_invocation_id: UUID | None = None,
+        citations: Sequence[RetrievalEvidence] = (),
     ) -> TurnCompletion:
         async with self._session_factory() as session, session.begin():
             assistant_message, agent_run = await ConversationRepository(session).complete_turn(
-                scope, conversation_id, agent_run_id, content
+                scope,
+                conversation_id,
+                agent_run_id,
+                content,
+                retrieval_invocation_id=retrieval_invocation_id,
+                citations=citations,
             )
         return TurnCompletion(assistant_message=assistant_message, agent_run=agent_run)
 

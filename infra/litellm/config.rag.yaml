@@ -1,0 +1,14 @@
+# Local RAG profile: the embedding alias stays behind the OpenAI-compatible gateway.
+# The TEI reranker is called directly by the application and is intentionally not
+# exposed as a LiteLLM model alias.
+model_list:
+  - model_name: embedding-multilingual
+    litellm_params:
+      model: openai/intfloat/multilingual-e5-base
+      api_base: http://tei-embedding:80/v1
+      api_key: local-rag-embedding-key
+
+litellm_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  drop_params: true
+  set_verbose: false

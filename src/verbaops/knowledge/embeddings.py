@@ -7,9 +7,15 @@ from collections.abc import Sequence
 import httpx
 
 from verbaops.config.settings import LLMSettings
+from verbaops.knowledge.profiles import EMBEDDING_DIMENSION
 from verbaops.llm.models import CapabilityAlias
 
-EMBEDDING_DIMENSION = 768
+__all__ = [
+    "EMBEDDING_DIMENSION",
+    "EmbeddingClient",
+    "EmbeddingProtocolError",
+    "deterministic_embedding",
+]
 
 
 class EmbeddingProtocolError(RuntimeError):

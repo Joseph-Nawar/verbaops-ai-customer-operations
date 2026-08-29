@@ -52,6 +52,9 @@ jobs:
       - name: Tests and coverage
         run: uv run pytest -m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance" --cov=verbaops --cov=novacommerce --cov-report=term-missing
 
+      - name: Provider-free RAG contract
+        run: make rag-unit-contract
+
       - name: Pre-commit repository checks
         run: uv run pre-commit run --all-files
 
@@ -312,8 +315,57 @@ jobs:
 
       - name: Run provider-free knowledge contract
         run: >-
-          uv run pytest tests/knowledge tests/postgres tests/api/test_knowledge_admin.py
+          uv run pytest tests/knowledge tests/postgres/m5a tests/api/test_knowledge_admin.py
           tests/worker/test_knowledge_tasks.py -m "not llm_gateway_contract" -q
+
+  rag-contract:
+    name: rag-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg16-bookworm
+        env:
+          POSTGRES_USER: verbaops_test
+          POSTGRES_PASSWORD: verbaops_test_password
+          POSTGRES_DB: verbaops_test
+        ports:
+          - 5430:5432
+        options: >-
+          --health-cmd "pg_isready -U verbaops_test -d verbaops_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      VERBAOPS_DATABASE__URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5430/verbaops_test
+      NOVACOMMERCE_TEST_DATABASE_URL: postgresql+asyncpg://verbaops_test:verbaops_test_password@localhost:5430/verbaops_test
+      VERBAOPS_ENVIRONMENT: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install project Python
+        run: uv python install
+
+      - name: Verify locked dependencies
+        run: uv lock --check
+
+      - name: Sync locked environment
+        run: uv sync --locked
+
+      - name: Apply VerbaOps migrations through M5B
+        run: uv run alembic upgrade 0005_retrieval_grounding_v1
+
+      - name: Run PostgreSQL RAG contract suite
+        run: make rag-contract
 
   docker-build:
     name: docker-build

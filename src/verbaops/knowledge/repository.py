@@ -278,6 +278,8 @@ class KnowledgeRepository:
         job_id: UUID,
         drafts: Sequence[ChunkDraft],
         vectors: Sequence[Sequence[float]],
+        embedding_profile: str,
+        embedding_model: str,
     ) -> IngestionJobStatus | None:
         state = (
             (
@@ -334,7 +336,12 @@ class KnowledgeRepository:
                 knowledge_versions.c.id == bundle.version_id,
                 knowledge_versions.c.status == VersionStatus.PROCESSING.value,
             )
-            .values(status=VersionStatus.READY.value, failure_code=None)
+            .values(
+                status=VersionStatus.READY.value,
+                failure_code=None,
+                embedding_profile=embedding_profile,
+                embedding_model=embedding_model,
+            )
         )
         await session.execute(
             knowledge_ingestion_jobs.update()

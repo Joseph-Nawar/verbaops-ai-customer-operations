@@ -1,7 +1,7 @@
 """Frozen M3D graph, prompt, tool-schema, and budget versions."""
 
-GRAPH_VERSION = "text-agent-v1"
-PROMPT_VERSION = "text-agent-system-v1"
+GRAPH_VERSION = "text-agent-v2"
+PROMPT_VERSION = "text-agent-system-v2"
 TOOL_SCHEMA_VERSION = "commerce-read-tools-v1"
 
 MAX_USER_CONTENT_CHARS = 8000

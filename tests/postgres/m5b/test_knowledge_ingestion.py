@@ -25,6 +25,15 @@ class DeterministicEmbedding:
         return [[0.25] * EMBEDDING_DIMENSION for _ in texts]
 
 
+class RecordingEmbedding:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    async def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        self.texts.extend(texts)
+        return [[0.25] * EMBEDDING_DIMENSION for _ in texts]
+
+
 class FailingEmbedding:
     async def embed(self, _texts: Sequence[str]) -> list[list[float]]:
         raise RuntimeError("provider unavailable")
@@ -52,6 +61,40 @@ def metadata(version: str) -> UploadMetadata:
         version=version,
         effective_date=date(2026, 1, 1),
     )
+
+
+@pytest.mark.postgres
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_successful_m5b_ingestion_formats_passages_and_records_provenance(
+    postgres_engine: AsyncEngine,
+) -> None:
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    service = KnowledgeService(async_sessionmaker(postgres_engine, expire_on_commit=False))
+    embedding = RecordingEmbedding()
+    queued = await service.queue_upload(
+        TENANT,
+        b"# Returns\nReturn window is 30 days.",
+        metadata("profile-v1"),
+    )
+
+    assert (
+        await service.process_job(queued.ingestion_job_id, embedding)
+        is IngestionJobStatus.SUCCEEDED
+    )
+    assert embedding.texts == ["passage: Return window is 30 days."]
+
+    async with async_sessionmaker(postgres_engine, expire_on_commit=False)() as session:
+        provenance = (
+            await session.execute(
+                select(
+                    knowledge_versions.c.embedding_profile,
+                    knowledge_versions.c.embedding_model,
+                ).where(knowledge_versions.c.id == queued.version_id)
+            )
+        ).one()
+    assert provenance == ("multilingual-e5-base-v1", "intfloat/multilingual-e5-base")
 
 
 @pytest.mark.postgres

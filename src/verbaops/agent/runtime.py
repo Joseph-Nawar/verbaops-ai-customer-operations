@@ -33,6 +33,8 @@ from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
 from verbaops.llm.models import ChatMessage
+from verbaops.retrieval.grounding import CitationFinalizer
+from verbaops.retrieval.service import RetrievalService
 from verbaops.tools.registry import ToolRegistry, build_commerce_read_registry
 
 
@@ -60,6 +62,8 @@ class AgentRuntime:
         commerce_client: CommerceClient,
         tool_registry: ToolRegistry | None = None,
         graph: Any | None = None,
+        retrieval_service: RetrievalService | None = None,
+        citation_finalizer: CitationFinalizer | None = None,
         deadline_seconds: float = 45.0,
     ) -> None:
         self._conversation_service = conversation_service
@@ -67,6 +71,8 @@ class AgentRuntime:
         self._commerce_client = commerce_client
         self._tool_registry = tool_registry or build_commerce_read_registry()
         self._graph = graph or build_agent_graph()
+        self._retrieval_service = retrieval_service
+        self._citation_finalizer = citation_finalizer
         self._deadline_seconds = deadline_seconds
 
     async def run_turn(
@@ -102,6 +108,8 @@ class AgentRuntime:
                 commerce_client=self._commerce_client,
                 tool_registry=self._tool_registry,
                 conversation_service=self._conversation_service,
+                retrieval_service=self._retrieval_service,
+                citation_finalizer=self._citation_finalizer,
             )
             final_state = await asyncio.wait_for(
                 self._graph.ainvoke(
@@ -114,12 +122,24 @@ class AgentRuntime:
             final_response = final_state.get("final_response")
             if not isinstance(final_response, str) or not final_response.strip():
                 raise AgentProtocolError()
-            completion = await self._conversation_service.complete_turn(
-                scope,
-                conversation_id,
-                turn_start.agent_run.id,
-                final_response,
-            )
+            retrieval_invocation_id = final_state.get("retrieval_invocation_id")
+            grounded_citations = final_state.get("grounded_citations", [])
+            if retrieval_invocation_id is not None or grounded_citations:
+                completion = await self._conversation_service.complete_turn(
+                    scope,
+                    conversation_id,
+                    turn_start.agent_run.id,
+                    final_response,
+                    retrieval_invocation_id=retrieval_invocation_id,
+                    citations=grounded_citations,
+                )
+            else:
+                completion = await self._conversation_service.complete_turn(
+                    scope,
+                    conversation_id,
+                    turn_start.agent_run.id,
+                    final_response,
+                )
         except TimeoutError:
             error = AgentUnavailableError()
             await self._fail_run(scope, conversation_id, turn_start.agent_run.id, error)
@@ -183,6 +203,10 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "validation_repair_count": 0,
         "final_response": None,
         "failure": None,
+        "knowledge_status": None,
+        "knowledge_evidence": [],
+        "retrieval_invocation_id": None,
+        "grounded_citations": [],
     }
 
 

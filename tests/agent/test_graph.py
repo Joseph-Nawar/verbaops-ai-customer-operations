@@ -62,15 +62,17 @@ async def test_compiled_graph_has_exact_bounded_topology() -> None:
         "agent",
         "validate_tool_calls",
         "execute_tools",
-        "finalize",
+        "retrieve_knowledge",
+        "finalize_grounding",
         "__end__",
     } <= graph_nodes
-    assert ("__start__", "agent") in graph_edges
+    assert ("__start__", "retrieve_knowledge") in graph_edges
+    assert ("retrieve_knowledge", "agent") in graph_edges
     assert ("agent", "validate_tool_calls") in graph_edges
-    assert ("agent", "finalize") in graph_edges
+    assert ("agent", "finalize_grounding") in graph_edges
     assert ("validate_tool_calls", "execute_tools") in graph_edges
     assert ("execute_tools", "agent") in graph_edges
-    assert ("finalize", "__end__") in graph_edges
+    assert ("finalize_grounding", "__end__") in graph_edges
 
 
 @pytest.mark.asyncio

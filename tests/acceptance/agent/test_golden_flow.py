@@ -172,8 +172,8 @@ def test_golden_read_only_agent_flow_is_grounded_and_persisted(
     assert trace["write_tools"] == 0
     assert len(trace["runs"]) == 2
     assert all(row["status"] == "completed" for row in trace["runs"])
-    assert all(row["graph_version"] == "text-agent-v1" for row in trace["runs"])
-    assert all(row["prompt_version"] == "text-agent-system-v1" for row in trace["runs"])
+    assert all(row["graph_version"] == "text-agent-v2" for row in trace["runs"])
+    assert all(row["prompt_version"] == "text-agent-system-v2" for row in trace["runs"])
     assert all(row["tool_schema_version"] == "commerce-read-tools-v1" for row in trace["runs"])
     assert len(trace["tools"]) == 1
     tool = trace["tools"][0]

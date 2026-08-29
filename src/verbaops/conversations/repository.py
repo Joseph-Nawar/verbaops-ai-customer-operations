@@ -1,14 +1,17 @@
 """Transaction-scoped repository operations for conversation persistence."""
 
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from verbaops.conversations.domain import (
     AgentRunRecord,
+    CitationRecord,
     ConversationRecord,
     ConversationScope,
     MessagePage,
@@ -29,7 +32,9 @@ from verbaops.conversations.persistence import (
     ModelCall,
     ToolInvocation,
 )
+from verbaops.knowledge.repository_tables import message_citations
 from verbaops.llm.models import ResponseMetadata
+from verbaops.retrieval.models import RetrievalEvidence
 
 
 def utc_now() -> datetime:
@@ -71,7 +76,7 @@ class ConversationRepository:
             .where(Message.conversation_id == conversation_id)
             .order_by(Message.sequence)
         )
-        return [_message_record(message) for message in result]
+        return await self._attach_citations([_message_record(message) for message in result])
 
     async def list_messages_page(
         self,
@@ -92,8 +97,9 @@ class ConversationRepository:
         has_more = len(rows) > limit
         page = rows[:limit]
         page.reverse()
+        records = await self._attach_citations([_message_record(message) for message in page])
         return MessagePage(
-            messages=tuple(_message_record(message) for message in page),
+            messages=tuple(records),
             has_more=has_more,
             next_before_sequence=page[0].sequence if has_more and page else None,
         )
@@ -200,7 +206,14 @@ class ConversationRepository:
         return _tool_invocation_record(invocation)
 
     async def complete_turn(
-        self, scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, content: str
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        content: str,
+        *,
+        retrieval_invocation_id: UUID | None = None,
+        citations: Sequence[RetrievalEvidence] = (),
     ) -> tuple[MessageRecord, AgentRunRecord]:
         conversation = await self._conversation(scope, conversation_id, for_update=True)
         run = await self._run(scope, conversation_id, agent_run_id, for_update=True)
@@ -214,13 +227,63 @@ class ConversationRepository:
         )
         self._session.add(message)
         await self._session.flush()
+        if citations:
+            await self._session.execute(
+                message_citations.insert().values(
+                    [
+                        {
+                            "id": uuid4(),
+                            "tenant_id": scope.tenant_id,
+                            "message_id": message.id,
+                            "retrieval_invocation_id": retrieval_invocation_id,
+                            "chunk_id": citation.chunk_id,
+                            "document_id": citation.document_id,
+                            "version_id": citation.version_id,
+                            "citation_ordinal": ordinal,
+                            "evidence_key": citation.evidence_key,
+                            "document_title": citation.document_title,
+                            "document_slug": citation.document_slug,
+                            "document_version": citation.document_version,
+                            "section": citation.section,
+                            "effective_date": citation.effective_date,
+                            "created_at": utc_now(),
+                        }
+                        for ordinal, citation in enumerate(citations, start=1)
+                    ]
+                )
+            )
         completed_at = utc_now()
         run.assistant_message_id = message.id
         run.status = "completed"
         run.completed_at = completed_at
         conversation.updated_at = completed_at
         await self._session.flush()
-        return _message_record(message), _agent_run_record(run)
+        message_record = (await self._attach_citations([_message_record(message)]))[0]
+        return message_record, _agent_run_record(run)
+
+    async def _attach_citations(self, messages: list[MessageRecord]) -> list[MessageRecord]:
+        if not messages:
+            return messages
+        rows = (
+            (
+                await self._session.execute(
+                    select(message_citations)
+                    .where(message_citations.c.message_id.in_([message.id for message in messages]))
+                    .order_by(
+                        message_citations.c.message_id,
+                        message_citations.c.citation_ordinal,
+                    )
+                )
+            )
+            .mappings()
+            .all()
+        )
+        grouped: dict[UUID, list[CitationRecord]] = {}
+        for row in rows:
+            grouped.setdefault(row["message_id"], []).append(_citation_record(row))
+        return [
+            replace(message, citations=tuple(grouped.get(message.id, []))) for message in messages
+        ]
 
     async def fail_turn(
         self, scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, error_code: str
@@ -332,6 +395,26 @@ def _message_record(row: Message) -> MessageRecord:
         role=row.role,
         content=row.content,
         created_at=row.created_at,
+    )
+
+
+def _citation_record(row: Any) -> CitationRecord:
+    return CitationRecord(
+        id=row["id"],
+        tenant_id=row["tenant_id"],
+        message_id=row["message_id"],
+        retrieval_invocation_id=row["retrieval_invocation_id"],
+        chunk_id=row["chunk_id"],
+        document_id=row["document_id"],
+        version_id=row["version_id"],
+        citation_ordinal=row["citation_ordinal"],
+        evidence_key=row["evidence_key"],
+        document_title=row["document_title"],
+        document_slug=row["document_slug"],
+        document_version=row["document_version"],
+        section=row["section"],
+        effective_date=row["effective_date"],
+        created_at=row["created_at"],
     )
 
 

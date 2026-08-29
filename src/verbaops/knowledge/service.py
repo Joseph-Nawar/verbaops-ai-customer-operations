@@ -18,6 +18,7 @@ from verbaops.knowledge.models import (
     VersionStatus,
 )
 from verbaops.knowledge.parsing import detect_sections
+from verbaops.knowledge.profiles import EMBEDDING_MODEL, EMBEDDING_PROFILE, format_passage
 from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.validation import UploadMetadata, validate_upload
 
@@ -93,7 +94,9 @@ class KnowledgeService:
             try:
                 sections = detect_sections(bundle.source_content)
                 drafts = chunk_sections(sections)
-                vectors = await embedding_client.embed([draft.content for draft in drafts])
+                vectors = await embedding_client.embed(
+                    [format_passage(draft.content) for draft in drafts]
+                )
                 if len(vectors) != len(drafts):
                     raise KnowledgeIngestionError("embedding_partial_batch")
             except KnowledgeIngestionError as error:
@@ -110,6 +113,8 @@ class KnowledgeService:
                         job_id=job_id,
                         drafts=drafts,
                         vectors=vectors,
+                        embedding_profile=EMBEDDING_PROFILE,
+                        embedding_model=EMBEDDING_MODEL,
                     )
                 if status is None:
                     raise KnowledgeNotFoundError()

@@ -28,9 +28,9 @@ from verbaops.agent.versions import (
 )
 
 
-def test_m3d_versions_and_budgets_are_exact() -> None:
-    assert GRAPH_VERSION == "text-agent-v1"
-    assert PROMPT_VERSION == "text-agent-system-v1"
+def test_m5b_versions_and_budgets_are_exact() -> None:
+    assert GRAPH_VERSION == "text-agent-v2"
+    assert PROMPT_VERSION == "text-agent-system-v2"
     assert TOOL_SCHEMA_VERSION == "commerce-read-tools-v1"
     assert MAX_USER_CONTENT_CHARS == 8000
     assert MAX_MODEL_CALLS == 4
@@ -51,6 +51,10 @@ def test_agent_state_contains_only_the_bounded_mutable_fields() -> None:
         "validation_repair_count",
         "final_response",
         "failure",
+        "knowledge_status",
+        "knowledge_evidence",
+        "retrieval_invocation_id",
+        "grounded_citations",
     }
 
 

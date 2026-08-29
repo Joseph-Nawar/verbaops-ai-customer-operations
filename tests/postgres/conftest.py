@@ -23,13 +23,3 @@ async def postgres_engine() -> AsyncIterator[AsyncEngine]:
         pytest.skip(f"PostgreSQL unavailable: {type(error).__name__}")
     yield engine
     await engine.dispose()
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def clean_knowledge_tables(postgres_engine: AsyncEngine) -> AsyncIterator[None]:
-    async with postgres_engine.begin() as connection:
-        await connection.execute(text("DELETE FROM knowledge_ingestion_jobs"))
-        await connection.execute(text("DELETE FROM knowledge_chunks"))
-        await connection.execute(text("DELETE FROM knowledge_versions"))
-        await connection.execute(text("DELETE FROM knowledge_documents"))
-    yield

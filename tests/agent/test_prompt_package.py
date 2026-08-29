@@ -15,6 +15,6 @@ def test_system_prompt_is_included_in_built_wheel(tmp_path: Path) -> None:
     wheels = list(tmp_path.glob("*.whl"))
     assert len(wheels) == 1
     with zipfile.ZipFile(wheels[0]) as archive:
-        prompt_name = "verbaops/agent/prompts/system_v1.txt"
+        prompt_name = "verbaops/agent/prompts/system_v2.txt"
         assert prompt_name in archive.namelist()
         assert len(archive.read(prompt_name)) > 0
