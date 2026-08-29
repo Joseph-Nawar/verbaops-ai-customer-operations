@@ -266,6 +266,7 @@ def _evidence(candidate: FusedCandidate) -> RetrievalEvidence:
         section=candidate.chunk.section,
         effective_date=candidate.chunk.effective_date,
         content=candidate.chunk.content,
+        chunk_index=candidate.chunk.chunk_index,
     )
 
 
