@@ -10,6 +10,7 @@ from verbaops.evaluation.rag_runner import (
     FrozenRetrievalParameters,
     RetrievalRun,
     RetrievalStrategy,
+    StrategyMetrics,
     calibrate_threshold,
     retrieve_frozen_strategy,
     run_benchmark,
@@ -105,23 +106,34 @@ def test_selection_applies_preregistered_tie_breaks() -> None:
     assert result.strategy == "hybrid_rrf"
 
 
-def test_selection_uses_explicit_complexity_before_stable_name_order() -> None:
+def _strategy_metrics(strategy: str, p95_ms: float) -> dict[str, float | int | str | None]:
+    return StrategyMetrics(
+        strategy=strategy,
+        answerable_count=84,
+        recall_at_1=0.5,
+        recall_at_5=0.8,
+        mrr=0.6,
+        ndcg_at_5=0.7,
+        retrieval_p50_ms=p95_ms / 2,
+        retrieval_p95_ms=p95_ms,
+    ).as_dict()
+
+
+def test_selection_consumes_canonical_strategy_metrics_latency_field() -> None:
     result = select_strategy(
         {
-            "lexical": {
-                "recall_at_5": 0.80,
-                "ndcg_at_5": 0.70,
-                "mrr": 0.60,
-                "p95_ms": 50,
-                "components": 1,
-            },
-            "hybrid_rrf": {
-                "recall_at_5": 0.80,
-                "ndcg_at_5": 0.70,
-                "mrr": 0.60,
-                "p95_ms": 50,
-                "components": 2,
-            },
+            "dense": _strategy_metrics("dense", 80),
+            "lexical": _strategy_metrics("lexical", 40),
+        }
+    )
+    assert result.strategy == "lexical"
+
+
+def test_selection_uses_explicit_complexity_after_exact_latency_tie() -> None:
+    result = select_strategy(
+        {
+            "lexical": _strategy_metrics("lexical", 50),
+            "hybrid_rrf": _strategy_metrics("hybrid_rrf", 50),
         }
     )
     assert result.strategy == "lexical"

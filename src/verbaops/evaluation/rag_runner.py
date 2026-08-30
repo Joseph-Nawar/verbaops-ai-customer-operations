@@ -347,7 +347,7 @@ def select_strategy(metrics: dict[str, dict[str, Any]]) -> SelectionDecision:
     selected = min(
         mrr_tied,
         key=lambda name: (
-            float(mrr_tied[name].get("p95_ms", float("inf"))),
+            float(mrr_tied[name].get("retrieval_p95_ms", float("inf"))),
             COMPLEXITY_ORDER.get(name, float("inf")),
             name,
         ),

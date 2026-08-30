@@ -96,7 +96,8 @@ def score_grounded_records(
     """Score only labeled factual units; no model or LLM judge is involved."""
 
     by_case = {str(record["case_id"]): record for record in records}
-    all_citations: list[str] = []
+    citation_numerator = 0
+    citation_denominator = 0
     grounded_recognized = 0
     grounded_supported = 0
     expected_recognized = 0
@@ -107,7 +108,9 @@ def score_grounded_records(
     for case in cases:
         record = by_case[case.case_id]
         citations = [str(item) for item in record.get("public_citations", [])]
-        all_citations.extend(citations)
+        case_citations = citation_precision(citations, _judgments(case))
+        citation_numerator += case_citations.numerator
+        citation_denominator += case_citations.denominator
         answer = str(record.get("final_answer", ""))
         grounded = grounded_fact_score(
             answer, [fact.model_dump() for fact in case.expected_facts], citations
@@ -125,10 +128,13 @@ def score_grounded_records(
         if record.get("answer_latency_ms") is not None:
             latencies.append(float(record["answer_latency_ms"]))
         cost_observations += int(record.get("cost_usd") is not None)
-    citation_judgments = {key: grade for case in cases for key, grade in _judgments(case).items()}
     grounded_denominator = grounded_recognized
     return {
-        "citation_precision": citation_precision(all_citations, citation_judgments).as_dict(),
+        "citation_precision": MetricResult(
+            numerator=citation_numerator,
+            denominator=citation_denominator,
+            value=(citation_numerator / citation_denominator if citation_denominator else None),
+        ).as_dict(),
         "groundedness": MetricResult(
             numerator=grounded_supported,
             denominator=grounded_denominator,

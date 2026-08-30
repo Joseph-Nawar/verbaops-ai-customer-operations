@@ -9,6 +9,7 @@ from verbaops.evaluation.rag_grounding import (
     run_grounded_evaluation,
     score_grounded_records,
 )
+from verbaops.evaluation.rag_models import RagCase, RelevanceJudgment
 
 ROOT = Path(__file__).parents[2]
 
@@ -80,3 +81,62 @@ def test_grounded_scoring_uses_only_labeled_facts_and_inclusive_threshold() -> N
     assert result["unsupported_claim_rate"] == 0.0
     assert result["abstention_accuracy"]["value"] == 1.0
     assert result["cost_metadata_coverage"]["value"] == 1.0
+
+
+def _citation_case(
+    case_id: str, *, answerable: bool, judgments: tuple[RelevanceJudgment, ...]
+) -> RagCase:
+    return RagCase(
+        case_id=case_id,
+        dataset_version="rag-v0.1",
+        split="dev",
+        language="en",
+        category="shipping" if answerable else "no-answer",
+        query=case_id,
+        answerable=answerable,
+        expected_answer="answer" if answerable else "No supported answer.",
+        relevance_judgments=judgments,
+        expected_facts=(),
+    )
+
+
+def test_grounded_citation_precision_is_scoped_to_emitting_case() -> None:
+    locator = RelevanceJudgment(
+        document_slug="shipping-policy",
+        document_version="2026.1",
+        section="Delivery methods",
+        chunk_index=1,
+        relevance_grade=2,
+    )
+    case_a = _citation_case("case-a", answerable=True, judgments=(locator,))
+    case_b = _citation_case("case-b", answerable=False, judgments=())
+    result = score_grounded_records(
+        (case_a, case_b),
+        (
+            {
+                "case_id": "case-a",
+                "final_answer": "answer",
+                "public_citations": ["shipping-policy|2026.1|Delivery methods|1"],
+            },
+            {
+                "case_id": "case-b",
+                "final_answer": "answer",
+                "public_citations": [
+                    "shipping-policy|2026.1|Delivery methods|1",
+                    "shipping-policy|2026.1|Delivery methods|1",
+                ],
+            },
+        ),
+        threshold=0.0,
+    )
+    assert result["citation_precision"] == {"numerator": 1, "denominator": 3, "value": 1 / 3}
+
+
+def test_grounded_citation_precision_has_explicit_zero_denominator() -> None:
+    case = _citation_case("case-a", answerable=False, judgments=())
+    result = score_grounded_records(
+        (case,),
+        ({"case_id": "case-a", "final_answer": "No supported answer.", "public_citations": []},),
+        threshold=0.0,
+    )
+    assert result["citation_precision"] == {"numerator": 0, "denominator": 0, "value": None}
