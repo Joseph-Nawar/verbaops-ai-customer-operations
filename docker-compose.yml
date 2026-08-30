@@ -36,6 +36,14 @@ services:
         "d128750597153bb5987e10b1c3493a34e5a4502a",
         "--port",
         "80",
+        "--tokenization-workers",
+        "1",
+        "--max-concurrent-requests",
+        "8",
+        "--max-client-batch-size",
+        "8",
+        "--max-batch-tokens",
+        "2048",
       ]
     ports:
       - "${TEI_EMBEDDING_HOST_PORT:-8081}:80"
@@ -58,6 +66,14 @@ services:
         "1427fd652930e4ba29e8149678df786c240d8825",
         "--port",
         "80",
+        "--tokenization-workers",
+        "1",
+        "--max-concurrent-requests",
+        "8",
+        "--max-client-batch-size",
+        "8",
+        "--max-batch-tokens",
+        "2048",
       ]
     ports:
       - "${TEI_RERANKER_HOST_PORT:-8082}:80"

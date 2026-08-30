@@ -19,6 +19,7 @@ class KnowledgeHit:
     effective_date: date
     language: str
     content: str
+    chunk_index: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +76,7 @@ class RetrievalEvidence:
     section: str
     effective_date: date
     content: str
+    chunk_index: int = 0
 
 
 @dataclass(frozen=True, slots=True)
