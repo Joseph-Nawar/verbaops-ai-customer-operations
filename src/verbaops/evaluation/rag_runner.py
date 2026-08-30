@@ -395,12 +395,16 @@ def calibrate_threshold(observations: Sequence[tuple[bool, float | None]]) -> Ca
             eligible.append(result)
     if not eligible:
         raise CalibrationError("no observed threshold achieves the 90% no-answer requirement")
+    return _select_calibration_result(eligible)
+
+
+def _select_calibration_result(eligible: Sequence[CalibrationResult]) -> CalibrationResult:
     return max(
         eligible,
         key=lambda result: (
             result.answerable_accepted,
             result.no_answer_abstained,
-            -result.threshold,
+            result.threshold,
         ),
     )
 

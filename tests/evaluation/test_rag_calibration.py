@@ -7,10 +7,12 @@ import pytest
 
 from verbaops.evaluation.rag_runner import (
     CalibrationError,
+    CalibrationResult,
     FrozenRetrievalParameters,
     RetrievalRun,
     RetrievalStrategy,
     StrategyMetrics,
+    _select_calibration_result,
     calibrate_threshold,
     retrieve_frozen_strategy,
     run_benchmark,
@@ -151,6 +153,18 @@ def test_score_equal_to_threshold_is_accepted() -> None:
     result = calibrate_threshold([(False, 0.1)] * 12 + [(True, 0.2)] * 84)
     assert result.threshold == 0.2
     assert result.answerable_accepted == 84
+
+
+def test_calibration_prefers_higher_threshold_on_exact_outcome_tie() -> None:
+    result = _select_calibration_result(
+        (
+            CalibrationResult(0.2, 12, 12, 84, 84),
+            CalibrationResult(0.9, 12, 12, 84, 84),
+        )
+    )
+    assert result.no_answer_abstained == 12
+    assert result.answerable_accepted == 84
+    assert result.threshold == 0.9
 
 
 def test_calibration_reports_failure_when_no_threshold_is_eligible() -> None:
