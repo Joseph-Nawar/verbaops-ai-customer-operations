@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, Protocol
 
 from verbaops.evaluation.rag_metrics import mean_reciprocal_rank, ndcg_at_k, recall_at_k
 from verbaops.retrieval.models import DenseHit, FusedCandidate, LexicalHit, RerankScore
@@ -109,7 +111,23 @@ class StrategyMetrics:
 
 
 RerankFunction = Callable[[str, Sequence[FusedCandidate]], Awaitable[Sequence[RerankScore]]]
+
+
+class RetrievalExecutionAdapter(Protocol):
+    """Provider-backed execution boundary used by the benchmark CLI."""
+
+    provider_mode: str
+
+    async def execute(self, case: Any, strategy: RetrievalStrategy) -> RetrievalRun: ...
+
+
 DEFAULT_PARAMETERS = FrozenRetrievalParameters()
+COMPLEXITY_ORDER = {
+    RetrievalStrategy.DENSE.value: 1,
+    RetrievalStrategy.LEXICAL.value: 1,
+    RetrievalStrategy.HYBRID_RRF.value: 2,
+    RetrievalStrategy.HYBRID_RRF_RERANK.value: 3,
+}
 
 
 async def retrieve_frozen_strategy(
@@ -254,7 +272,53 @@ def score_retrieval_cases(cases: Sequence[Any], runs: dict[str, RetrievalRun]) -
     )
 
 
-def select_strategy(metrics: dict[str, dict[str, float | bool]]) -> SelectionDecision:
+def score_benchmark_records(
+    cases: Sequence[Any], records: Sequence[dict[str, Any]], strategy: RetrievalStrategy
+) -> StrategyMetrics:
+    """Score durable JSONL observations without reconstructing database UUIDs."""
+
+    by_case = {
+        str(record["case_id"]): record
+        for record in records
+        if record.get("strategy") == strategy.value
+    }
+    scored: list[tuple[float | None, float | None, float | None, float | None]] = []
+    latencies: list[float] = []
+    for case in cases:
+        if not case.answerable:
+            continue
+        record = by_case[case.case_id]
+        judgments = {
+            f"{item.document_slug}|{item.document_version}|{item.section}|{item.chunk_index}": item.relevance_grade
+            for item in case.relevance_judgments
+        }
+        retrieved = [str(locator) for locator in record.get("ranked_locators", [])]
+        scored.append(
+            (
+                recall_at_k(retrieved, judgments, 1),
+                recall_at_k(retrieved, judgments, 5),
+                mean_reciprocal_rank(retrieved, judgments),
+                ndcg_at_k(retrieved, judgments, 5),
+            )
+        )
+        if record.get("total_ms") is not None:
+            latencies.append(float(record["total_ms"]))
+    from verbaops.evaluation.rag_metrics import macro_mean
+    from verbaops.evaluation.rag_reports import percentile
+
+    return StrategyMetrics(
+        strategy=strategy.value,
+        answerable_count=len(scored),
+        recall_at_1=macro_mean([item[0] for item in scored]),
+        recall_at_5=macro_mean([item[1] for item in scored]),
+        mrr=macro_mean([item[2] for item in scored]),
+        ndcg_at_5=macro_mean([item[3] for item in scored]),
+        retrieval_p50_ms=percentile(latencies, 0.5),
+        retrieval_p95_ms=percentile(latencies, 0.95),
+    )
+
+
+def select_strategy(metrics: dict[str, dict[str, Any]]) -> SelectionDecision:
     """Apply the exact pre-registered lexicographic dev selection rule."""
 
     eligible = {
@@ -281,32 +345,48 @@ def select_strategy(metrics: dict[str, dict[str, float | bool]]) -> SelectionDec
         name: value for name, value in ndcg_tied.items() if abs(float(value["mrr"]) - best) <= 1e-12
     }
     selected = min(
-        mrr_tied, key=lambda name: (float(mrr_tied[name].get("p95_ms", float("inf"))), name)
+        mrr_tied,
+        key=lambda name: (
+            float(mrr_tied[name].get("p95_ms", float("inf"))),
+            COMPLEXITY_ORDER.get(name, float("inf")),
+            name,
+        ),
     )
     return SelectionDecision(
         strategy=selected,
         rationale=(
             "passed invariants; maximized Recall@5; applied the 0.01 Recall@5 tie band; "
-            "maximized nDCG@5 within the 0.02 tie band; then maximized MRR and used latency/name tie-break"
+            "maximized nDCG@5 within the 0.02 tie band; then maximized MRR, preferred lower p95, "
+            "preferred the explicit lower-complexity strategy order, and used stable name ordering last"
         ),
     )
 
 
-def calibrate_threshold(observations: list[tuple[bool, float]]) -> CalibrationResult:
-    """Choose an observed score threshold with <= threshold treated as abstention."""
+def score_meets_threshold(score: float | None, threshold: float) -> bool:
+    """Return whether production accepts evidence at the inclusive threshold."""
+
+    return score is not None and score >= threshold
+
+
+def calibrate_threshold(observations: Sequence[tuple[bool, float | None]]) -> CalibrationResult:
+    """Choose an observed score threshold with scores below it treated as abstention."""
 
     if not observations:
         raise CalibrationError("no dev observations available")
-    candidates = sorted({float(score) for _, score in observations})
+    candidates = sorted({float(score) for _, score in observations if score is not None})
+    if not candidates:
+        raise CalibrationError("no observed dev scores available")
     answerable_total = sum(answerable for answerable, _ in observations)
     no_answer_total = len(observations) - answerable_total
     eligible: list[CalibrationResult] = []
     for threshold in candidates:
         no_answer_abstained = sum(
-            not answerable and score <= threshold for answerable, score in observations
+            not answerable and (score is None or score < threshold)
+            for answerable, score in observations
         )
         answerable_accepted = sum(
-            answerable and score > threshold for answerable, score in observations
+            answerable and score_meets_threshold(score, threshold)
+            for answerable, score in observations
         )
         result = CalibrationResult(
             threshold, no_answer_abstained, no_answer_total, answerable_accepted, answerable_total
@@ -334,20 +414,108 @@ def validate_holdout_provenance(
         raise ValueError("knowledge manifest SHA does not match frozen selection")
     if not selection.get("strategy"):
         raise ValueError("selected strategy is absent")
+    if selection.get("strategy_parameters") != DEFAULT_PARAMETERS.as_dict():
+        raise ValueError("strategy parameters do not match the frozen benchmark contract")
     if selection.get("calibrated_threshold") is None:
         raise ValueError("calibrated threshold is absent")
+
+
+def _candidate_record(candidate: FusedCandidate) -> dict[str, object]:
+    return {
+        "locator": candidate_locator(candidate),
+        "chunk_id": str(candidate.chunk.chunk_id),
+        "dense_rank": candidate.dense_rank,
+        "dense_score": candidate.dense_score,
+        "lexical_rank": candidate.lexical_rank,
+        "lexical_score": candidate.lexical_score,
+        "rrf_rank": candidate.rrf_rank,
+        "rrf_score": candidate.rrf_score,
+        "rerank_rank": candidate.rerank_rank,
+        "rerank_score": candidate.rerank_score,
+    }
+
+
+def retrieval_run_record(case_id: str, run: RetrievalRun) -> dict[str, object]:
+    """Serialize one raw benchmark observation without UUID-dependent labels."""
+
+    latencies = dict(run.stage_latency_ms)
+    return {
+        "case_id": case_id,
+        "strategy": run.strategy,
+        "ranked_locators": [candidate_locator(candidate) for candidate in run.candidates],
+        "candidates": [_candidate_record(candidate) for candidate in run.candidates],
+        "top_confidence_score": run.top_score,
+        "embedding_ms": latencies.get("embedding"),
+        "dense_ms": latencies.get("dense"),
+        "lexical_ms": latencies.get("lexical"),
+        "fusion_ms": latencies.get("fusion"),
+        "rerank_ms": latencies.get("rerank"),
+        "total_ms": latencies.get("total"),
+        "stage_latency_ms": latencies,
+    }
+
+
+async def run_benchmark(
+    cases: Sequence[Any],
+    *,
+    strategies: Sequence[RetrievalStrategy],
+    adapter: RetrievalExecutionAdapter | None,
+    output_path: Path,
+    mode: str = "real",
+) -> list[dict[str, object]]:
+    """Execute and durably append benchmark observations, resuming by case/strategy."""
+
+    if adapter is None:
+        raise ValueError("a real provider retrieval adapter is required")
+    if mode == "real" and getattr(adapter, "provider_mode", None) != "real":
+        raise ValueError("a real provider retrieval adapter is required")
+    completed: set[tuple[str, str]] = set()
+    if output_path.exists():
+        for line_number, line in enumerate(output_path.read_text(encoding="utf-8").splitlines(), 1):
+            try:
+                record = json.loads(line)
+                key = (str(record["case_id"]), str(record["strategy"]))
+            except (json.JSONDecodeError, KeyError, TypeError) as error:
+                raise ValueError(f"invalid benchmark checkpoint line {line_number}") from error
+            if key in completed:
+                raise ValueError(f"duplicate benchmark checkpoint: {key[0]} / {key[1]}")
+            completed.add(key)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    written: list[dict[str, object]] = []
+    for case in cases:
+        for strategy in strategies:
+            key = (case.case_id, strategy.value)
+            if key in completed:
+                continue
+            run = await adapter.execute(case, strategy)
+            if run.strategy != strategy.value:
+                raise ValueError("retrieval adapter returned the wrong strategy")
+            record = retrieval_run_record(case.case_id, run)
+            with output_path.open("a", encoding="utf-8", newline="\n") as handle:
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+                handle.flush()
+                import os
+
+                os.fsync(handle.fileno())
+            completed.add(key)
+            written.append(record)
+    return written
 
 
 __all__ = [
     "CalibrationError",
     "CalibrationResult",
     "FrozenRetrievalParameters",
+    "RetrievalExecutionAdapter",
     "RetrievalRun",
     "RetrievalStrategy",
     "SelectionDecision",
     "StrategyMetrics",
     "calibrate_threshold",
+    "retrieval_run_record",
     "retrieve_frozen_strategy",
+    "run_benchmark",
+    "score_meets_threshold",
     "score_retrieval_cases",
     "select_strategy",
     "validate_holdout_provenance",

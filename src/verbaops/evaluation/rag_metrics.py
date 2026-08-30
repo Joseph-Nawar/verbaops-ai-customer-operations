@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import cast
 
 from verbaops.evaluation.rag_models import GroundednessResult, MetricResult, RagLocator
@@ -62,9 +62,14 @@ def citation_precision(
     )
 
 
-def _locator_key(locator: str | RagLocator) -> str:
+def _locator_key(locator: str | RagLocator | Mapping[str, object]) -> str:
     if isinstance(locator, str):
         return locator
+    if isinstance(locator, Mapping):
+        return (
+            f"{locator['document_slug']}|{locator['document_version']}|"
+            f"{locator['section']}|{locator['chunk_index']}"
+        )
     return f"{locator.document_slug}|{locator.document_version}|{locator.section}|{locator.chunk_index}"
 
 
