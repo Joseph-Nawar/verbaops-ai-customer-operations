@@ -59,19 +59,28 @@ async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: P
         await run_grounded_evaluation((case,), cast(GroundedExecutionAdapter, object()), output)
 
 
-def test_grounded_scoring_uses_only_labeled_facts_and_inclusive_threshold() -> None:
-    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+def test_grounded_scoring_uses_labeled_facts_and_retrieval_evidence_gate() -> None:
+    cases = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")
+    case = cases[0]
+    no_answer_case = next(item for item in cases if not item.answerable)
     locator = "shipping-policy|2026.1|Delivery methods|1"
     result = score_grounded_records(
-        (case,),
+        (case, no_answer_case),
         (
             {
                 "case_id": case.case_id,
-                "final_answer": "Three to five business days.",
+                "final_answer": "Three to five business days. I cannot answer that.",
                 "public_citations": [locator],
                 "top_confidence_score": 0.5,
                 "answer_latency_ms": 12.0,
                 "cost_usd": 0.01,
+            },
+            {
+                "case_id": no_answer_case.case_id,
+                "final_answer": "Here is an answer despite no supporting evidence.",
+                "public_citations": [],
+                "top_confidence_score": 0.49,
+                "cost_usd": 0.02,
             },
         ),
         threshold=0.5,
@@ -79,7 +88,11 @@ def test_grounded_scoring_uses_only_labeled_facts_and_inclusive_threshold() -> N
     assert result["citation_precision"]["value"] == 1.0
     assert result["groundedness"]["value"] == 1.0
     assert result["unsupported_claim_rate"] == 0.0
-    assert result["abstention_accuracy"]["value"] == 1.0
+    assert result["retrieval_evidence_gate_accuracy"] == {
+        "numerator": 2,
+        "denominator": 2,
+        "value": 1.0,
+    }
     assert result["cost_metadata_coverage"]["value"] == 1.0
 
 

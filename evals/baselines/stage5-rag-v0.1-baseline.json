@@ -190,7 +190,8 @@
     "groundedness": {"numerator": 6, "denominator": 41, "value": 0.14634146341463414},
     "unsupported_claim_rate": 0.8536585365853658,
     "expected_fact_coverage": {"numerator": 41, "denominator": 105, "value": 0.3904761904761905},
-    "abstention_accuracy": {"numerator": 35, "denominator": 120, "value": 0.2916666666666667},
+    "retrieval_evidence_gate_accuracy": {"numerator": 35, "denominator": 120, "value": 0.2916666666666667},
+    "retrieval_evidence_gate_accuracy_definition": "Cases where frozen retrieval evidence acceptance/rejection matched benchmark answerability labels, divided by all evaluated cases.",
     "answer_latency_p50_ms": 4984.5635,
     "answer_latency_p95_ms": 11853.915449999999,
     "model_provider_metadata": {
@@ -214,6 +215,7 @@
   "limitations": [
     "The reranker required a local capacity override because the committed Compose max-client-batch-size=8 conflicts with frozen rerank_limit=20; pinned image/model/revision were unchanged.",
     "No LLM judge was used.",
-    "Labeled groundedness does not detect every possible novel hallucinated claim outside the benchmark vocabulary."
+    "Labeled groundedness does not detect every possible novel hallucinated claim outside the benchmark vocabulary.",
+    "The grounded evaluator did not separately classify semantic abstention in the final natural-language agent response. The reported retrieval evidence-gate accuracy measures frozen threshold acceptance/rejection against answerability labels."
   ]
 }

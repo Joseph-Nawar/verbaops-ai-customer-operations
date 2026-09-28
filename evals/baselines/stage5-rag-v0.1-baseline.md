@@ -48,11 +48,11 @@ The checkpoint-safe run `m5c-grounded-46536024-d9c4-479e-a42d-7e1c783faedb` comp
 | Groundedness of recognized labeled factual units | 6/41 (14.63%) |
 | Unsupported-claim rate over recognized labeled factual units | 35/41 (85.37%) |
 | Expected-fact coverage | 41/105 (39.05%) |
-| Agent abstention accuracy at the frozen threshold | 35/120 (29.17%) |
+| Retrieval evidence-gate accuracy | 35/120 (29.17%) |
 | Answer latency p50 | 4,984.56 ms |
 | Answer latency p95 | 11,853.92 ms |
 | Total cost with cost metadata | $0.0367569 across 120 observations |
 | Mean cost with cost metadata | $0.0003063075 across 120 observations |
 | Cost metadata coverage | 120/120 (100%) |
 
-Abstention accuracy is scored from acceptance at the frozen threshold `0.032018442622950824` against the answerable/no-answer labels. Labeled groundedness checks recognized labeled factual units and does not detect every possible novel hallucinated claim outside the benchmark vocabulary. Retrieval selection, threshold, and holdout results were not changed or tuned; selected hybrid RRF holdout Recall@5 remains 85.71%, below the 90% reference target. Stage 6 has not begun.
+Retrieval evidence-gate accuracy is the number of cases where frozen retrieval evidence acceptance/rejection matched the benchmark answerable/no-answer label, divided by all 120 evaluated cases. The gate accepts scores `>= 0.032018442622950824` and rejects scores below that threshold. The grounded evaluator did not separately classify semantic abstention in the final natural-language agent response. The reported retrieval evidence-gate accuracy measures frozen threshold acceptance/rejection against answerability labels. Labeled groundedness checks recognized labeled factual units and does not detect every possible novel hallucinated claim outside the benchmark vocabulary. Retrieval selection, threshold, and holdout results were not changed or tuned; selected hybrid RRF holdout Recall@5 remains 85.71%, below the 90% reference target. Stage 6 has not begun.

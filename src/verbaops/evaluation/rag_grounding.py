@@ -102,7 +102,7 @@ def score_grounded_records(
     grounded_supported = 0
     expected_recognized = 0
     expected_total = 0
-    correct_abstentions = 0
+    correct_evidence_gate_decisions = 0
     latencies: list[float] = []
     cost_observations = 0
     for case in cases:
@@ -124,7 +124,7 @@ def score_grounded_records(
         accepted = (
             score_meets_threshold(float(top_score), threshold) if top_score is not None else False
         )
-        correct_abstentions += int(accepted == case.answerable)
+        correct_evidence_gate_decisions += int(accepted == case.answerable)
         if record.get("answer_latency_ms") is not None:
             latencies.append(float(record["answer_latency_ms"]))
         cost_observations += int(record.get("cost_usd") is not None)
@@ -150,10 +150,10 @@ def score_grounded_records(
             denominator=expected_total,
             value=(expected_recognized / expected_total if expected_total else None),
         ).as_dict(),
-        "abstention_accuracy": MetricResult(
-            numerator=correct_abstentions,
+        "retrieval_evidence_gate_accuracy": MetricResult(
+            numerator=correct_evidence_gate_decisions,
             denominator=len(cases),
-            value=(correct_abstentions / len(cases) if cases else None),
+            value=(correct_evidence_gate_decisions / len(cases) if cases else None),
         ).as_dict(),
         "answer_latency_p50_ms": percentile(latencies, 0.5),
         "answer_latency_p95_ms": percentile(latencies, 0.95),
