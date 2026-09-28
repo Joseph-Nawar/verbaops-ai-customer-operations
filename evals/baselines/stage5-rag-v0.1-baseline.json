@@ -178,24 +178,42 @@
     "reranker_active_dependency": false
   },
   "grounded_agent_evaluation": {
-    "status": "BLOCKED_NO_LOCAL_AGENT_PROVIDER_CREDENTIALS",
-    "completed_cases": 0,
+    "status": "completed",
+    "run_id": "m5c-grounded-46536024-d9c4-479e-a42d-7e1c783faedb",
+    "run_path": "artifacts/rag_eval_runs/m5c-grounded-46536024-d9c4-479e-a42d-7e1c783faedb",
+    "completed_cases": 120,
     "total_cases": 120,
-    "citation_precision": null,
-    "groundedness": null,
-    "unsupported_claim_rate": null,
-    "expected_fact_coverage": null,
-    "abstention_accuracy": null,
-    "answer_latency_p50_ms": null,
-    "answer_latency_p95_ms": null,
-    "cost_total_usd": null,
-    "cost_mean_usd": null,
-    "cost_metadata_coverage": {"numerator": 0, "denominator": 120, "value": 0.0}
+    "selected_strategy": "hybrid_rrf",
+    "retrieval_profile": "knowledge-retrieval-v1.1",
+    "threshold": 0.032018442622950824,
+    "citation_precision": {"numerator": 10, "denominator": 14, "value": 0.7142857142857143},
+    "groundedness": {"numerator": 6, "denominator": 41, "value": 0.14634146341463414},
+    "unsupported_claim_rate": 0.8536585365853658,
+    "expected_fact_coverage": {"numerator": 41, "denominator": 105, "value": 0.3904761904761905},
+    "abstention_accuracy": {"numerator": 35, "denominator": 120, "value": 0.2916666666666667},
+    "answer_latency_p50_ms": 4984.5635,
+    "answer_latency_p95_ms": 11853.915449999999,
+    "model_provider_metadata": {
+      "capability_alias": "agent-fast",
+      "configured_provider": "groq",
+      "configured_model": "groq/openai/gpt-oss-120b",
+      "configured_base_url": "https://api.groq.com/openai/v1",
+      "observed_model": "groq/openai/gpt-oss-120b",
+      "observed_provider": null,
+      "gateway_model_id": "3e62a8be369366f18319209dad555e8b8eee61bb30151ccd74314984f0404b39"
+    },
+    "cost_total_usd": 0.036756899999999995,
+    "cost_mean_usd": 0.0003063075,
+    "cost_metadata_coverage": {"numerator": 120, "denominator": 120, "value": 1.0},
+    "evaluator": {
+      "llm_judge_used": false,
+      "groundedness_scope": "Recognized labeled expected factual units only.",
+      "limitation": "Labeled groundedness does not detect every possible novel hallucinated claim."
+    }
   },
   "limitations": [
-    "No local agent-fast model route or provider credentials were present; no grounded agent calls were issued.",
-    "Citation, groundedness, unsupported-claim, expected-fact, answer-latency, and cost metrics therefore remain unmeasured.",
     "The reranker required a local capacity override because the committed Compose max-client-batch-size=8 conflicts with frozen rerank_limit=20; pinned image/model/revision were unchanged.",
-    "No LLM judge was used."
+    "No LLM judge was used.",
+    "Labeled groundedness does not detect every possible novel hallucinated claim outside the benchmark vocabulary."
   ]
 }
