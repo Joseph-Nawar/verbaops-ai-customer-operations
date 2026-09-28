@@ -1,0 +1,21 @@
+{
+  "dataset_version": "rag-v0.1",
+  "language": "en",
+  "expected_case_count": 120,
+  "split_counts": {"dev": 96, "release_holdout": 24},
+  "category_counts": {
+    "shipping": 15,
+    "returns": 15,
+    "refunds": 12,
+    "warranty": 12,
+    "payments": 10,
+    "privacy": 8,
+    "product-guides": 18,
+    "faq": 15,
+    "no-answer": 15
+  },
+  "questions_sha256": "05ee4c5064db8eafa7a1660f38fb3cb518965229fac8346593a93da75c1991f3",
+  "knowledge_manifest": "knowledge/novacommerce/manifest.json",
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "chunking": {"max_chunk_tokens": 180, "overlap_tokens": 30}
+}

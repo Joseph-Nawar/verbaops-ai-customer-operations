@@ -23,6 +23,7 @@ from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.service import KnowledgeService
 from verbaops.llm.litellm import LiteLLMClient
 from verbaops.retrieval.grounding import CitationFinalizer
+from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.reranker import RerankerClient
 from verbaops.retrieval.service import RetrievalService
 
@@ -80,14 +81,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             redis = create_redis_client(dependencies.settings)
         llm_http_client = httpx.AsyncClient()
         commerce_http_client = httpx.AsyncClient()
-        rag_http_client = httpx.AsyncClient()
         llm_client = LiteLLMClient(dependencies.settings.llm, llm_http_client)
         embedding_client = EmbeddingClient(dependencies.settings.llm, llm_http_client)
-        reranker_client = RerankerClient(
-            dependencies.settings.rag.reranker_url,
-            rag_http_client,
-            timeout_seconds=dependencies.settings.rag.timeout_seconds,
-        )
+        if PRODUCTION_RETRIEVAL_PROFILE.uses_reranker:
+            rag_http_client = httpx.AsyncClient()
+            reranker_client = RerankerClient(
+                dependencies.settings.rag.reranker_url,
+                rag_http_client,
+                timeout_seconds=dependencies.settings.rag.timeout_seconds,
+            )
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
             conversation_service = ConversationService(database.session_factory)
@@ -99,6 +101,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 database.session_factory,
                 embedding_client=embedding_client,
                 reranker_client=reranker_client,
+                profile=PRODUCTION_RETRIEVAL_PROFILE,
             )
             agent_runtime = AgentRuntime(
                 conversation_service=conversation_service,
