@@ -1,0 +1,201 @@
+{
+  "benchmark_version": "rag-v0.1",
+  "benchmark_sha256": "05ee4c5064db8eafa7a1660f38fb3cb518965229fac8346593a93da75c1991f3",
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "execution_git_sha": "3d77e13015a3679459bc5f1c35b10ed7f0cfcdf9",
+  "embedding": {
+    "profile": "multilingual-e5-base-v1",
+    "model": "intfloat/multilingual-e5-base",
+    "revision": "d128750597153bb5987e10b1c3493a34e5a4502a",
+    "dimension": 768
+  },
+  "reranker": {
+    "model": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+    "revision": "1427fd652930e4ba29e8149678df786c240d8825"
+  },
+  "tei_image_digest": "sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48",
+  "chunking": {
+    "max_chunk_tokens": 180,
+    "overlap_tokens": 30
+  },
+  "corpus_counts": {
+    "documents": 15,
+    "versions": 17,
+    "chunks": 55,
+    "active_versions": 15,
+    "superseded_versions": 2,
+    "active_chunks": 51,
+    "superseded_chunks": 4
+  },
+  "splits": {
+    "dev": 96,
+    "release_holdout": 24
+  },
+  "strategy_parameters": {
+    "dense_limit": 20,
+    "lexical_limit": 20,
+    "rrf_k": 60,
+    "fused_limit": 20,
+    "rerank_limit": 20,
+    "final_limit": 5
+  },
+  "dev_metrics": {
+    "dense": {
+      "answerable_denominator": 84,
+      "recall_at_1": 0.6964285714285714,
+      "recall_at_5": 0.9642857142857143,
+      "mrr": 0.8093253968253968,
+      "ndcg_at_5": 0.8460063055489132,
+      "retrieval_p50_ms": 89.306652,
+      "retrieval_p95_ms": 136.9743956,
+      "component_latency_ms": {
+        "embedding_p50": 85.298108,
+        "embedding_p95": 131.220255,
+        "dense_p50": 2.795636,
+        "dense_p95": 4.261504,
+        "total_p50": 88.215862,
+        "total_p95": 134.048319
+      }
+    },
+    "lexical": {
+      "answerable_denominator": 84,
+      "recall_at_1": 0.22023809523809523,
+      "recall_at_5": 0.22023809523809523,
+      "mrr": 0.2261904761904762,
+      "ndcg_at_5": 0.21756442324257366,
+      "retrieval_p50_ms": 2.582961,
+      "retrieval_p95_ms": 3.74268105,
+      "component_latency_ms": {
+        "lexical_p50": 2.514381,
+        "lexical_p95": 3.758712,
+        "total_p50": 2.514381,
+        "total_p95": 3.758712
+      }
+    },
+    "hybrid_rrf": {
+      "answerable_denominator": 84,
+      "recall_at_1": 0.7440476190476191,
+      "recall_at_5": 0.9642857142857143,
+      "mrr": 0.8390873015873016,
+      "ndcg_at_5": 0.868349012414512,
+      "retrieval_p50_ms": 64.899961,
+      "retrieval_p95_ms": 99.092806,
+      "component_latency_ms": {
+        "embedding_p50": 59.049754,
+        "embedding_p95": 93.617814,
+        "dense_p50": 2.81991,
+        "dense_p95": 5.096078,
+        "lexical_p50": 1.914777,
+        "lexical_p95": 3.341953,
+        "fusion_p50": 0.125044,
+        "fusion_p95": 0.181381,
+        "total_p50": 65.013611,
+        "total_p95": 98.947918
+      }
+    },
+    "hybrid_rrf_rerank": {
+      "answerable_denominator": 84,
+      "recall_at_1": 0.7321428571428571,
+      "recall_at_5": 0.9523809523809523,
+      "mrr": 0.8361111111111111,
+      "ndcg_at_5": 0.8635042797503745,
+      "retrieval_p50_ms": 374.754213,
+      "retrieval_p95_ms": 666.101555,
+      "component_latency_ms": {
+        "embedding_p50": 54.143256,
+        "embedding_p95": 111.245263,
+        "dense_p50": 2.93978,
+        "dense_p95": 5.739908,
+        "lexical_p50": 1.940596,
+        "lexical_p95": 3.868295,
+        "fusion_p50": 0.125426,
+        "fusion_p95": 0.211684,
+        "rerank_p50": 307.945714,
+        "rerank_p95": 559.755768,
+        "total_p50": 371.046379,
+        "total_p95": 658.778879
+      }
+    }
+  },
+  "strategy_selection": {
+    "rule": "pass invariants; maximize Recall@5; 0.01 Recall@5 tie band; maximize nDCG@5 within 0.02 tie band; then MRR; then lower p95 and fewer components",
+    "selected_strategy": "hybrid_rrf",
+    "selection_commit": "af0e913d4f11df1d3faa155d4bbde801dd3603f2",
+    "selection_file": "evals/rag/v0.1/selection.json"
+  },
+  "threshold_calibration": {
+    "threshold": 0.032018442622950824,
+    "accept_semantics": "score >= threshold",
+    "abstain_semantics": "score < threshold",
+    "dev_answerable_accepted": 20,
+    "dev_answerable_total": 84,
+    "dev_no_answer_abstained": 12,
+    "dev_no_answer_total": 12,
+    "dev_no_answer_abstention_accuracy": 1.0
+  },
+  "holdout_metrics": {
+    "dense": {
+      "answerable_denominator": 21,
+      "recall_at_1": 0.47619047619047616,
+      "recall_at_5": 0.8571428571428571,
+      "mrr": 0.6666666666666666,
+      "ndcg_at_5": 0.7151078423222381,
+      "retrieval_p50_ms": 97.713169,
+      "retrieval_p95_ms": 165.110717
+    },
+    "lexical": {
+      "answerable_denominator": 21,
+      "recall_at_1": 0.0,
+      "recall_at_5": 0.0,
+      "mrr": 0.0,
+      "ndcg_at_5": 0.0,
+      "retrieval_p50_ms": 2.592123,
+      "retrieval_p95_ms": 4.801692
+    },
+    "hybrid_rrf": {
+      "answerable_denominator": 21,
+      "recall_at_1": 0.47619047619047616,
+      "recall_at_5": 0.8571428571428571,
+      "mrr": 0.6666666666666666,
+      "ndcg_at_5": 0.7151078423222381,
+      "retrieval_p50_ms": 69.456375,
+      "retrieval_p95_ms": 117.409129
+    },
+    "hybrid_rrf_rerank": {
+      "answerable_denominator": 21,
+      "recall_at_1": 0.6190476190476191,
+      "recall_at_5": 0.8809523809523809,
+      "mrr": 0.7857142857142857,
+      "ndcg_at_5": 0.793641497534086,
+      "retrieval_p50_ms": 396.2473,
+      "retrieval_p95_ms": 670.783667
+    }
+  },
+  "production_profile": {
+    "version": "knowledge-retrieval-v1.1",
+    "strategy": "hybrid_rrf",
+    "threshold": 0.032018442622950824,
+    "reranker_active_dependency": false
+  },
+  "grounded_agent_evaluation": {
+    "status": "BLOCKED_NO_LOCAL_AGENT_PROVIDER_CREDENTIALS",
+    "completed_cases": 0,
+    "total_cases": 120,
+    "citation_precision": null,
+    "groundedness": null,
+    "unsupported_claim_rate": null,
+    "expected_fact_coverage": null,
+    "abstention_accuracy": null,
+    "answer_latency_p50_ms": null,
+    "answer_latency_p95_ms": null,
+    "cost_total_usd": null,
+    "cost_mean_usd": null,
+    "cost_metadata_coverage": {"numerator": 0, "denominator": 120, "value": 0.0}
+  },
+  "limitations": [
+    "No local agent-fast model route or provider credentials were present; no grounded agent calls were issued.",
+    "Citation, groundedness, unsupported-claim, expected-fact, answer-latency, and cost metrics therefore remain unmeasured.",
+    "The reranker required a local capacity override because the committed Compose max-client-batch-size=8 conflicts with frozen rerank_limit=20; pinned image/model/revision were unchanged.",
+    "No LLM judge was used."
+  ]
+}

@@ -19,8 +19,8 @@ from verbaops.retrieval.models import (
     RetrievalResult,
     RetrievalStatus,
 )
+from verbaops.retrieval.profile import M5B_RETRIEVAL_PROFILE, RetrievalProfile
 from verbaops.retrieval.repository import RetrievalRepository
-from verbaops.retrieval.profile import M5B_RETRIEVAL_PROFILE, RERANKER_MODEL, RetrievalProfile
 from verbaops.retrieval.reranker import RerankerProtocolError
 from verbaops.retrieval.rrf import reciprocal_rank_fusion
 
@@ -61,9 +61,7 @@ class RetrievalService:
         self._embedding_client = embedding_client
         self._reranker_client = reranker_client
         self._profile = profile
-        self._min_rerank_score = (
-            profile.threshold if min_rerank_score is None else min_rerank_score
-        )
+        self._min_rerank_score = profile.threshold if min_rerank_score is None else min_rerank_score
 
     async def retrieve(
         self,
@@ -162,9 +160,7 @@ class RetrievalService:
         if top_score is not None and top_score >= self._min_rerank_score:
             selected = [
                 replace(candidate, selected=True, evidence_key=f"K{index}")
-                for index, candidate in enumerate(
-                    ranked[: self._profile.final_limit], start=1
-                )
+                for index, candidate in enumerate(ranked[: self._profile.final_limit], start=1)
             ]
         persisted_candidates = _merge_selected(ranked, selected)
         status = RetrievalStatus.SUCCEEDED if selected else RetrievalStatus.INSUFFICIENT

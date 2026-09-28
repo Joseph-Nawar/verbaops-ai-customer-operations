@@ -29,7 +29,7 @@ from verbaops.evaluation.rag_runner import (
 )
 from verbaops.evaluation.rag_runtime import PostgresRagAdapter
 from verbaops.knowledge.profiles import EMBEDDING_MODEL, EMBEDDING_PROFILE
-from verbaops.retrieval.service import RERANKER_MODEL
+from verbaops.retrieval.profile import RERANKER_MODEL
 
 ROOT = Path(__file__).resolve().parents[1]
 DATASET = ROOT / "evals/rag/v0.1/questions.jsonl"
