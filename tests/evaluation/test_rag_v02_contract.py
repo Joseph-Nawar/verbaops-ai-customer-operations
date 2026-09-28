@@ -20,8 +20,23 @@ ROOT = Path(__file__).resolve().parents[2]
 V02 = ROOT / "evals/rag/v0.2"
 
 
+def _immutable_sha256(path: Path) -> str:
+    """Hash canonical text content consistently across LF and CRLF checkouts."""
+
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _cases() -> list[dict[str, object]]:
     return [case.model_dump(mode="json") for case in load_rag_v02_cases(V02 / "questions.jsonl")]
+
+
+def test_immutable_hash_is_stable_across_text_line_endings(tmp_path: Path) -> None:
+    path = tmp_path / "baseline.json"
+    path.write_bytes(b'{"baseline": true}\n')
+    lf_digest = _immutable_sha256(path)
+    path.write_bytes(b'{"baseline": true}\r\n')
+
+    assert _immutable_sha256(path) == lf_digest
 
 
 def _must_reject(cases: list[dict[str, object]]) -> None:
@@ -185,7 +200,7 @@ def test_m5d_protects_locked_benchmark_baselines_profile_prompt_and_tools() -> N
         "evals/rag/v0.1/selection.json": "b91d1ce9ca161c0e2767a453bcd72f338ba9884bf1a244db58b4be5b1491470d",
         "evals/baselines/stage5-rag-v0.1-baseline.json": "55897b22bc0b740b5041e33cc3086f3a4adddcc28124890c35ef6087c5a4af48",
         "knowledge/novacommerce/manifest.json": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
-        "evals/baselines/stage4-agent-v0.1-baseline.json": "d26e66b633f6b32a53d5cd7047151019b1d74536887a8508ba53df1c9f7f00db",
+        "evals/baselines/stage4-agent-v0.1-baseline.json": "847eb19848522de390cf2b0bbe089a317b97d0e0f462d62a9e958cba229b4088",
         "src/verbaops/retrieval/profile.py": "562d46b36e2f211bbc5f9865a370f75bac0b82b35f13eb54ea8e6d5fe8c3e630",
         "src/verbaops/agent/prompts/system_v2.txt": "023cccc5c91a9f1295928e4ee8503d5caf8cb100e243d8deb90762cd11476b74",
         "src/verbaops/agent/versions.py": "7fcc375a05a5a6523e2bd399ac0615e2d4f9b402665e873a4c2c4b58b1fa8156",
@@ -194,6 +209,6 @@ def test_m5d_protects_locked_benchmark_baselines_profile_prompt_and_tools() -> N
         "src/verbaops/tools/registry.py": "84a2dd4b0f624276bf3dc87455a3740bced148c5822117797458d5b9ac422544",
     }
 
-    observed = {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest() for path in expected}
+    observed = {path: _immutable_sha256(ROOT / path) for path in expected}
 
     assert observed == expected
