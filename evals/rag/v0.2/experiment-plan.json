@@ -1,0 +1,113 @@
+{
+  "schema_version": "m5d-experiment-plan-v1",
+  "dataset_version": "rag-v0.2",
+  "status": "preregistered_not_results",
+  "evidence_gates": [
+    {
+      "id": "G0_CURRENT_RRF",
+      "role": "control_only",
+      "score": "frozen hybrid_rrf top score using k=60",
+      "production_use": false
+    },
+    {
+      "id": "G1_DENSE_SIMILARITY",
+      "role": "candidate_evidence_gate",
+      "score": "cosine similarity",
+      "score_location": "cosine similarity from existing E5 query/document vectors, computed for each dense-retrieval candidate before RRF fusion",
+      "production_use": false
+    },
+    {
+      "id": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+      "role": "candidate_evidence_gate",
+      "score": "cross-encoder relevance score",
+      "top_n": 5,
+      "top_n_rationale": "Score only the five chunks eligible for the existing final evidence context; scoring additional candidates would add latency without changing which evidence is supplied by this candidate definition.",
+      "changes_ranking": false,
+      "production_use": false
+    }
+  ],
+  "evidence_gate_selection": {
+    "ordered_rules": [
+      "minimum_no_answer_rejection_90_percent",
+      "maximize_answerable_acceptance",
+      "within_2_percentage_points_prefer_lower_p95_latency",
+      "then_prefer_fewer_inference_components_and_simpler_behavior",
+      "never_use_release_holdout"
+    ],
+    "minimum_dev_no_answer_rejection": 0.9,
+    "answerable_acceptance_target": 0.7,
+    "p95_latency_tie_band": 0.02,
+    "target_note": "At least 70 percent answerable acceptance is a remediation goal and does not weaken the mandatory 90 percent DEV no-answer rejection constraint.",
+    "no_learned_combined_classifier": true
+  },
+  "grounding_candidates": [
+    {
+      "id": "P0_CURRENT",
+      "definition": "Current system_v2 plus current finalizer."
+    },
+    {
+      "id": "P1_PROMPT_V3",
+      "definition": "P0 with a stronger knowledge-grounding prompt only."
+    },
+    {
+      "id": "P2_FAIL_CLOSED_CITATIONS",
+      "definition": "P1 plus deterministic protection for pure knowledge turns where evidence was accepted but no valid citations were produced."
+    },
+    {
+      "id": "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+      "definition": "P2 plus at most one bounded model repair attempt for a missing-citation knowledge answer before deterministic fallback."
+    }
+  ],
+  "grounding_selection_priorities": [
+    "trust_security_invariants",
+    "citation_precision",
+    "labeled_groundedness_and_unsupported_units",
+    "expected_fact_coverage",
+    "answer_latency",
+    "provider_cost"
+  ],
+  "evaluator": {
+    "llm_judge": false,
+    "groundedness_scope": "Recognized labeled expected factual units; it does not cover every possible novel hallucinated claim."
+  },
+  "model_candidates": [
+    {
+      "id": "M0",
+      "model": "groq/openai/gpt-oss-120b",
+      "role": "current_stage5_baseline",
+      "provider": "Groq",
+      "production_change_in_m5d_a": false
+    },
+    {
+      "id": "M1",
+      "model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "role": "open_weight_candidate",
+      "preferred_serving": "self-hosted OpenAI-compatible local endpoint",
+      "production_change_in_m5d_a": false,
+      "hosted_ci_download": false,
+      "local_feasibility_status": "M1_LOCAL_BLOCKED_RESOURCES"
+    }
+  ],
+  "model_selection_guard": {
+    "required_evaluations": [
+      "M5D rag-v0.2 DEV grounding evaluation",
+      "Stage 4 DEV agent/tool/security evaluation"
+    ],
+    "stage4_release_holdout_for_tuning": false,
+    "must_preserve": [
+      "exact five Commerce tools",
+      "deterministic authorization boundaries",
+      "zero S4 violations",
+      "zero unauthorized actions",
+      "tool-selection quality without material regression",
+      "valid tool-argument behavior",
+      "citation and grounding quality",
+      "acceptable latency"
+    ]
+  },
+  "future_milestones": {
+    "M5D-A": "Forensics, rag-v0.2, and preregistration only.",
+    "M5D-B": "DEV-only evidence gate, grounding policy, and model bake-off.",
+    "M5D-C": "Candidate freeze, new release holdout, genuine grounded evaluation, and lock."
+  }
+}
