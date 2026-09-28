@@ -1,0 +1,72 @@
+{
+  "calibrated_threshold": 0.032018442622950824,
+  "dataset_sha256": "05ee4c5064db8eafa7a1660f38fb3cb518965229fac8346593a93da75c1991f3",
+  "dev_metrics": {
+    "dense": {
+      "answerable_count": 84,
+      "mrr": 0.8093253968253968,
+      "ndcg_at_5": 0.8460063055489132,
+      "recall_at_1": 0.6964285714285714,
+      "recall_at_5": 0.9642857142857143,
+      "retrieval_p50_ms": 89.306652,
+      "retrieval_p95_ms": 136.9743956,
+      "strategy": "dense"
+    },
+    "hybrid_rrf": {
+      "answerable_count": 84,
+      "mrr": 0.8390873015873016,
+      "ndcg_at_5": 0.868349012414512,
+      "recall_at_1": 0.7440476190476191,
+      "recall_at_5": 0.9642857142857143,
+      "retrieval_p50_ms": 64.899961,
+      "retrieval_p95_ms": 99.092806,
+      "strategy": "hybrid_rrf"
+    },
+    "hybrid_rrf_rerank": {
+      "answerable_count": 84,
+      "mrr": 0.8361111111111111,
+      "ndcg_at_5": 0.8635042797503745,
+      "recall_at_1": 0.7321428571428571,
+      "recall_at_5": 0.9523809523809523,
+      "retrieval_p50_ms": 374.754213,
+      "retrieval_p95_ms": 666.101555,
+      "strategy": "hybrid_rrf_rerank"
+    },
+    "lexical": {
+      "answerable_count": 84,
+      "mrr": 0.2261904761904762,
+      "ndcg_at_5": 0.21756442324257366,
+      "recall_at_1": 0.22023809523809523,
+      "recall_at_5": 0.22023809523809523,
+      "retrieval_p50_ms": 2.582961,
+      "retrieval_p95_ms": 3.74268105,
+      "strategy": "lexical"
+    }
+  },
+  "embedding_model": "intfloat/multilingual-e5-base",
+  "embedding_profile": "multilingual-e5-base-v1",
+  "embedding_revision": "d128750597153bb5987e10b1c3493a34e5a4502a",
+  "git_sha": "20704e12de5272d1ecce52ee7c9ac9516fc8aae5",
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "reranker_model": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+  "reranker_revision": "1427fd652930e4ba29e8149678df786c240d8825",
+  "selection_rationale": "passed invariants; maximized Recall@5; applied the 0.01 Recall@5 tie band; maximized nDCG@5 within the 0.02 tie band; then maximized MRR, preferred lower p95, preferred the explicit lower-complexity strategy order, and used stable name ordering last",
+  "strategy": "hybrid_rrf",
+  "strategy_parameters": {
+    "dense_limit": 20,
+    "final_limit": 5,
+    "fused_limit": 20,
+    "lexical_limit": 20,
+    "rerank_limit": 20,
+    "rrf_k": 60
+  },
+  "tei_image_digest": "sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48",
+  "threshold_calibration": {
+    "answerable_accepted": 20,
+    "answerable_total": 84,
+    "no_answer_abstained": 12,
+    "no_answer_total": 12,
+    "threshold": 0.032018442622950824
+  },
+  "timestamp": "2026-09-28T13:36:06.296869+00:00"
+}
