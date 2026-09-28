@@ -6,6 +6,7 @@ from uuid import UUID
 import pytest
 
 from verbaops.retrieval.models import DenseHit, KnowledgeHit, LexicalHit, RerankScore
+from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.service import RetrievalService, RetrievalStatus
 
 RUN_ID = UUID("70000000-0000-0000-0000-000000000001")
@@ -88,8 +89,34 @@ class FailingEmbedding:
         raise RuntimeError("embedding unavailable")
 
 
+class ExplodingReranker:
+    async def rerank(self, _query: str, _candidates: Sequence[object]) -> list[RerankScore]:
+        raise AssertionError("production hybrid RRF must not call the reranker")
+
+
 def session_factory() -> FakeSession:
     return FakeSession()
+
+
+@pytest.mark.asyncio
+async def test_production_profile_uses_hybrid_rrf_without_reranker_dependency() -> None:
+    repository = FakeRepository([knowledge(0), knowledge(1)])
+    service = RetrievalService(
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
+        embedding_client=FakeEmbedding(),
+        reranker_client=ExplodingReranker(),
+        profile=PRODUCTION_RETRIEVAL_PROFILE,
+    )
+
+    result = await service.retrieve(agent_run_id=RUN_ID, tenant_id=TENANT_ID, query="warranty")
+
+    assert result.status is RetrievalStatus.SUCCEEDED
+    assert len(result.evidence) == 2
+    assert repository.trace is not None
+    assert repository.trace["retrieval_version"] == "knowledge-retrieval-v1.1"
+    assert repository.trace["strategy"] == "hybrid_rrf"
+    assert repository.trace["reranked_candidate_count"] == 0
 
 
 @pytest.mark.asyncio

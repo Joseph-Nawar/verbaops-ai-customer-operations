@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from verbaops.knowledge.embeddings import EmbeddingProtocolError
-from verbaops.knowledge.profiles import EMBEDDING_MODEL, EMBEDDING_PROFILE, format_query
+from verbaops.knowledge.profiles import EMBEDDING_PROFILE, format_query
 from verbaops.retrieval.models import (
     FusedCandidate,
     RerankScore,
@@ -20,17 +20,17 @@ from verbaops.retrieval.models import (
     RetrievalStatus,
 )
 from verbaops.retrieval.repository import RetrievalRepository
+from verbaops.retrieval.profile import M5B_RETRIEVAL_PROFILE, RERANKER_MODEL, RetrievalProfile
 from verbaops.retrieval.reranker import RerankerProtocolError
 from verbaops.retrieval.rrf import reciprocal_rank_fusion
 
-RETRIEVAL_VERSION = "knowledge-retrieval-v1"
-RERANKER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
-DENSE_LIMIT = 20
-LEXICAL_LIMIT = 20
-RRF_K = 60
-FUSED_LIMIT = 20
-FINAL_LIMIT = 5
-MIN_RERANK_SCORE = 0.5
+RETRIEVAL_VERSION = M5B_RETRIEVAL_PROFILE.version
+DENSE_LIMIT = M5B_RETRIEVAL_PROFILE.dense_limit
+LEXICAL_LIMIT = M5B_RETRIEVAL_PROFILE.lexical_limit
+RRF_K = M5B_RETRIEVAL_PROFILE.rrf_k
+FUSED_LIMIT = M5B_RETRIEVAL_PROFILE.fused_limit
+FINAL_LIMIT = M5B_RETRIEVAL_PROFILE.final_limit
+MIN_RERANK_SCORE = M5B_RETRIEVAL_PROFILE.threshold
 
 
 class EmbeddingProvider(Protocol):
@@ -52,14 +52,18 @@ class RetrievalService:
         *,
         repository: RetrievalRepository | None = None,
         embedding_client: EmbeddingProvider,
-        reranker_client: RerankerProvider,
-        min_rerank_score: float = MIN_RERANK_SCORE,
+        reranker_client: RerankerProvider | None,
+        profile: RetrievalProfile = M5B_RETRIEVAL_PROFILE,
+        min_rerank_score: float | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._repository = repository or RetrievalRepository()
         self._embedding_client = embedding_client
         self._reranker_client = reranker_client
-        self._min_rerank_score = min_rerank_score
+        self._profile = profile
+        self._min_rerank_score = (
+            profile.threshold if min_rerank_score is None else min_rerank_score
+        )
 
     async def retrieve(
         self,
@@ -106,53 +110,63 @@ class RetrievalService:
                 connection,
                 tenant_id=tenant_id,
                 vector=vectors[0],
-                embedding_profile=EMBEDDING_PROFILE,
+                embedding_profile=self._profile.embedding_profile,
                 language=language,
-                limit=DENSE_LIMIT,
+                limit=self._profile.dense_limit,
             )
             lexical = await self._repository.search_lexical(
                 connection,
                 tenant_id=tenant_id,
                 query=normalized_query,
                 language=language,
-                limit=LEXICAL_LIMIT,
+                limit=self._profile.lexical_limit,
             )
-        fused = reciprocal_rank_fusion(dense, lexical, k=RRF_K, limit=FUSED_LIMIT)
+        fused = reciprocal_rank_fusion(
+            dense,
+            lexical,
+            k=self._profile.rrf_k,
+            limit=self._profile.fused_limit,
+        )
 
-        try:
-            rerank_scores = await self._reranker_client.rerank(normalized_query, fused)
-        except Exception:
-            await self._persist(
-                invocation_id=invocation_id,
-                agent_run_id=agent_run_id,
-                tenant_id=tenant_id,
-                sequence=sequence,
-                language=language,
-                status=RetrievalStatus.FAILED,
-                dense=dense,
-                lexical=lexical,
-                fused=fused,
-                selected=[],
-                top_score=None,
-                latency_ms=_latency_ms(started),
-                error_code="reranker_unavailable",
-            )
-            return RetrievalResult(
-                invocation_id=invocation_id,
-                status=RetrievalStatus.UNAVAILABLE,
-                evidence=(),
-                error_code="reranker_unavailable",
-            )
-
-        reranked = _apply_rerank_scores(fused, rerank_scores)
-        top_score = reranked[0].rerank_score if reranked else None
+        ranked = fused
+        if self._profile.uses_reranker:
+            if self._reranker_client is None:
+                return await self._persist_unavailable(
+                    invocation_id=invocation_id,
+                    agent_run_id=agent_run_id,
+                    tenant_id=tenant_id,
+                    sequence=sequence,
+                    language=language,
+                    dense=dense,
+                    lexical=lexical,
+                    fused=fused,
+                    started=started,
+                )
+            try:
+                rerank_scores = await self._reranker_client.rerank(normalized_query, fused)
+            except Exception:
+                return await self._persist_unavailable(
+                    invocation_id=invocation_id,
+                    agent_run_id=agent_run_id,
+                    tenant_id=tenant_id,
+                    sequence=sequence,
+                    language=language,
+                    dense=dense,
+                    lexical=lexical,
+                    fused=fused,
+                    started=started,
+                )
+            ranked = _apply_rerank_scores(fused, rerank_scores)
+        top_score = _top_score(ranked, self._profile.uses_reranker)
         selected = []
         if top_score is not None and top_score >= self._min_rerank_score:
             selected = [
                 replace(candidate, selected=True, evidence_key=f"K{index}")
-                for index, candidate in enumerate(reranked[:FINAL_LIMIT], start=1)
+                for index, candidate in enumerate(
+                    ranked[: self._profile.final_limit], start=1
+                )
             ]
-        persisted_candidates = _merge_selected(reranked, selected)
+        persisted_candidates = _merge_selected(ranked, selected)
         status = RetrievalStatus.SUCCEEDED if selected else RetrievalStatus.INSUFFICIENT
         await self._persist(
             invocation_id=invocation_id,
@@ -174,6 +188,41 @@ class RetrievalService:
             status=status,
             evidence=tuple(_evidence(candidate) for candidate in selected),
             top_score=top_score,
+        )
+
+    async def _persist_unavailable(
+        self,
+        *,
+        invocation_id: UUID,
+        agent_run_id: UUID,
+        tenant_id: UUID,
+        sequence: int,
+        language: str,
+        dense: Sequence[object],
+        lexical: Sequence[object],
+        fused: Sequence[FusedCandidate],
+        started: float,
+    ) -> RetrievalResult:
+        await self._persist(
+            invocation_id=invocation_id,
+            agent_run_id=agent_run_id,
+            tenant_id=tenant_id,
+            sequence=sequence,
+            language=language,
+            status=RetrievalStatus.FAILED,
+            dense=dense,
+            lexical=lexical,
+            fused=fused,
+            selected=[],
+            top_score=None,
+            latency_ms=_latency_ms(started),
+            error_code="reranker_unavailable",
+        )
+        return RetrievalResult(
+            invocation_id=invocation_id,
+            status=RetrievalStatus.UNAVAILABLE,
+            evidence=(),
+            error_code="reranker_unavailable",
         )
 
     async def _persist(
@@ -201,8 +250,8 @@ class RetrievalService:
                 agent_run_id=agent_run_id,
                 tenant_id=tenant_id,
                 sequence=sequence,
-                retrieval_version=RETRIEVAL_VERSION,
-                strategy="hybrid_rrf",
+                retrieval_version=self._profile.version,
+                strategy=self._profile.strategy,
                 language=language,
                 status=(
                     "failed"
@@ -218,8 +267,8 @@ class RetrievalService:
                 selected_count=len(selected),
                 top_score=top_score,
                 latency_ms=latency_ms,
-                embedding_model=EMBEDDING_MODEL,
-                reranker_model=RERANKER_MODEL,
+                embedding_model=self._profile.embedding_model,
+                reranker_model=self._profile.reranker_model,
                 error_code=error_code,
                 candidates=fused,
             )
@@ -252,6 +301,12 @@ def _merge_selected(
 ) -> list[FusedCandidate]:
     selected_by_chunk = {candidate.chunk.chunk_id: candidate for candidate in selected}
     return [selected_by_chunk.get(candidate.chunk.chunk_id, candidate) for candidate in candidates]
+
+
+def _top_score(candidates: Sequence[FusedCandidate], reranked: bool) -> float | None:
+    if not candidates:
+        return None
+    return candidates[0].rerank_score if reranked else candidates[0].rrf_score
 
 
 def _evidence(candidate: FusedCandidate) -> RetrievalEvidence:
