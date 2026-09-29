@@ -1,0 +1,46 @@
+{
+  "artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
+      "sha256": "1b1a6813ff8403871bc55069d7ae1d8f4c0df19d5917badf2e054e63f4cb1d67"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
+      "sha256": "2f5da3f8a75bbd35238ba8b6015d22f4b5d41f34e32ac6e0973e587f5aa3cd9e"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
+      "sha256": "aa94a7d0ab452eeb07de923ec4413b699b188e3c1da75bdf2fa60211baa8a7a0"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
+      "sha256": "6091a60e6c175d13448f0b1d0aa3182461e96e317d4b1d0e43540a7a30c4a4aa"
+    }
+  ],
+  "blocked_case_id": "m5d-v02-returns-009",
+  "canonical": true,
+  "completed_cases": 18,
+  "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+  "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+  "run_identity": {
+    "agent_graph_version": "text-agent-v2",
+    "agent_prompt_version": "text-agent-system-v2",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P0_CURRENT",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+    "split": "dev"
+  },
+  "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546",
+  "run_status": "INTERRUPTED"
+}

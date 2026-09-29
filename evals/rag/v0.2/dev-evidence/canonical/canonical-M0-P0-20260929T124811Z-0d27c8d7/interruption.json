@@ -1,0 +1,11 @@
+{
+  "blocked_case_id": "m5d-v02-returns-009",
+  "completed_case_count": 18,
+  "error_type": "HTTPStatusError",
+  "grounding_candidate": "P0_CURRENT",
+  "holdout_executed": false,
+  "http_status_code": 503,
+  "model_candidate": "M0",
+  "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+  "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546"
+}

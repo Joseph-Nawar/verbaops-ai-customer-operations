@@ -1,75 +1,48 @@
 # Stage 5 M5D-B DEV Results
 
-**Status:** provider-rate-limited; the grounding sweep is incomplete. These DEV results do not select a grounding policy or authorize production promotion.
+**Status: PARTIAL ? canonical grounding evaluation stopped during P0 after a provider rate limit. No grounding candidate or model was selected, and no production change was made.**
 
-## Scope and provenance
+## Canonical provenance
 
-- Benchmark: `rag-v0.2`, DEV only, 96 cases (72 answerable and 24 no-answer).
+- Benchmark: `rag-v0.2`, DEV only; 96 cases (72 answerable, 24 no-answer).
 - Dataset SHA256: `398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595`.
 - Knowledge manifest SHA256: `26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660`.
-- Frozen experiment-plan SHA256: `b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8`.
-- Pre-experiment commit: `347eccfd7aaa22332bdf36ee396715133b716b9c`.
-- The calibrated gate retained the frozen `knowledge-retrieval-v1.1` / `hybrid_rrf` ranking and the same final five evidence candidates. It changed only the evidence-confidence signal for evaluation.
-- Gate cases, scores, stable locators, timings, and per-case provenance are in [gate-cases.jsonl](../../evals/rag/v0.2/dev-evidence/gate-cases.jsonl). Sanitized aggregates and candidate reports are in [m5d-b-dev-summary.json](../../evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json).
+- Experiment-plan SHA256: `b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8`.
+- PRE_EXPERIMENT_SHA: `347eccfd7aaa22332bdf36ee396715133b716b9c`.
+- Canonical evaluated implementation SHA: `7f82c565e7f9fc085f2d81c2c04a9861444837a1`.
+- Gate run ID: `canonical-gate-20260929T123626Z-45586c67`; grounding run ID: `canonical-M0-P0-20260929T124811Z-0d27c8d7`.
+- Canonical outputs are under [canonical DEV evidence](../../evals/rag/v0.2/dev-evidence/canonical/). The run identities and per-artifact SHA256 values are bound in [dev-decision.json](../../evals/rag/v0.2/dev-decision.json) and [m5d-b-dev-summary.json](../../evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json).
+
+The canonical evidence-gate run completed all 96 DEV cases on the clean committed implementation. It retained the frozen hybrid RRF ranking and final five evidence candidates; only the preregistered evaluation confidence signal varied by gate.
 
 ## Evidence-gate calibration
 
-Thresholds were calibrated independently per gate from observed DEV scores. Eligibility required at least 22/24 no-answer cases rejected. The selected signal maximized answerable acceptance among eligible candidates; candidate score scales were not compared across gates.
+Each candidate used its own calibrated score scale. Eligibility required at least 90% no-answer rejection. Selection then maximized answerable acceptance, following the frozen tie rules.
 
 | Candidate | Threshold | Answerable accepted | No-answer rejected | Total p95 |
 | --- | ---: | ---: | ---: | ---: |
-| G0_CURRENT_RRF | 0.02964254577157803 | 13/72 (18.06%) | 24/24 (100%) | 160.64 ms |
-| G1_DENSE_SIMILARITY | 0.8573166988459672 | 40/72 (55.56%) | 22/24 (91.67%) | 172.58 ms |
-| G2_TOP_EVIDENCE_CROSS_ENCODER | 0.2554669 | 56/72 (77.78%) | 22/24 (91.67%) | 397.47 ms |
+| G0_CURRENT_RRF | 0.029642545771578 | 13/72 (18.06%) | 24/24 (100.00%) | 166.52 ms |
+| G1_DENSE_SIMILARITY | 0.857316698845967 | 40/72 (55.56%) | 22/24 (91.67%) | 174.94 ms |
+| G2_TOP_EVIDENCE_CROSS_ENCODER | 0.2554669 | 56/72 (77.78%) | 22/24 (91.67%) | 371.42 ms |
 
-**DEV-selected gate:** `G2_TOP_EVIDENCE_CROSS_ENCODER` at `0.2554669`. The 70% answerable-acceptance target and 90% no-answer rejection guard both passed. This is a DEV-only selection; it was not promoted.
+The canonical DEV selector chose **`G2_TOP_EVIDENCE_CROSS_ENCODER` at `0.2554669`**: 56/72 answerable cases accepted (77.78%) and 22/24 no-answer cases rejected (91.67%). This meets the preregistered 70% answerable-acceptance goal and mandatory 90% no-answer-rejection guard. It is a DEV-only gate result; it did not change or promote the production profile and did not open release holdout.
 
 ## Grounding candidates
 
-Only P0 and P1 completed all 96 DEV cases. Metrics use deterministic rag-v0.2 labeled-fact recognition and server-resolved citations. Groundedness covers recognized labeled factual units; it does not measure every possible novel claim.
+P0 began through the real public Stage 5 API with M0 and the selected G2 gate. It stopped after **18/96** completed cases when case `m5d-v02-returns-009` returned public API HTTP 503; gateway logs contained provider HTTP 429 rate-limit events. The run was preserved as `canonical-M0-P0-20260929T124811Z-0d27c8d7`. The partial P0 observations were **not scored** and are not used for candidate eligibility.
 
-| Metric | P0_CURRENT | P1_PROMPT_V3 |
-| --- | ---: | ---: |
-| Citation precision | 12/19 (63.16%) | 52/82 (63.41%) |
-| Labeled groundedness | 0/4 (0%) | 2/2 (100%) |
-| Unsupported recognized-fact rate | 4/4 (100%) | 0/2 (0%) |
-| Expected-fact coverage | 4/72 (5.56%) | 2/72 (2.78%) |
-| Accepted-evidence citation compliance | 12/58 (20.69%) | 54/58 (93.10%) |
-| Safe fallback | 0/96 (0%) | 0/96 (0%) |
-| Answer latency p50 | 5,382.29 ms | 3,657.34 ms |
-| Answer latency p95 | 12,884.26 ms | 13,824.63 ms |
-| Cost total over costed observations | $0.0268023 (96/96) | $0.0237015 (96/96) |
-| Mean cost over costed observations | $0.00027919 | $0.00024689 |
-| Cost metadata coverage | 96/96 (100%) | 96/96 (100%) |
-
-The cost totals and means cover only the 96 observations for the corresponding candidate. They are not combined across candidates.
-
-Neither completed candidate meets the preregistered grounding floors. P0 misses citation precision, groundedness, unsupported-fact rate, and expected-fact coverage. P1 meets the groundedness and unsupported-fact floors on its small recognized-fact denominator, but misses citation precision and expected-fact coverage by wide margins.
-
-P2 completed 39/96 cases before provider failures interrupted the run. Its partial checkpoint is not scored or used for eligibility. P3 was not started. No grounding policy was selected.
+P1, P2, and P3 were not run in the canonical sweep. No retry was made after the rate limit, no grounding candidate was selected, and no `NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE` conclusion is claimed because the required candidate set did not complete.
 
 ## Model and provider
 
-M0 used the incumbent route `groq/openai/gpt-oss-120b`, capability alias `agent-fast`, through the configured Groq OpenAI-compatible endpoint. The sanitized smoke verified the gateway, alias resolution, and one successful request. Provider metadata from the gateway/trace was null or omitted; the configured provider family was recorded as `groq`. No response content or credentials were printed.
+M0 used the configured incumbent route `groq/openai/gpt-oss-120b` through LiteLLM alias `agent-fast` at the configured Groq OpenAI-compatible endpoint. The sanitized smoke artifact records a first short-token response that ended at the length limit, followed by one successful harmless completion. It records the returned model metadata and usage only; no response content or credentials were persisted. All 18 completed P0 traces recorded the configured model and `agent-fast` alias; the provider field was absent from those traces, so `Groq` is reported as the configured provider family. The provider key was absent from inspected gateway logs and M5D artifact scans.
 
-M1 (`Qwen/Qwen3-30B-A3B-Instruct-2507`) was not executed. Its three local endpoint environment variables were missing, and the M5D-A feasibility audit recorded local resource constraints. No Qwen model was downloaded. M0 was the only executable model; no comparative model recommendation was made.
+M1 (`Qwen/Qwen3-30B-A3B-Instruct-2507`) was not executed under the preregistered local-resource block. No Qwen model was downloaded and no substitution was made. There is no model comparison or recommendation.
 
-## Provider block and experiment order
+Stage 4 DEV regression was not run because no complete grounding candidate qualified for it. Release holdout was not executed; `selection.json` remains absent; production retrieval, prompt, model route, and Commerce tools are unchanged. M5D-C and Stage 6 have not begun.
 
-P2 stopped after an application HTTP 503 on an unsaved DEV case. The isolated application trace recorded `agent_unavailable` and the associated `agent-fast` model call recorded `llm_unavailable`. Gateway diagnostics showed provider HTTP 429 rate-limit responses. The provider key was absent from the inspected gateway logs. Checkpointed cases were preserved; retries of the same pending case after cooldown did not complete it. The run was stopped without changing the model or provider.
+## Historical/noncanonical evidence
 
-The preregistered order therefore stops before a grounding selection, Stage 4 DEV regression, and M1 comparison. No completed eligible grounding candidate exists to send to the Stage 4 regression check.
+The earlier gate and P0/P1 observations came from a dirty evaluation worktree; prior P2 observations span mixed implementation states. They are retained in the pre-canonical revision `7f82c565e7f9fc085f2d81c2c04a9861444837a1` and legacy local artifacts for audit only. They are explicitly excluded from this report, the canonical DEV selection, and every metric above. The historical observations have not been rerun or combined with the canonical run.
 
-## Decision and frozen boundaries
-
-- Decision status: `PROVIDER_RATE_LIMIT_BLOCKED_INCOMPLETE_GROUNDING_SWEEP`.
-- DEV-selected gate: G2 at `0.2554669`; not promoted to production.
-- Selected grounding candidate: none.
-- Stage 4 DEV regression: not run because no completed eligible grounding candidate exists.
-- M1 comparison: not run; no executable challenger endpoint.
-- `evals/rag/v0.2/selection.json`: absent.
-- Release holdout: not executed.
-- Production retrieval profile, production prompt, agent-fast route, and five Commerce tools: unchanged.
-- Production promotion: false. M5D-C and Stage 6 have not begun.
-
-Machine-readable decision: [dev-decision.json](../../evals/rag/v0.2/dev-decision.json).
+Machine-readable canonical summary: [m5d-b-dev-summary.json](../../evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json).

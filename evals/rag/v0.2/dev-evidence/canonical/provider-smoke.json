@@ -1,0 +1,56 @@
+{
+  "alias_resolved": true,
+  "attempts": [
+    {
+      "credentials_recorded": false,
+      "finish_reason": "length",
+      "http_status": 200,
+      "response_content_recorded": false,
+      "response_success": false,
+      "returned_model": "agent-fast",
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 80,
+        "total_tokens": 88
+      }
+    },
+    {
+      "credentials_recorded": false,
+      "finish_reason": "stop",
+      "http_status": 200,
+      "message_fields": [
+        "content",
+        "reasoning",
+        "role"
+      ],
+      "response_content_recorded": false,
+      "response_text_present": true,
+      "returned_model": "agent-fast",
+      "usage": {
+        "completion_tokens": 67,
+        "prompt_tokens": 76,
+        "total_tokens": 143
+      }
+    }
+  ],
+  "base_url": "https://api.groq.com/openai/v1",
+  "completed_at_utc": "2026-09-29T12:46:34.731619+00:00",
+  "configured_model": "groq/openai/gpt-oss-120b",
+  "created_at_utc": "2026-09-29T12:44:59.788820+00:00",
+  "credentials_recorded": false,
+  "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "finish_reason": "stop",
+  "gateway_alias": "agent-fast",
+  "http_status": 200,
+  "kind": "sanitized_provider_smoke",
+  "provider": "Groq",
+  "response_content_recorded": false,
+  "response_success": true,
+  "returned_model": "agent-fast",
+  "run_id": "m0-provider-smoke-20260929T124459Z",
+  "usage": {
+    "completion_tokens": 67,
+    "prompt_tokens": 76,
+    "total_tokens": 143
+  }
+}

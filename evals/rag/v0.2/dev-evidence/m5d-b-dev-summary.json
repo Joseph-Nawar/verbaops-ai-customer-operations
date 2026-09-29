@@ -1,328 +1,288 @@
 {
+  "agent_fast_changed": false,
   "benchmark_version": "rag-v0.2",
+  "canonical_evidence_status": "PARTIAL",
+  "canonical_runs": [
+    {
+      "artifacts": [
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl",
+          "sha256": "167e97a96e0260578b1c93ef1a8aa007026172d1b0712f37893426e908e3adae"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl.identity.json",
+          "sha256": "a081ad3b27493c360023082b588821d3c0a2ddc55d317e030cdb63c6962488a1"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate-report.json",
+          "sha256": "ad96bd0e53f87dd43f02d7024df2f91d5b29661806abc015f859a6d1dcab5628"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/run-summary.json",
+          "sha256": "05f3c61c1d01e975e0bda16da877751b7e7f28749a754d2c1452038cc3a503ed"
+        }
+      ],
+      "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+      "run_id": "canonical-gate-20260929T123626Z-45586c67",
+      "run_identity_sha256": "3b75a4202803336b70b2c04c8eccf356b788391c5cf17d20370842bf5c5828b4",
+      "run_type": "GATE_CALIBRATION",
+      "status": "COMPLETE"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
+          "sha256": "1b1a6813ff8403871bc55069d7ae1d8f4c0df19d5917badf2e054e63f4cb1d67"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
+          "sha256": "2f5da3f8a75bbd35238ba8b6015d22f4b5d41f34e32ac6e0973e587f5aa3cd9e"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
+          "sha256": "aa94a7d0ab452eeb07de923ec4413b699b188e3c1da75bdf2fa60211baa8a7a0"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
+          "sha256": "6091a60e6c175d13448f0b1d0aa3182461e96e317d4b1d0e43540a7a30c4a4aa"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/run-summary.json",
+          "sha256": "bac282303bbbcac3c496bfe5decef9bfc33044f022ac9b75cf07e82a3af293c3"
+        }
+      ],
+      "candidate": "P0_CURRENT",
+      "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+      "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+      "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546",
+      "run_type": "GROUNDING_CANDIDATE",
+      "status": "INTERRUPTED_PROVIDER_RATE_LIMIT"
+    }
+  ],
   "case_count": 96,
+  "commerce_tools_changed": false,
   "credentials_committed_or_logged": false,
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
   "decision_status": "PROVIDER_RATE_LIMIT_BLOCKED_INCOMPLETE_GROUNDING_SWEEP",
-  "evaluation_harness_commits": [
-    "44034e47119ec63c23f3abf4adcee20cac08ce4b",
-    "ebac389897bb44169b9dafff01a29926ec4e7615",
-    "88e3c7341815ea9e427ad3f96b9f75f1b4790e37"
+  "evaluated_git_shas": [
+    "7f82c565e7f9fc085f2d81c2c04a9861444837a1"
   ],
-  "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
-  "gate_calibrations": [
+  "evidence_gate_candidates": [
     {
-      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-      "selected": {
-        "answerable_acceptance": 0.18055555555555555,
-        "answerable_accepted": 13,
-        "answerable_total": 72,
-        "eligible": true,
-        "gate": "G0_CURRENT_RRF",
-        "latency_component_p50_ms": {
-          "hybrid_retrieval": 100.83345
-        },
-        "latency_component_p95_ms": {
-          "hybrid_retrieval": 160.6444
-        },
-        "no_answer_rejected": 24,
-        "no_answer_rejection": 1.0,
-        "no_answer_total": 24,
-        "threshold": 0.02964254577157803,
-        "total_latency_p50_ms": 100.83345,
-        "total_latency_p95_ms": 160.6444
-      }
+      "answerable_acceptance": 0.18055555555555555,
+      "answerable_accepted": 13,
+      "answerable_total": 72,
+      "eligible": true,
+      "gate": "G0_CURRENT_RRF",
+      "no_answer_rejected": 24,
+      "no_answer_rejection": 1.0,
+      "no_answer_total": 24,
+      "threshold": 0.02964254577157803,
+      "total_latency_p50_ms": 103.15685,
+      "total_latency_p95_ms": 166.5218
     },
     {
-      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-      "selected": {
-        "answerable_acceptance": 0.5555555555555556,
-        "answerable_accepted": 40,
-        "answerable_total": 72,
-        "eligible": true,
-        "gate": "G1_DENSE_SIMILARITY",
-        "latency_component_p50_ms": {
-          "e5_candidate_vector_fetch": 6.90665,
-          "e5_cosine_scoring": 1.18215,
-          "hybrid_retrieval": 100.83345
-        },
-        "latency_component_p95_ms": {
-          "e5_candidate_vector_fetch": 12.810675,
-          "e5_cosine_scoring": 1.26865,
-          "hybrid_retrieval": 160.6444
-        },
-        "no_answer_rejected": 22,
-        "no_answer_rejection": 0.9166666666666666,
-        "no_answer_total": 24,
-        "threshold": 0.8573166988459672,
-        "total_latency_p50_ms": 109.6119,
-        "total_latency_p95_ms": 172.5761
-      }
+      "answerable_acceptance": 0.5555555555555556,
+      "answerable_accepted": 40,
+      "answerable_total": 72,
+      "eligible": true,
+      "gate": "G1_DENSE_SIMILARITY",
+      "no_answer_rejected": 22,
+      "no_answer_rejection": 0.9166666666666666,
+      "no_answer_total": 24,
+      "threshold": 0.8573166988459672,
+      "total_latency_p50_ms": 110.93415,
+      "total_latency_p95_ms": 174.93885
     },
     {
-      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-      "selected": {
-        "answerable_acceptance": 0.7777777777777778,
-        "answerable_accepted": 56,
-        "answerable_total": 72,
-        "eligible": true,
-        "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
-        "latency_component_p50_ms": {
-          "cross_encoder_scoring": 105.8935,
-          "hybrid_retrieval": 100.83345
-        },
-        "latency_component_p95_ms": {
-          "cross_encoder_scoring": 227.0106,
-          "hybrid_retrieval": 160.6444
-        },
-        "no_answer_rejected": 22,
-        "no_answer_rejection": 0.9166666666666666,
-        "no_answer_total": 24,
-        "threshold": 0.2554669,
-        "total_latency_p50_ms": 214.22725,
-        "total_latency_p95_ms": 397.465825
-      }
+      "answerable_acceptance": 0.7777777777777778,
+      "answerable_accepted": 56,
+      "answerable_total": 72,
+      "eligible": true,
+      "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+      "no_answer_rejected": 22,
+      "no_answer_rejection": 0.9166666666666666,
+      "no_answer_total": 24,
+      "threshold": 0.2554669,
+      "total_latency_p50_ms": 215.3078,
+      "total_latency_p95_ms": 371.4168
     }
   ],
+  "evidence_source": "canonical_artifacts_only",
+  "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+  "gate_selection": {
+    "artifacts": [
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl",
+        "sha256": "167e97a96e0260578b1c93ef1a8aa007026172d1b0712f37893426e908e3adae"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl.identity.json",
+        "sha256": "a081ad3b27493c360023082b588821d3c0a2ddc55d317e030cdb63c6962488a1"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate-report.json",
+        "sha256": "ad96bd0e53f87dd43f02d7024df2f91d5b29661806abc015f859a6d1dcab5628"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/run-summary.json",
+        "sha256": "05f3c61c1d01e975e0bda16da877751b7e7f28749a754d2c1452038cc3a503ed"
+      }
+    ],
+    "run_id": "canonical-gate-20260929T123626Z-45586c67",
+    "run_identity_sha256": "3b75a4202803336b70b2c04c8eccf356b788391c5cf17d20370842bf5c5828b4",
+    "selected": {
+      "answerable_acceptance": 0.7777777777777778,
+      "answerable_accepted": 56,
+      "answerable_total": 72,
+      "eligible": true,
+      "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+      "latency_component_p50_ms": {
+        "cross_encoder_scoring": 106.19335,
+        "hybrid_retrieval": 103.15685
+      },
+      "latency_component_p95_ms": {
+        "cross_encoder_scoring": 213.830075,
+        "hybrid_retrieval": 166.5218
+      },
+      "no_answer_rejected": 22,
+      "no_answer_rejection": 0.9166666666666666,
+      "no_answer_total": 24,
+      "threshold": 0.2554669,
+      "total_latency_p50_ms": 215.3078,
+      "total_latency_p95_ms": 371.4168
+    },
+    "status": "GATE_SELECTED"
+  },
   "grounding_candidates": {
     "P0_CURRENT": {
-      "completed_cases": 96,
-      "metrics": {
-        "accepted_evidence_citation_compliance": {
-          "denominator": 58,
-          "numerator": 12,
-          "value": 0.20689655172413793
+      "artifacts": [
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
+          "sha256": "1b1a6813ff8403871bc55069d7ae1d8f4c0df19d5917badf2e054e63f4cb1d67"
         },
-        "answer_latency_p50_ms": 5382.292,
-        "answer_latency_p95_ms": 12884.25975,
-        "cases_without_evaluation_provenance": 0,
-        "citation_precision": {
-          "denominator": 19,
-          "numerator": 12,
-          "value": 0.631578947368421
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
+          "sha256": "2f5da3f8a75bbd35238ba8b6015d22f4b5d41f34e32ac6e0973e587f5aa3cd9e"
         },
-        "cost_metadata_coverage": {
-          "denominator": 96,
-          "numerator": 96,
-          "value": 1.0
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
+          "sha256": "aa94a7d0ab452eeb07de923ec4413b699b188e3c1da75bdf2fa60211baa8a7a0"
         },
-        "cost_metadata_observations": 96,
-        "execution_provenance_counts": [
-          {
-            "case_count": 96,
-            "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-            "worktree_dirty": true
-          }
-        ],
-        "expected_fact_coverage": {
-          "denominator": 72,
-          "numerator": 4,
-          "value": 0.05555555555555555
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
+          "sha256": "6091a60e6c175d13448f0b1d0aa3182461e96e317d4b1d0e43540a7a30c4a4aa"
         },
-        "groundedness": {
-          "denominator": 4,
-          "numerator": 0,
-          "value": 0.0
-        },
-        "mean_cost_usd_over_costed_observations": 0.00027919062499999996,
-        "model_metadata": {
-          "capability_aliases": [
-            "agent-fast"
-          ],
-          "models": [
-            "groq/openai/gpt-oss-120b"
-          ],
-          "observations_with_model_metadata": 96,
-          "providers": []
-        },
-        "recognized_fact_units": 4,
-        "repair_attempts": 0,
-        "repair_cost_mean_usd_over_costed_attempts": null,
-        "repair_cost_observations": 0,
-        "repair_cost_total_usd": null,
-        "repair_failures": 0,
-        "repair_model_latency_p50_ms": null,
-        "repair_model_latency_p95_ms": null,
-        "repair_successes": 0,
-        "retrieval_evidence_gate_accuracy": {
-          "denominator": 96,
-          "numerator": 78,
-          "value": 0.8125
-        },
-        "safe_fallback_count": 0,
-        "safe_fallback_rate": 0.0,
-        "total_cost_usd_over_costed_observations": 0.026802299999999998,
-        "unsupported_claim_rate": 1.0,
-        "unsupported_fact_units": 4
-      },
-      "status": "COMPLETE",
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/run-summary.json",
+          "sha256": "bac282303bbbcac3c496bfe5decef9bfc33044f022ac9b75cf07e82a3af293c3"
+        }
+      ],
+      "blocked_case_id": "m5d-v02-returns-009",
+      "completed_cases": 18,
+      "gateway_provider_http_429_observed": true,
+      "public_api_http_status": 503,
+      "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+      "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546",
+      "status": "PROVIDER_BLOCKED_INCOMPLETE_NOT_SCORED",
       "total_cases": 96
     },
     "P1_PROMPT_V3": {
-      "completed_cases": 96,
-      "metrics": {
-        "accepted_evidence_citation_compliance": {
-          "denominator": 58,
-          "numerator": 54,
-          "value": 0.9310344827586207
-        },
-        "answer_latency_p50_ms": 3657.34,
-        "answer_latency_p95_ms": 13824.627499999999,
-        "cases_without_evaluation_provenance": 0,
-        "citation_precision": {
-          "denominator": 82,
-          "numerator": 52,
-          "value": 0.6341463414634146
-        },
-        "cost_metadata_coverage": {
-          "denominator": 96,
-          "numerator": 96,
-          "value": 1.0
-        },
-        "cost_metadata_observations": 96,
-        "execution_provenance_counts": [
-          {
-            "case_count": 96,
-            "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-            "worktree_dirty": true
-          }
-        ],
-        "expected_fact_coverage": {
-          "denominator": 72,
-          "numerator": 2,
-          "value": 0.027777777777777776
-        },
-        "groundedness": {
-          "denominator": 2,
-          "numerator": 2,
-          "value": 1.0
-        },
-        "mean_cost_usd_over_costed_observations": 0.000246890625,
-        "model_metadata": {
-          "capability_aliases": [
-            "agent-fast"
-          ],
-          "models": [
-            "groq/openai/gpt-oss-120b"
-          ],
-          "observations_with_model_metadata": 96,
-          "providers": []
-        },
-        "recognized_fact_units": 2,
-        "repair_attempts": 0,
-        "repair_cost_mean_usd_over_costed_attempts": null,
-        "repair_cost_observations": 0,
-        "repair_cost_total_usd": null,
-        "repair_failures": 0,
-        "repair_model_latency_p50_ms": null,
-        "repair_model_latency_p95_ms": null,
-        "repair_successes": 0,
-        "retrieval_evidence_gate_accuracy": {
-          "denominator": 96,
-          "numerator": 78,
-          "value": 0.8125
-        },
-        "safe_fallback_count": 0,
-        "safe_fallback_rate": 0.0,
-        "total_cost_usd_over_costed_observations": 0.0237015,
-        "unsupported_claim_rate": 0.0,
-        "unsupported_fact_units": 0
-      },
-      "status": "COMPLETE",
+      "completed_cases": 0,
+      "status": "NOT_RUN_AFTER_P0_PROVIDER_BLOCK",
       "total_cases": 96
     },
     "P2_FAIL_CLOSED_CITATIONS": {
-      "completed_cases": 39,
-      "execution_provenance_counts": [
-        {
-          "case_count": 31,
-          "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-          "worktree_dirty": true
-        },
-        {
-          "case_count": 6,
-          "evaluated_git_sha": "44034e47119ec63c23f3abf4adcee20cac08ce4b",
-          "worktree_dirty": false
-        },
-        {
-          "case_count": 2,
-          "evaluated_git_sha": "ebac389897bb44169b9dafff01a29926ec4e7615",
-          "worktree_dirty": false
-        }
-      ],
-      "status": "PROVIDER_BLOCKED_INCOMPLETE",
+      "completed_cases": 0,
+      "status": "NOT_RUN_CANONICAL",
+      "total_cases": 96
+    },
+    "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+      "completed_cases": 0,
+      "status": "NOT_RUN_AFTER_PROVIDER_BLOCK",
       "total_cases": 96
     }
+  },
+  "grounding_selection": {
+    "partial_candidate_metrics_scored": false,
+    "selected_candidate": null,
+    "status": "NOT_SELECTED_INCOMPLETE_CANONICAL_EVIDENCE"
+  },
+  "historical_noncanonical_evidence": {
+    "canonical_and_historical_results_must_not_be_combined": true,
+    "known_integrity_issues": {
+      "P2": "mixed_implementation_states",
+      "gate_and_P0_P1": "dirty_evaluation_worktree"
+    },
+    "metrics_used": false,
+    "pre_replacement_sources": {
+      "docs/evaluation/stage5-m5d-b-dev-results.md": {
+        "git_blob_sha": "037a4e9e8968def65978fe7d612e3c5abe93cd4c",
+        "sha256_before_replacement": "1be433bf79e41fb07d286863f524917b5d1ba7c419ad84babd68f6cc1051d34a"
+      },
+      "evals/rag/v0.2/dev-decision.json": {
+        "git_blob_sha": "53602a48217698467d25a5221e08beb54bb5300e",
+        "sha256_before_replacement": "8ee3bbf353e3fa9bbd5ba4d1d3eb1833b399743fa67e8543fb4201fab6fe5a77"
+      },
+      "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json": {
+        "git_blob_sha": "c0d137b9d84f6bab2d965eeb72d4d2f9b83b9879",
+        "sha256_before_replacement": "7a69ae54f3c588ea3970cc513321b7087236551520ae0e371d0fc93bf38d96de"
+      }
+    },
+    "prior_source_revision": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "treatment": "RETAINED_IN_PRE_CANONICAL_GIT_REVISION_AND_LEGACY_LOCAL_ARTIFACTS; EXCLUDED_FROM_THIS_SUMMARY_AND_ALL_CANONICAL_SELECTION"
   },
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "locked_base_sha": "0be9e43021beac020c29dc67d54fc367a7c31480",
   "model_status": {
-    "M0": "EXECUTED_ON_P0_P1_AND_PARTIAL_P2",
+    "M0": "SANITIZED_SMOKE_SUCCEEDED_P0_PARTIAL_PROVIDER_BLOCKED",
+    "M0_model": "groq/openai/gpt-oss-120b",
     "M1": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
-    "M1_environment_configuration_complete": false,
-    "comparison": "not performed; no comparative model recommendation",
-    "model": "groq/openai/gpt-oss-120b",
-    "provider_route": "Groq OpenAI-compatible endpoint",
-    "provider_trace_metadata": "null/omitted in the sanitized smoke and Stage 4 baseline; configured family recorded as groq"
-  },
-  "p3_one_repair_then_fail_closed": {
-    "completed_cases": 0,
-    "status": "NOT_RUN_PROVIDER_BLOCKED_BEFORE_P3",
-    "total_cases": 96
+    "M1_comparison": "not performed",
+    "M1_model": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+    "canonical_P0_capability_aliases": [
+      "agent-fast"
+    ],
+    "canonical_P0_model_metadata_observations": 18,
+    "canonical_P0_models": [
+      "groq/openai/gpt-oss-120b"
+    ],
+    "canonical_P0_observations_with_model_metadata": 18,
+    "canonical_P0_provider_metadata_observations": 0,
+    "canonical_P0_providers_observed": [],
+    "capability_alias": "agent-fast",
+    "configured_provider_family": "Groq",
+    "provider": "Groq",
+    "provider_smoke_artifact": {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/provider-smoke.json",
+      "sha256": "9a304b00cc4883a237fcc84aea592e936942c5dad414eaa534a4c2519b1683aa"
+    },
+    "provider_smoke_run_id": "m0-provider-smoke-20260929T124459Z",
+    "provider_smoke_success": true
   },
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
   "production_promoted": false,
-  "provider_block": {
-    "blocked_checkpoint": "P2_FAIL_CLOSED_CITATIONS",
-    "capability_alias": "agent-fast",
-    "completed_cases": 39,
-    "gateway_diagnostic": "provider rate-limit (HTTP 429) events; provider key absent from inspected logs",
-    "observed_api_failure": "HTTP 503 from the public agent message endpoint",
-    "persisted_agent_error_code": "agent_unavailable",
-    "persisted_model_call_error_code": "llm_unavailable",
-    "total_cases": 96
-  },
-  "provider_smoke": {
-    "agent_fast_resolved": true,
-    "configured_provider_family": "groq",
-    "credential_output": "none",
-    "gateway_healthy": true,
-    "model": "groq/openai/gpt-oss-120b",
-    "provider_metadata": null,
-    "request_succeeded": true,
-    "response_content_printed": false
-  },
+  "production_prompt_changed": false,
+  "production_retrieval_changed": false,
   "release_holdout_executed": false,
-  "schema_version": "m5d-b-dev-evidence-v1",
-  "selected_gate": {
-    "answerable_acceptance": 0.7777777777777778,
-    "answerable_accepted": 56,
-    "answerable_total": 72,
-    "eligible": true,
-    "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
-    "latency_component_p50_ms": {
-      "cross_encoder_scoring": 105.8935,
-      "hybrid_retrieval": 100.83345
-    },
-    "latency_component_p95_ms": {
-      "cross_encoder_scoring": 227.0106,
-      "hybrid_retrieval": 160.6444
-    },
-    "no_answer_rejected": 22,
-    "no_answer_rejection": 0.9166666666666666,
-    "no_answer_total": 24,
-    "threshold": 0.2554669,
-    "total_latency_p50_ms": 214.22725,
-    "total_latency_p95_ms": 397.465825
-  },
-  "selection_json_created": false,
+  "schema_version": "m5d-b-dev-canonical-evidence-v2",
+  "selection_json_present": false,
   "split": "dev",
-  "stage4_dev": {
-    "cases": 96,
-    "release_holdout_executed": false,
-    "status": "NOT_RUN_NO_COMPLETED_RAG_ELIGIBLE_GROUNDING_CANDIDATE"
-  },
-  "stage5_production_behavior_changed": false,
+  "stage4_dev_status": "NOT_RUN_NO_COMPLETED_RAG_QUALIFIED_GROUNDING_CANDIDATE",
   "stage6_started": false,
-  "stage_m5d_c_started": false
+  "stage_m5d_c_started": false,
+  "summary_artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate-report.json",
+      "sha256": "ad96bd0e53f87dd43f02d7024df2f91d5b29661806abc015f859a6d1dcab5628"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
+      "sha256": "6091a60e6c175d13448f0b1d0aa3182461e96e317d4b1d0e43540a7a30c4a4aa"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/provider-smoke.json",
+      "sha256": "9a304b00cc4883a237fcc84aea592e936942c5dad414eaa534a4c2519b1683aa"
+    }
+  ]
 }
