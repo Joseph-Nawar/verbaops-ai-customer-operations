@@ -13,6 +13,7 @@ from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_sc
 from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
 from verbaops.evaluation.rag_runner import score_meets_threshold
+from verbaops.evaluation.rag_v02 import RagV02Case, recognize_labeled_fact_assertion
 
 
 class GroundedExecutionAdapter(Protocol):
@@ -74,24 +75,32 @@ async def run_grounded_evaluation(
     return written
 
 
-def _judgments(case: RagCase) -> dict[str, int]:
+def _judgments(case: RagCase | RagV02Case) -> dict[str, int]:
     return {
         f"{item.document_slug}|{item.document_version}|{item.section}|{item.chunk_index}": item.relevance_grade
         for item in case.relevance_judgments
     }
 
 
-def _recognized_fact_count(case: RagCase, answer: str) -> tuple[int, int]:
+def _recognized_fact_count(case: RagCase | RagV02Case, answer: str) -> tuple[int, int]:
     normalized = " ".join(answer.casefold().split())
     recognized = 0
     for fact in case.expected_facts:
-        if fact.aliases and any(alias.casefold() in normalized for alias in fact.aliases):
+        if case.dataset_version == "rag-v0.2":
+            matched = recognize_labeled_fact_assertion(answer, fact.aliases)
+        else:
+            matched = bool(fact.aliases) and any(
+                alias.casefold() in normalized for alias in fact.aliases
+            )
+        if matched:
             recognized += 1
     return recognized, len(case.expected_facts)
 
 
 def score_grounded_records(
-    cases: Sequence[RagCase], records: Sequence[Mapping[str, Any]], threshold: float
+    cases: Sequence[RagCase | RagV02Case],
+    records: Sequence[Mapping[str, Any]],
+    threshold: float,
 ) -> dict[str, Any]:
     """Score only labeled factual units; no model or LLM judge is involved."""
 
@@ -112,8 +121,16 @@ def score_grounded_records(
         citation_numerator += case_citations.numerator
         citation_denominator += case_citations.denominator
         answer = str(record.get("final_answer", ""))
+        score_options = (
+            {"assertion_recognizer": recognize_labeled_fact_assertion}
+            if case.dataset_version == "rag-v0.2"
+            else {}
+        )
         grounded = grounded_fact_score(
-            answer, [fact.model_dump() for fact in case.expected_facts], citations
+            answer,
+            [fact.model_dump() for fact in case.expected_facts],
+            citations,
+            **score_options,
         )
         grounded_recognized += grounded.recognized
         grounded_supported += grounded.supported

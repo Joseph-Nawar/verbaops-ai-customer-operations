@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-unit-contract rag-contract rag-evaluation-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check rag-eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-unit-contract rag-contract rag-evaluation-contract m5d-evaluation-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check rag-eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
 
 sync:
 	$(UV) sync
@@ -68,7 +68,11 @@ rag-contract:
 
 rag-evaluation-contract:
 	$(UV) run python scripts/check_rag_eval_corpus.py
-	$(UV) run pytest tests/evaluation -k "rag_" -q
+	$(UV) run pytest tests/evaluation -k "rag_ and not rag_v02" -q
+
+m5d-evaluation-contract:
+	$(UV) run python scripts/check_rag_v02_corpus.py --split dev
+	$(UV) run pytest tests/evaluation/test_rag_v02_contract.py -q
 
 rag-eval-corpus-check:
 	$(UV) run python scripts/check_rag_eval_corpus.py
