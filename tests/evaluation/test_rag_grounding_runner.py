@@ -8,6 +8,7 @@ import pytest
 from verbaops.evaluation.rag_corpus import load_rag_cases
 from verbaops.evaluation.rag_grounding import (
     GroundedExecutionAdapter,
+    M5dCaseExecutionError,
     run_grounded_evaluation,
     score_grounded_records,
 )
@@ -141,6 +142,81 @@ async def test_grounded_runner_records_evaluation_provenance_per_case(tmp_path: 
 
     assert records[0]["evaluated_git_sha"] == "44034e47119ec63c23f3abf4adcee20cac08ce4b"
     assert records[0]["evaluation_worktree_dirty"] is False
+
+
+@pytest.mark.asyncio
+async def test_grounded_runner_binds_resume_to_full_m5d_run_identity(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    checkpoint = tmp_path / "grounded.jsonl"
+    identity = {
+        "benchmark_version": "rag-v0.2",
+        "split": "dev",
+        "dataset_sha256": "a" * 64,
+        "knowledge_manifest_sha256": "b" * 64,
+        "experiment_plan_sha256": "c" * 64,
+        "pre_experiment_sha": "d" * 40,
+        "evaluated_git_sha": "e" * 40,
+        "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+        "evidence_gate_threshold": 0.25,
+        "grounding_candidate": "P0_CURRENT",
+        "model_candidate": "M0",
+        "retrieval_profile_version": "knowledge-retrieval-v1.1",
+        "agent_prompt_version": "text-agent-system-v2",
+        "agent_graph_version": "text-agent-v2",
+        "model_revision": "groq/openai/gpt-oss-120b",
+        "run_id": "canonical-run-001",
+    }
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            return {"final_answer": "answer"}
+
+    await run_grounded_evaluation((case,), Adapter(), checkpoint, run_identity=identity)
+    changed = {**identity, "evidence_gate_threshold": 0.3}
+    with pytest.raises(ValueError, match="identity mismatch"):
+        await run_grounded_evaluation((case,), Adapter(), checkpoint, run_identity=changed)
+
+
+@pytest.mark.asyncio
+async def test_canonical_grounded_runner_reports_blocked_case_without_provider_payload(
+    tmp_path: Path,
+) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    identity = {
+        "benchmark_version": "rag-v0.2",
+        "split": "dev",
+        "dataset_sha256": "a" * 64,
+        "knowledge_manifest_sha256": "b" * 64,
+        "experiment_plan_sha256": "c" * 64,
+        "pre_experiment_sha": "d" * 40,
+        "evaluated_git_sha": "e" * 40,
+        "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+        "evidence_gate_threshold": 0.25,
+        "grounding_candidate": "P0_CURRENT",
+        "model_candidate": "M0",
+        "retrieval_profile_version": "knowledge-retrieval-v1.1",
+        "agent_prompt_version": "text-agent-system-v2",
+        "agent_graph_version": "text-agent-v2",
+        "model_revision": "groq/openai/gpt-oss-120b",
+        "run_id": "canonical-run-429",
+    }
+
+    class ProviderError(Exception):
+        response = type("Response", (), {"status_code": 429})()
+
+        def __str__(self) -> str:
+            return "private provider payload"
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            raise ProviderError()
+
+    with pytest.raises(M5dCaseExecutionError, match=case.case_id) as captured:
+        await run_grounded_evaluation(
+            (case,), Adapter(), tmp_path / "grounded.jsonl", run_identity=identity
+        )
+    assert captured.value.status_code == 429
+    assert "private provider payload" not in str(captured.value)
 
 
 def test_grounded_scoring_uses_labeled_facts_and_retrieval_evidence_gate() -> None:

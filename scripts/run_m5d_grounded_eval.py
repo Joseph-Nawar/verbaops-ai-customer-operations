@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import json
 import os
-import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,22 @@ from typing import Any
 import httpx
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from verbaops.evaluation.rag_grounding import run_grounded_evaluation, score_grounded_records
+from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION
+from verbaops.evaluation.m5d_run_identity import (
+    PRE_EXPERIMENT_SHA,
+    artifact_reference,
+    bind_checkpoint_identity,
+    load_checkpoint_records,
+    require_canonical_run_directory,
+    require_committed_behavior,
+    run_identity_sha256,
+    verify_artifact_references,
+)
+from verbaops.evaluation.rag_grounding import (
+    M5dCaseExecutionError,
+    run_grounded_evaluation,
+    score_grounded_records,
+)
 from verbaops.evaluation.rag_v02 import (
     audit_rag_v02,
     guard_rag_v02_split,
@@ -23,6 +37,7 @@ from verbaops.evaluation.rag_v02 import (
 )
 from verbaops.evaluation.rag_v02_gates import EvidenceGate
 from verbaops.evaluation.rag_v02_grounded_runtime import PublicRagV02AgentAdapter
+from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 
 ROOT = Path(__file__).resolve().parents[1]
 GROUNDING_CANDIDATES = {
@@ -31,24 +46,6 @@ GROUNDING_CANDIDATES = {
     "P2_FAIL_CLOSED_CITATIONS",
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
 }
-
-
-def _evaluation_provenance() -> dict[str, str | bool]:
-    git_sha = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    worktree_status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    return {"evaluated_git_sha": git_sha, "evaluation_worktree_dirty": bool(worktree_status)}
 
 
 async def _run(args: argparse.Namespace) -> None:
@@ -86,8 +83,50 @@ async def _run(args: argparse.Namespace) -> None:
     if gate_report.get("holdout_executed") is not False:
         raise ValueError("gate report does not attest DEV-only execution")
 
+    evaluated_git_sha = require_committed_behavior(ROOT, pre_experiment_sha=PRE_EXPERIMENT_SHA)
+    gate_identity = gate_report.get("run_identity")
+    if (
+        not isinstance(gate_identity, dict)
+        or gate_report.get("evaluated_git_sha") != evaluated_git_sha
+        or gate_report.get("pre_experiment_sha") != PRE_EXPERIMENT_SHA
+        or gate_identity.get("run_id") != gate_report.get("run_id")
+    ):
+        raise ValueError("gate report is not bound to the committed canonical implementation")
+    if gate_report.get("run_identity_sha256") != run_identity_sha256(gate_identity):
+        raise ValueError("gate report run identity checksum is invalid")
+    gate_artifacts = gate_report.get("artifacts")
+    if not isinstance(gate_artifacts, list):
+        raise ValueError("gate report is missing hash-bound artifacts")
+    verify_artifact_references(ROOT, gate_artifacts)
+    require_canonical_run_directory(ROOT, args.run_dir, run_id=args.run_id)
+    prompt_version = (
+        "text-agent-system-v3"
+        if args.grounding in {"P1_PROMPT_V3", "P3_ONE_REPAIR_THEN_FAIL_CLOSED"}
+        else PROMPT_VERSION
+    )
+    run_identity = {
+        "benchmark_version": audit.dataset_version,
+        "split": "dev",
+        "dataset_sha256": audit.dataset_sha256,
+        "knowledge_manifest_sha256": audit.knowledge_manifest_sha256,
+        "experiment_plan_sha256": sha256_file(ROOT / "evals/rag/v0.2/experiment-plan.json"),
+        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+        "evaluated_git_sha": evaluated_git_sha,
+        "evidence_gate": gate.value,
+        "evidence_gate_threshold": args.threshold,
+        "grounding_candidate": args.grounding,
+        "model_candidate": args.model_candidate,
+        "retrieval_profile_version": PRODUCTION_RETRIEVAL_PROFILE.version,
+        "agent_prompt_version": prompt_version,
+        "agent_graph_version": GRAPH_VERSION,
+        "model_revision": "groq/openai/gpt-oss-120b"
+        if args.model_candidate == "M0"
+        else "M1-local",
+        "run_id": args.run_id,
+    }
     args.run_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = args.run_dir / "grounded_cases.jsonl"
+    identity_digest = bind_checkpoint_identity(checkpoint, run_identity)
     engine = create_async_engine(args.database_url, pool_pre_ping=True, echo=False)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     secrets_to_hide = tuple(
@@ -100,7 +139,13 @@ async def _run(args: argparse.Namespace) -> None:
         )
         if value
     )
-    provenance = _evaluation_provenance()
+    provenance = {
+        "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_worktree_dirty": False,
+        "run_identity_sha256": identity_digest,
+        "run_id": args.run_id,
+    }
+    blocked_error: M5dCaseExecutionError | None = None
     try:
         async with httpx.AsyncClient(timeout=args.timeout_seconds) as client:
             adapter = PublicRagV02AgentAdapter(
@@ -118,12 +163,26 @@ async def _run(args: argparse.Namespace) -> None:
                 secrets_to_hide=secrets_to_hide,
                 delay_seconds_between_cases=args.inter_case_delay_seconds,
                 record_metadata=provenance,
+                run_identity=run_identity,
             )
+    except M5dCaseExecutionError as error:
+        blocked_error = error
     finally:
         await engine.dispose()
-    records: list[dict[str, Any]] = [
-        json.loads(line) for line in checkpoint.read_text(encoding="utf-8").splitlines() if line
-    ]
+    if blocked_error is not None:
+        _write_interrupted_summary(
+            args,
+            cases=cases,
+            run_identity=run_identity,
+            identity_digest=identity_digest,
+            evaluated_git_sha=evaluated_git_sha,
+            error=blocked_error,
+        )
+        raise blocked_error
+    record_map = load_checkpoint_records(
+        checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
+    )
+    records = [record_map[case.case_id] for case in cases if case.case_id in record_map]
     report = score_grounded_records(cases, records, args.threshold)
     costs = [float(record["cost_usd"]) for record in records if record.get("cost_usd") is not None]
     report["total_cost_usd_over_costed_observations"] = sum(costs) if costs else None
@@ -132,6 +191,9 @@ async def _run(args: argparse.Namespace) -> None:
     report["model_metadata"] = _metadata_summary(records)
     metadata = {
         "run_id": args.run_id,
+        "canonical": True,
+        "run_identity": run_identity,
+        "run_identity_sha256": identity_digest,
         "dataset_version": audit.dataset_version,
         "split": "dev",
         "case_count": len(cases),
@@ -157,11 +219,36 @@ async def _run(args: argparse.Namespace) -> None:
         "production_promoted": False,
         "credentials_persisted": False,
     }
-    (args.run_dir / "metadata.json").write_text(
+    identity_path = checkpoint.with_name(f"{checkpoint.name}.identity.json")
+    metadata_path = args.run_dir / "metadata.json"
+    report_path = args.run_dir / "report.json"
+    metadata["artifacts"] = [
+        artifact_reference(ROOT, checkpoint),
+        artifact_reference(ROOT, identity_path),
+    ]
+    metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    (args.run_dir / "report.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    report["canonical_run_id"] = args.run_id
+    report["canonical_run_identity_sha256"] = identity_digest
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary = {
+        "canonical": True,
+        "run_id": args.run_id,
+        "run_identity": run_identity,
+        "run_identity_sha256": run_identity_sha256(run_identity),
+        "evaluated_git_sha": evaluated_git_sha,
+        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+        "completed_cases": len(records),
+        "artifacts": [
+            artifact_reference(ROOT, checkpoint),
+            artifact_reference(ROOT, identity_path),
+            artifact_reference(ROOT, metadata_path),
+            artifact_reference(ROOT, report_path),
+        ],
+    }
+    (args.run_dir / "run-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(
         json.dumps(
@@ -194,6 +281,77 @@ def _metadata_summary(records: list[dict[str, Any]]) -> dict[str, object]:
     }
 
 
+def _write_interrupted_summary(
+    args: argparse.Namespace,
+    *,
+    cases: tuple[Any, ...],
+    run_identity: dict[str, Any],
+    identity_digest: str,
+    evaluated_git_sha: str,
+    error: M5dCaseExecutionError,
+) -> None:
+    checkpoint = args.run_dir / "grounded_cases.jsonl"
+    identity_path = checkpoint.with_name(f"{checkpoint.name}.identity.json")
+    completed = load_checkpoint_records(
+        checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
+    )
+    interruption_path = args.run_dir / "interruption.json"
+    interruption = {
+        "run_id": args.run_id,
+        "run_identity_sha256": identity_digest,
+        "grounding_candidate": args.grounding,
+        "model_candidate": args.model_candidate,
+        "blocked_case_id": error.case_id,
+        "error_type": error.error_type,
+        "http_status_code": error.status_code,
+        "completed_case_count": len(completed),
+        "holdout_executed": False,
+    }
+    interruption_path.write_text(
+        json.dumps(interruption, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    metadata_path = args.run_dir / "metadata.json"
+    metadata = {
+        "run_id": args.run_id,
+        "canonical": True,
+        "run_status": "INTERRUPTED",
+        "run_identity": run_identity,
+        "run_identity_sha256": identity_digest,
+        "evaluated_git_sha": evaluated_git_sha,
+        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+        "completed_case_count": len(completed),
+        "blocked_case_id": error.case_id,
+        "artifacts": [
+            artifact_reference(ROOT, checkpoint),
+            artifact_reference(ROOT, identity_path),
+            artifact_reference(ROOT, interruption_path),
+        ],
+    }
+    metadata_path.write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    summary = {
+        "canonical": True,
+        "run_status": "INTERRUPTED",
+        "run_id": args.run_id,
+        "run_identity": run_identity,
+        "run_identity_sha256": identity_digest,
+        "evaluated_git_sha": evaluated_git_sha,
+        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+        "completed_cases": len(completed),
+        "blocked_case_id": error.case_id,
+        "artifacts": [
+            artifact_reference(ROOT, checkpoint),
+            artifact_reference(ROOT, identity_path),
+            artifact_reference(ROOT, interruption_path),
+            artifact_reference(ROOT, metadata_path),
+        ],
+    }
+    (args.run_dir / "run-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="dev", choices=("dev", "release_holdout"))
@@ -214,7 +372,7 @@ def main() -> None:
     args = parser.parse_args()
     try:
         asyncio.run(_run(args))
-    except (OSError, ValueError, KeyError, httpx.HTTPError) as error:
+    except (OSError, ValueError, KeyError, httpx.HTTPError, M5dCaseExecutionError) as error:
         parser.error(str(error))
 
 

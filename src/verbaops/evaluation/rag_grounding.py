@@ -11,6 +11,10 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Protocol, TypeVar
 
+from verbaops.evaluation.m5d_run_identity import (
+    bind_checkpoint_identity,
+    load_checkpoint_records,
+)
 from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_score
 from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
@@ -28,6 +32,19 @@ class GroundedExecutionAdapter(Protocol[GroundedCase]):
 _SENSITIVE_KEY_MARKERS = ("api_key", "access_token", "authorization", "credential", "password")
 _BEARER_PATTERN = re.compile(r"(?i)(bearer\s+)[^\s,;]+")
 _SECRET_PATTERN = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b")
+
+
+class M5dCaseExecutionError(RuntimeError):
+    """Safe case-level interruption details without provider exception payloads."""
+
+    def __init__(self, case_id: str, status_code: int | None, error_type: str) -> None:
+        self.case_id = case_id
+        self.status_code = status_code
+        self.error_type = error_type
+        detail = f"M5D evaluation stopped on case {case_id} ({error_type})"
+        if status_code is not None:
+            detail += f"; HTTP status={status_code}"
+        super().__init__(detail)
 
 
 def _sanitize(value: Any, secrets_to_hide: Sequence[str] = ()) -> Any:
@@ -58,18 +75,27 @@ async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
     secrets_to_hide: Sequence[str] = (),
     delay_seconds_between_cases: float = 0.0,
     record_metadata: Mapping[str, Any] | None = None,
+    run_identity: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Execute missing cases and fsync one sanitized JSONL checkpoint per result."""
 
     if not math.isfinite(delay_seconds_between_cases) or delay_seconds_between_cases < 0:
         raise ValueError("inter-case delay must be a finite non-negative number")
     completed: set[str] = set()
-    if output_path.exists():
+    identity_fingerprint: str | None = None
+    if run_identity is not None:
+        case_ids = {case.case_id for case in cases}
+        identity_fingerprint = bind_checkpoint_identity(output_path, run_identity)
+        existing = load_checkpoint_records(output_path, run_identity, expected_case_ids=case_ids)
+        completed.update(existing)
+    elif output_path.exists():
         for line_number, line in enumerate(output_path.read_text(encoding="utf-8").splitlines(), 1):
             try:
                 raw = json.loads(line)
+                if not isinstance(raw, dict):
+                    raise ValueError("record must be an object")
                 case_id = str(raw["case_id"])
-            except (json.JSONDecodeError, KeyError, TypeError) as error:
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
                 raise ValueError(f"invalid grounded checkpoint line {line_number}") from error
             if case_id in completed:
                 raise ValueError(f"duplicate grounded checkpoint: {case_id}")
@@ -78,7 +104,18 @@ async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
     written: list[dict[str, Any]] = []
     pending_cases = [case for case in cases if case.case_id not in completed]
     for index, case in enumerate(pending_cases):
-        observed = await adapter.execute(case)
+        try:
+            observed = await adapter.execute(case)
+        except Exception as error:
+            if run_identity is None:
+                raise
+            response = getattr(error, "response", None)
+            status_code = getattr(response, "status_code", None)
+            raise M5dCaseExecutionError(
+                case.case_id,
+                status_code if isinstance(status_code, int) else None,
+                type(error).__name__,
+            ) from None
         if not isinstance(observed, Mapping):
             raise ValueError("grounded adapter must return a mapping")
         record_data: dict[str, Any] = {
@@ -87,6 +124,9 @@ async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
             **dict(record_metadata or {}),
         }
         record_data["case_id"] = case.case_id
+        if run_identity is not None:
+            record_data["run_id"] = run_identity["run_id"]
+            record_data["run_identity_sha256"] = identity_fingerprint
         if delay_seconds_between_cases > 0:
             record_data["evaluation_inter_case_delay_seconds"] = delay_seconds_between_cases
         record = _sanitize(record_data, secrets_to_hide=secrets_to_hide)
@@ -260,4 +300,9 @@ def score_grounded_records(
     }
 
 
-__all__ = ["GroundedExecutionAdapter", "run_grounded_evaluation", "score_grounded_records"]
+__all__ = [
+    "GroundedExecutionAdapter",
+    "M5dCaseExecutionError",
+    "run_grounded_evaluation",
+    "score_grounded_records",
+]
