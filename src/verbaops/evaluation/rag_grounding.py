@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
 import os
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_score
 from verbaops.evaluation.rag_models import MetricResult, RagCase
@@ -15,9 +17,11 @@ from verbaops.evaluation.rag_reports import percentile
 from verbaops.evaluation.rag_runner import score_meets_threshold
 from verbaops.evaluation.rag_v02 import RagV02Case, recognize_labeled_fact_assertion
 
+GroundedCase = TypeVar("GroundedCase", RagCase, RagV02Case, contravariant=True)
 
-class GroundedExecutionAdapter(Protocol):
-    async def execute(self, case: RagCase) -> Mapping[str, Any]: ...
+
+class GroundedExecutionAdapter(Protocol[GroundedCase]):
+    async def execute(self, case: GroundedCase) -> Mapping[str, Any]: ...
 
 
 _SENSITIVE_KEY_MARKERS = ("api_key", "access_token", "authorization", "credential", "password")
@@ -25,27 +29,38 @@ _BEARER_PATTERN = re.compile(r"(?i)(bearer\s+)[^\s,;]+")
 _SECRET_PATTERN = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b")
 
 
-def _sanitize(value: Any) -> Any:
+def _sanitize(value: Any, secrets_to_hide: Sequence[str] = ()) -> Any:
     if isinstance(value, Mapping):
         return {
-            str(key): _sanitize(item)
+            str(key): _sanitize(item, secrets_to_hide)
             for key, item in value.items()
             if not any(marker in str(key).casefold() for marker in _SENSITIVE_KEY_MARKERS)
         }
     if isinstance(value, list):
-        return [_sanitize(item) for item in value]
+        return [_sanitize(item, secrets_to_hide) for item in value]
     if isinstance(value, tuple):
-        return [_sanitize(item) for item in value]
+        return [_sanitize(item, secrets_to_hide) for item in value]
     if isinstance(value, str):
-        return _SECRET_PATTERN.sub("[redacted]", _BEARER_PATTERN.sub(r"\1[redacted]", value))
+        sanitized = _SECRET_PATTERN.sub("[redacted]", _BEARER_PATTERN.sub(r"\1[redacted]", value))
+        for secret in secrets_to_hide:
+            if secret:
+                sanitized = sanitized.replace(secret, "[redacted]")
+        return sanitized
     return value
 
 
-async def run_grounded_evaluation(
-    cases: Sequence[RagCase], adapter: GroundedExecutionAdapter, output_path: Path
+async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
+    cases: Sequence[GroundedCaseType],
+    adapter: GroundedExecutionAdapter[GroundedCaseType],
+    output_path: Path,
+    *,
+    secrets_to_hide: Sequence[str] = (),
+    delay_seconds_between_cases: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Execute missing cases and fsync one sanitized JSONL checkpoint per result."""
 
+    if not math.isfinite(delay_seconds_between_cases) or delay_seconds_between_cases < 0:
+        raise ValueError("inter-case delay must be a finite non-negative number")
     completed: set[str] = set()
     if output_path.exists():
         for line_number, line in enumerate(output_path.read_text(encoding="utf-8").splitlines(), 1):
@@ -59,19 +74,23 @@ async def run_grounded_evaluation(
             completed.add(case_id)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     written: list[dict[str, Any]] = []
-    for case in cases:
-        if case.case_id in completed:
-            continue
+    pending_cases = [case for case in cases if case.case_id not in completed]
+    for index, case in enumerate(pending_cases):
         observed = await adapter.execute(case)
         if not isinstance(observed, Mapping):
             raise ValueError("grounded adapter must return a mapping")
-        record = _sanitize({"case_id": case.case_id, **dict(observed)})
+        record_data: dict[str, Any] = {"case_id": case.case_id, **dict(observed)}
+        if delay_seconds_between_cases > 0:
+            record_data["evaluation_inter_case_delay_seconds"] = delay_seconds_between_cases
+        record = _sanitize(record_data, secrets_to_hide=secrets_to_hide)
         with output_path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
         completed.add(case.case_id)
         written.append(record)
+        if index < len(pending_cases) - 1 and delay_seconds_between_cases > 0:
+            await asyncio.sleep(delay_seconds_between_cases)
     return written
 
 

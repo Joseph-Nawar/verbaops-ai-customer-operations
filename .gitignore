@@ -45,4 +45,5 @@ Desktop.ini
 .npm/
 node_modules/
 artifacts/eval_runs/
+artifacts/m5d/
 .stage4-agent-v0.1-resume.json

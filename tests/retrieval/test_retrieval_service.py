@@ -5,7 +5,13 @@ from uuid import UUID
 
 import pytest
 
-from verbaops.retrieval.models import DenseHit, KnowledgeHit, LexicalHit, RerankScore
+from verbaops.retrieval.models import (
+    DenseHit,
+    EvidenceGateScore,
+    KnowledgeHit,
+    LexicalHit,
+    RerankScore,
+)
 from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.service import RetrievalService, RetrievalStatus
 
@@ -94,6 +100,26 @@ class ExplodingReranker:
         raise AssertionError("production hybrid RRF must not call the reranker")
 
 
+class FixedEvidenceGateScorer:
+    def __init__(self, confidence: float) -> None:
+        self.confidence = confidence
+        self.candidate_ids: list[UUID] = []
+
+    async def score(
+        self,
+        _query: str,
+        query_embedding: Sequence[float],
+        candidates: Sequence[Any],
+    ) -> EvidenceGateScore:
+        assert len(query_embedding) == 768
+        self.candidate_ids = [candidate.chunk.chunk_id for candidate in candidates]
+        return EvidenceGateScore(
+            confidence=self.confidence,
+            candidate_scores=(self.confidence,) * len(candidates),
+            component_latency_ms={"candidate_score": 1.25},
+        )
+
+
 def session_factory() -> FakeSession:
     return FakeSession()
 
@@ -115,6 +141,61 @@ async def test_production_profile_uses_hybrid_rrf_without_reranker_dependency() 
     assert len(result.evidence) == 2
     assert repository.trace is not None
     assert repository.trace["retrieval_version"] == "knowledge-retrieval-v1.1"
+
+
+@pytest.mark.asyncio
+async def test_gate_scorer_receives_exact_final_five_only() -> None:
+    candidates = [knowledge(index) for index in range(8)]
+    repository = FakeRepository(candidates)
+    scorer = FixedEvidenceGateScorer(confidence=0.05)
+    service = RetrievalService(
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
+        embedding_client=FakeEmbedding(),
+        reranker_client=ExplodingReranker(),
+        profile=PRODUCTION_RETRIEVAL_PROFILE,
+        evidence_gate_scorer=scorer,
+        evidence_gate_threshold=0.04,
+    )
+
+    result = await service.retrieve(agent_run_id=RUN_ID, tenant_id=TENANT_ID, query="warranty")
+
+    assert result.status is RetrievalStatus.SUCCEEDED
+    assert len(scorer.candidate_ids) == 5
+    assert [item.chunk_id for item in result.evidence] == scorer.candidate_ids
+    assert result.gate_candidate_scores == (0.05,) * 5
+
+
+@pytest.mark.asyncio
+async def test_failed_gate_score_fails_closed_without_supplied_evidence() -> None:
+    class FailingGateScorer:
+        async def score(
+            self,
+            _query: str,
+            _query_embedding: Sequence[float],
+            _candidates: Sequence[Any],
+        ) -> EvidenceGateScore:
+            raise RuntimeError("scoring failure must not admit evidence")
+
+    repository = FakeRepository([knowledge(0)])
+    service = RetrievalService(
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
+        embedding_client=FakeEmbedding(),
+        reranker_client=ExplodingReranker(),
+        profile=PRODUCTION_RETRIEVAL_PROFILE,
+        evidence_gate_scorer=FailingGateScorer(),
+        evidence_gate_threshold=0.01,
+    )
+
+    result = await service.retrieve(agent_run_id=RUN_ID, tenant_id=TENANT_ID, query="warranty")
+
+    assert result.status is RetrievalStatus.FAILED
+    assert result.top_score is None
+    assert result.evidence == ()
+    assert repository.trace is not None
+    assert repository.trace["error_code"] == "evidence_gate_unavailable"
+    assert repository.trace["selected_count"] == 0
     assert repository.trace["strategy"] == "hybrid_rrf"
     assert repository.trace["reranked_candidate_count"] == 0
 
@@ -164,6 +245,35 @@ async def test_retrieval_service_abstains_when_top_score_is_below_provisional_th
     assert result.evidence == ()
     assert repository.trace is not None
     assert repository.trace["selected_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_optional_gate_scorer_overrides_only_evidence_acceptance_and_keeps_rrf_order() -> (
+    None
+):
+    repository = FakeRepository([knowledge(0), knowledge(1)])
+    scorer = FixedEvidenceGateScorer(confidence=0.05)
+    service = RetrievalService(
+        cast(Any, session_factory),
+        repository=cast(Any, repository),
+        embedding_client=FakeEmbedding(),
+        reranker_client=ExplodingReranker(),
+        profile=PRODUCTION_RETRIEVAL_PROFILE,
+        evidence_gate_scorer=scorer,
+        evidence_gate_threshold=0.04,
+    )
+
+    result = await service.retrieve(agent_run_id=RUN_ID, tenant_id=TENANT_ID, query="warranty")
+
+    assert result.status is RetrievalStatus.SUCCEEDED
+    assert scorer.candidate_ids == [item.chunk_id for item in [knowledge(0), knowledge(1)]]
+    assert [item.chunk_id for item in result.evidence] == scorer.candidate_ids
+    assert result.top_score == 0.05
+    assert result.gate_score_components_ms == {"candidate_score": 1.25}
+    assert repository.trace is not None
+    assert repository.trace["top_score"] == 0.05
+    assert repository.trace["strategy"] == "hybrid_rrf"
+    assert repository.trace["retrieval_version"] == "knowledge-retrieval-v1.1"
 
 
 @pytest.mark.asyncio

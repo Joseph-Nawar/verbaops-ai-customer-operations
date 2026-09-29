@@ -24,6 +24,45 @@ from verbaops.retrieval.rrf import dense_similarity_from_cosine_distance
 class RetrievalRepository:
     """Read-only retrieval statements with the tenant boundary in SQL."""
 
+    async def fetch_candidate_embeddings(
+        self,
+        connection: AsyncConnection,
+        *,
+        tenant_id: UUID,
+        chunk_ids: Sequence[UUID],
+        embedding_profile: str,
+    ) -> dict[UUID, list[float]]:
+        """Fetch stored vectors only for tenant-scoped, active supplied candidates."""
+
+        if not chunk_ids:
+            return {}
+        statement = (
+            sa.select(knowledge_chunks.c.id, knowledge_chunks.c.embedding)
+            .select_from(
+                knowledge_chunks.join(
+                    knowledge_versions,
+                    knowledge_versions.c.id == knowledge_chunks.c.version_id,
+                ).join(
+                    knowledge_documents,
+                    knowledge_documents.c.id == knowledge_versions.c.document_id,
+                )
+            )
+            .where(
+                knowledge_chunks.c.tenant_id == tenant_id,
+                knowledge_documents.c.tenant_id == tenant_id,
+                knowledge_chunks.c.id.in_(chunk_ids),
+                knowledge_versions.c.embedding_profile == embedding_profile,
+                knowledge_versions.c.status == "active",
+                knowledge_versions.c.effective_date <= sa.func.current_date(),
+            )
+        )
+        rows = (await connection.execute(statement)).mappings().all()
+        return {
+            row["id"]: [float(value) for value in row["embedding"]]
+            for row in rows
+            if row["embedding"] is not None
+        }
+
     async def search_dense(
         self,
         connection: AsyncConnection,

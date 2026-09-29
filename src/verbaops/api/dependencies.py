@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.auth.context import TrustedContext
 from verbaops.auth.provider import AuthenticationError, AuthProvider, OpaqueCredential
 from verbaops.config.settings import Settings
@@ -30,6 +31,7 @@ class ApplicationDependencies:
 
     settings: Settings
     auth_provider: AuthProvider
+    evaluation_profile: AgentEvaluationProfile | None = None
 
 
 class RuntimeResourceUnavailableError(RuntimeError):

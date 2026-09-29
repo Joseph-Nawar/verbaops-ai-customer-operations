@@ -1,6 +1,7 @@
 """Immutable retrieval and reranking value objects."""
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 from uuid import UUID
@@ -57,6 +58,15 @@ class RerankScore:
     score: float
 
 
+@dataclass(frozen=True, slots=True)
+class EvidenceGateScore:
+    """One query confidence plus scores and latency components for its final evidence."""
+
+    confidence: float | None
+    candidate_scores: tuple[float | None, ...] = ()
+    component_latency_ms: Mapping[str, float] = field(default_factory=dict)
+
+
 class RetrievalStatus(StrEnum):
     SUCCEEDED = "succeeded"
     INSUFFICIENT = "insufficient"
@@ -86,3 +96,5 @@ class RetrievalResult:
     evidence: tuple[RetrievalEvidence, ...]
     top_score: float | None = None
     error_code: str | None = None
+    gate_candidate_scores: tuple[float | None, ...] = ()
+    gate_score_components_ms: Mapping[str, float] = field(default_factory=dict)

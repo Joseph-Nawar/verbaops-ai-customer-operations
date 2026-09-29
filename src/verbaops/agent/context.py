@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from uuid import UUID
 
+from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
@@ -26,3 +27,4 @@ class AgentContext:
     conversation_service: ConversationService
     retrieval_service: RetrievalService | None = None
     citation_finalizer: CitationFinalizer | None = None
+    evaluation_profile: AgentEvaluationProfile | None = None

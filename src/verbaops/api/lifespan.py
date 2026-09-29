@@ -22,10 +22,16 @@ from verbaops.knowledge.embeddings import EmbeddingClient
 from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.service import KnowledgeService
 from verbaops.llm.litellm import LiteLLMClient
+from verbaops.retrieval.evidence_gate import (
+    DenseSimilarityGateScorer,
+    EvidenceGate,
+    RrfTopScoreGateScorer,
+    TopEvidenceCrossEncoderGateScorer,
+)
 from verbaops.retrieval.grounding import CitationFinalizer
 from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.reranker import RerankerClient
-from verbaops.retrieval.service import RetrievalService
+from verbaops.retrieval.service import EvidenceGateScorer, RetrievalService
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,7 +89,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         commerce_http_client = httpx.AsyncClient()
         llm_client = LiteLLMClient(dependencies.settings.llm, llm_http_client)
         embedding_client = EmbeddingClient(dependencies.settings.llm, llm_http_client)
-        if PRODUCTION_RETRIEVAL_PROFILE.uses_reranker:
+        evaluation_profile = dependencies.evaluation_profile
+        uses_evaluation_reranker = (
+            evaluation_profile is not None
+            and evaluation_profile.evidence_gate is EvidenceGate.G2_TOP_EVIDENCE_CROSS_ENCODER
+        )
+        if PRODUCTION_RETRIEVAL_PROFILE.uses_reranker or uses_evaluation_reranker:
             rag_http_client = httpx.AsyncClient()
             reranker_client = RerankerClient(
                 dependencies.settings.rag.reranker_url,
@@ -97,11 +108,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 database.session_factory,
                 repository=KnowledgeRepository(),
             )
+            gate_scorer: EvidenceGateScorer | None = None
+            gate_threshold = None
+            if evaluation_profile is not None and evaluation_profile.evidence_gate is not None:
+                gate_threshold = evaluation_profile.evidence_gate_threshold
+                if evaluation_profile.evidence_gate is EvidenceGate.G0_CURRENT_RRF:
+                    gate_scorer = RrfTopScoreGateScorer()
+                elif evaluation_profile.evidence_gate is EvidenceGate.G1_DENSE_SIMILARITY:
+                    gate_scorer = DenseSimilarityGateScorer(database.session_factory)
+                elif evaluation_profile.evidence_gate is EvidenceGate.G2_TOP_EVIDENCE_CROSS_ENCODER:
+                    if reranker_client is None:
+                        raise RuntimeError("M5D cross-encoder candidate is unavailable")
+                    gate_scorer = TopEvidenceCrossEncoderGateScorer(reranker_client)
             retrieval_service = RetrievalService(
                 database.session_factory,
                 embedding_client=embedding_client,
                 reranker_client=reranker_client,
                 profile=PRODUCTION_RETRIEVAL_PROFILE,
+                evidence_gate_scorer=gate_scorer,
+                evidence_gate_threshold=gate_threshold,
             )
             agent_runtime = AgentRuntime(
                 conversation_service=conversation_service,
@@ -109,6 +134,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 commerce_client=commerce_client,
                 retrieval_service=retrieval_service,
                 citation_finalizer=CitationFinalizer(),
+                evaluation_profile=evaluation_profile,
             )
         app.state.verbaops_runtime_resources = RuntimeResources(
             database=database,

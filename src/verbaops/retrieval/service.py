@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import replace
 from time import perf_counter
@@ -13,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from verbaops.knowledge.embeddings import EmbeddingProtocolError
 from verbaops.knowledge.profiles import EMBEDDING_PROFILE, format_query
 from verbaops.retrieval.models import (
+    EvidenceGateScore,
     FusedCandidate,
     RerankScore,
     RetrievalEvidence,
@@ -43,6 +45,15 @@ class RerankerProvider(Protocol):
     ) -> list[RerankScore]: ...
 
 
+class EvidenceGateScorer(Protocol):
+    async def score(
+        self,
+        query: str,
+        query_embedding: Sequence[float],
+        candidates: Sequence[FusedCandidate],
+    ) -> EvidenceGateScore: ...
+
+
 class RetrievalService:
     """Run hybrid retrieval while keeping external inference outside DB transactions."""
 
@@ -55,6 +66,8 @@ class RetrievalService:
         reranker_client: RerankerProvider | None,
         profile: RetrievalProfile = M5B_RETRIEVAL_PROFILE,
         min_rerank_score: float | None = None,
+        evidence_gate_scorer: EvidenceGateScorer | None = None,
+        evidence_gate_threshold: float | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._repository = repository or RetrievalRepository()
@@ -62,6 +75,12 @@ class RetrievalService:
         self._reranker_client = reranker_client
         self._profile = profile
         self._min_rerank_score = profile.threshold if min_rerank_score is None else min_rerank_score
+        if evidence_gate_scorer is not None and evidence_gate_threshold is None:
+            raise ValueError("evaluation evidence gate requires its candidate threshold")
+        if evidence_gate_threshold is not None and not math.isfinite(evidence_gate_threshold):
+            raise ValueError("evaluation evidence-gate threshold must be finite")
+        self._evidence_gate_scorer = evidence_gate_scorer
+        self._evidence_gate_threshold = evidence_gate_threshold
 
     async def retrieve(
         self,
@@ -155,15 +174,60 @@ class RetrievalService:
                     started=started,
                 )
             ranked = _apply_rerank_scores(fused, rerank_scores)
-        top_score = _top_score(ranked, self._profile.uses_reranker)
+        gate_candidate_scores: tuple[float | None, ...] = ()
+        gate_score_components_ms: dict[str, float] = {}
+        gate_scoring_failed = False
+        if self._evidence_gate_scorer is not None and ranked:
+            try:
+                score = await self._evidence_gate_scorer.score(
+                    normalized_query,
+                    vectors[0],
+                    ranked[: self._profile.final_limit],
+                )
+                if len(score.candidate_scores) not in (0, len(ranked[: self._profile.final_limit])):
+                    raise ValueError(
+                        "evidence-gate scorer returned an incomplete candidate score list"
+                    )
+                if any(
+                    not math.isfinite(value) or value < 0
+                    for value in score.component_latency_ms.values()
+                ):
+                    raise ValueError("evidence-gate scorer returned invalid latency metadata")
+                gate_candidate_scores = score.candidate_scores
+                gate_score_components_ms = dict(score.component_latency_ms)
+                top_score = (
+                    score.confidence
+                    if score.confidence is not None and math.isfinite(score.confidence)
+                    else None
+                )
+            except Exception:
+                top_score = None
+                gate_scoring_failed = True
+        else:
+            top_score = _top_score(ranked, self._profile.uses_reranker)
         selected = []
-        if top_score is not None and top_score >= self._min_rerank_score:
+        acceptance_threshold = (
+            self._evidence_gate_threshold
+            if self._evidence_gate_scorer is not None
+            else self._min_rerank_score
+        )
+        if (
+            top_score is not None
+            and acceptance_threshold is not None
+            and top_score >= acceptance_threshold
+        ):
             selected = [
                 replace(candidate, selected=True, evidence_key=f"K{index}")
                 for index, candidate in enumerate(ranked[: self._profile.final_limit], start=1)
             ]
         persisted_candidates = _merge_selected(ranked, selected)
-        status = RetrievalStatus.SUCCEEDED if selected else RetrievalStatus.INSUFFICIENT
+        status = (
+            RetrievalStatus.FAILED
+            if gate_scoring_failed
+            else RetrievalStatus.SUCCEEDED
+            if selected
+            else RetrievalStatus.INSUFFICIENT
+        )
         await self._persist(
             invocation_id=invocation_id,
             agent_run_id=agent_run_id,
@@ -177,13 +241,15 @@ class RetrievalService:
             selected=selected,
             top_score=top_score,
             latency_ms=_latency_ms(started),
-            error_code=None,
+            error_code="evidence_gate_unavailable" if gate_scoring_failed else None,
         )
         return RetrievalResult(
             invocation_id=invocation_id,
             status=status,
             evidence=tuple(_evidence(candidate) for candidate in selected),
             top_score=top_score,
+            gate_candidate_scores=gate_candidate_scores,
+            gate_score_components_ms=gate_score_components_ms,
         )
 
     async def _persist_unavailable(
@@ -334,6 +400,7 @@ __all__ = [
     "MIN_RERANK_SCORE",
     "RETRIEVAL_VERSION",
     "RRF_K",
+    "EvidenceGateScorer",
     "RetrievalService",
     "RetrievalStatus",
 ]

@@ -1,0 +1,209 @@
+services:
+  redis:
+    image: redis:7.4.3-alpine
+    ports:
+      - "127.0.0.1:${M5D_REDIS_HOST_PORT:-0}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  verbaops-postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: ${VERBAOPS_DB_NAME}
+      POSTGRES_USER: ${VERBAOPS_DB_USER}
+      POSTGRES_PASSWORD: ${VERBAOPS_DB_PASSWORD}
+    ports:
+      - "127.0.0.1:${VERBAOPS_DB_PORT:-0}:5432"
+    volumes:
+      - verbaops_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  verbaops-migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      VERBAOPS_ENVIRONMENT: test
+      VERBAOPS_DATABASE__URL: ${VERBAOPS_DATABASE__URL}
+    depends_on:
+      verbaops-postgres:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  commerce-postgres:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_DB: ${COMMERCE_DB_NAME}
+      POSTGRES_USER: ${COMMERCE_DB_USER}
+      POSTGRES_PASSWORD: ${COMMERCE_DB_PASSWORD}
+    volumes:
+      - commerce_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  commerce-migrate:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-postgres:
+        condition: service_healthy
+    command: ["alembic", "-c", "alembic-commerce.ini", "upgrade", "head"]
+
+  commerce-seed:
+    build:
+      context: .
+      target: seed
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+    depends_on:
+      commerce-migrate:
+        condition: service_completed_successfully
+    command: ["--seed", "20260821", "--as-of", "2026-08-21"]
+
+  commerce-api:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+      NOVACOMMERCE_SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
+    depends_on:
+      commerce-seed:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${COMMERCE_API_HOST_PORT:-0}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    command:
+      [
+        "uvicorn",
+        "novacommerce.api.runtime:create_runtime_app",
+        "--factory",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+
+  tei-embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9@sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48
+    command:
+      [
+        "--model-id",
+        "intfloat/multilingual-e5-base",
+        "--revision",
+        "d128750597153bb5987e10b1c3493a34e5a4502a",
+        "--port",
+        "80",
+        "--tokenization-workers",
+        "1",
+        "--max-concurrent-requests",
+        "8",
+        "--max-client-batch-size",
+        "8",
+        "--max-batch-tokens",
+        "2048",
+      ]
+    ports:
+      - "127.0.0.1:${TEI_EMBEDDING_HOST_PORT:-0}:80"
+    volumes:
+      - tei_embedding_cache:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 45
+
+  tei-reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9@sha256:c26a226262ad4ff3330fb30b76653c1bb65da2fcf413b92284545a010e0a8a48
+    command:
+      [
+        "--model-id",
+        "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
+        "--revision",
+        "1427fd652930e4ba29e8149678df786c240d8825",
+        "--port",
+        "80",
+        "--tokenization-workers",
+        "1",
+        "--max-concurrent-requests",
+        "8",
+        "--max-client-batch-size",
+        "8",
+        "--max-batch-tokens",
+        "2048",
+      ]
+    ports:
+      - "127.0.0.1:${TEI_RERANKER_HOST_PORT:-0}:80"
+    volumes:
+      - tei_reranker_cache:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 45
+
+  llm-gateway:
+    image: ghcr.io/berriai/litellm:v1.98.0@sha256:20b5044b619055374061a6d5b7b08754cad75aeabbf82ddf4f69cc0cf80ddaf4
+    command: ["--config", "/app/config.m5d.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      VERBAOPS_AGENT_FAST_MODEL: ${VERBAOPS_AGENT_FAST_MODEL}
+      VERBAOPS_AGENT_FAST_BASE_URL: ${VERBAOPS_AGENT_FAST_BASE_URL}
+      VERBAOPS_AGENT_FAST_API_KEY: ${VERBAOPS_AGENT_FAST_API_KEY}
+      VERBAOPS_EMBEDDING_MULTILINGUAL_MODEL: ${VERBAOPS_EMBEDDING_MULTILINGUAL_MODEL}
+      VERBAOPS_EMBEDDING_MULTILINGUAL_BASE_URL: ${VERBAOPS_EMBEDDING_MULTILINGUAL_BASE_URL}
+      VERBAOPS_EMBEDDING_MULTILINGUAL_API_KEY: ${VERBAOPS_EMBEDDING_MULTILINGUAL_API_KEY}
+    volumes:
+      - ./infra/litellm/config.m5d.yaml:/app/config.m5d.yaml:ro
+    ports:
+      - "127.0.0.1:${M5D_GATEWAY_HOST_PORT:-0}:4000"
+    depends_on:
+      tei-embedding:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  verbaops_data:
+  commerce_data:
+  tei_embedding_cache:
+    name: verbaops_tei_embedding_cache
+    external: true
+  tei_reranker_cache:
+    name: verbaops_tei_reranker_cache
+    external: true

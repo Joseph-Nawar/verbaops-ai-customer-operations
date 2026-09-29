@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
+from verbaops.evaluation import rag_grounding
 from verbaops.evaluation.rag_corpus import load_rag_cases
 from verbaops.evaluation.rag_grounding import (
     GroundedExecutionAdapter,
@@ -49,6 +51,27 @@ async def test_grounded_runner_resumes_completed_cases_and_sanitizes_credentials
 
 
 @pytest.mark.asyncio
+async def test_grounded_runner_redacts_configured_provider_secret_values(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    output = tmp_path / "grounded.jsonl"
+
+    class ProviderSecretAdapter:
+        async def execute(self, _case: Any) -> dict[str, object]:
+            return {"final_answer": "model echoed groq-secret-material"}
+
+    await run_grounded_evaluation(
+        (case,),
+        ProviderSecretAdapter(),
+        output,
+        secrets_to_hide=("groq-secret-material",),
+    )
+
+    saved = output.read_text(encoding="utf-8")
+    assert "groq-secret-material" not in saved
+    assert "[redacted]" in saved
+
+
+@pytest.mark.asyncio
 async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: Path) -> None:
     case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
     output = tmp_path / "grounded.jsonl"
@@ -57,6 +80,40 @@ async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: P
 
     with pytest.raises(ValueError, match="duplicate grounded checkpoint"):
         await run_grounded_evaluation((case,), cast(GroundedExecutionAdapter, object()), output)
+
+
+@pytest.mark.asyncio
+async def test_grounded_runner_waits_between_new_requests_only(tmp_path: Path, monkeypatch) -> None:
+    cases = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[:3]
+    output = tmp_path / "grounded.jsonl"
+    output.write_text(
+        json.dumps({"case_id": cases[0].case_id, "status": "completed"}) + "\n",
+        encoding="utf-8",
+    )
+    events: list[tuple[str, str | float]] = []
+
+    class Adapter:
+        async def execute(self, case: RagCase) -> dict[str, object]:
+            events.append(("execute", case.case_id))
+            return {"final_answer": "answer"}
+
+    async def fake_sleep(delay_seconds: float) -> None:
+        events.append(("sleep", delay_seconds))
+
+    monkeypatch.setattr(rag_grounding.asyncio, "sleep", fake_sleep)
+
+    await run_grounded_evaluation(
+        cases,
+        Adapter(),
+        output,
+        delay_seconds_between_cases=12.0,
+    )
+
+    assert events == [
+        ("execute", cases[1].case_id),
+        ("sleep", 12.0),
+        ("execute", cases[2].case_id),
+    ]
 
 
 def test_grounded_scoring_uses_labeled_facts_and_retrieval_evidence_gate() -> None:
