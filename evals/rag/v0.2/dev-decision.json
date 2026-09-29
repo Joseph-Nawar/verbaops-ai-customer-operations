@@ -1,0 +1,56 @@
+{
+  "benchmark_version": "rag-v0.2",
+  "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+  "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+  "holdout_executed": false,
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "model_status": {
+    "M0": "EXECUTED_ON_P0_P1_AND_PARTIAL_P2",
+    "M1": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
+    "M1_environment_configuration_complete": false,
+    "comparison": "not performed; no comparative model recommendation",
+    "model": "groq/openai/gpt-oss-120b",
+    "provider_route": "Groq OpenAI-compatible endpoint",
+    "provider_trace_metadata": "null/omitted in the sanitized smoke and Stage 4 baseline; configured family recorded as groq"
+  },
+  "production_promoted": false,
+  "provider_block": {
+    "blocked_checkpoint": "P2_FAIL_CLOSED_CITATIONS",
+    "capability_alias": "agent-fast",
+    "completed_cases": 39,
+    "gateway_diagnostic": "provider rate-limit (HTTP 429) events; provider key absent from inspected logs",
+    "observed_api_failure": "HTTP 503 from the public agent message endpoint",
+    "persisted_agent_error_code": "agent_unavailable",
+    "persisted_model_call_error_code": "llm_unavailable",
+    "total_cases": 96
+  },
+  "schema_version": "m5d-b-dev-decision-v1",
+  "selected_gate": {
+    "answerable_acceptance": 0.7777777777777778,
+    "answerable_accepted": 56,
+    "answerable_total": 72,
+    "eligible": true,
+    "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "latency_component_p50_ms": {
+      "cross_encoder_scoring": 105.8935,
+      "hybrid_retrieval": 100.83345
+    },
+    "latency_component_p95_ms": {
+      "cross_encoder_scoring": 227.0106,
+      "hybrid_retrieval": 160.6444
+    },
+    "no_answer_rejected": 22,
+    "no_answer_rejection": 0.9166666666666666,
+    "no_answer_total": 24,
+    "threshold": 0.2554669,
+    "total_latency_p50_ms": 214.22725,
+    "total_latency_p95_ms": 397.465825
+  },
+  "selected_grounding_candidate": null,
+  "selection_json_present": false,
+  "split": "dev",
+  "stage4_dev_status": "NOT_RUN_NO_COMPLETED_RAG_ELIGIBLE_GROUNDING_CANDIDATE",
+  "stage6_started": false,
+  "stage_m5d_c_started": false,
+  "status": "PROVIDER_RATE_LIMIT_BLOCKED_INCOMPLETE_GROUNDING_SWEEP"
+}

@@ -106,8 +106,12 @@ class PublicRagV02AgentAdapter:
             "repair_attempted": repair_attempted,
             "repair_succeeded": repair_succeeded,
             "repair_failed_reason": repair_failed_reason,
-            "repair_model_latency_ms": repair_call.latency_ms if repair_attempted else None,
-            "repair_cost_usd": repair_call.cost_usd if repair_attempted else None,
+            "repair_model_latency_ms": (
+                repair_call.latency_ms if repair_attempted and repair_call is not None else None
+            ),
+            "repair_cost_usd": (
+                repair_call.cost_usd if repair_attempted and repair_call is not None else None
+            ),
             "status": trace.run.status,
         }
 

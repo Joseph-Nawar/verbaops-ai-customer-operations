@@ -1,10 +1,10 @@
+import asyncio
 import json
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
-from verbaops.evaluation import rag_grounding
 from verbaops.evaluation.rag_corpus import load_rag_cases
 from verbaops.evaluation.rag_grounding import (
     GroundedExecutionAdapter,
@@ -80,11 +80,15 @@ async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: P
     output.write_text(line + line, encoding="utf-8")
 
     with pytest.raises(ValueError, match="duplicate grounded checkpoint"):
-        await run_grounded_evaluation((case,), cast(GroundedExecutionAdapter, object()), output)
+        await run_grounded_evaluation(
+            (case,), cast(GroundedExecutionAdapter[RagCase], object()), output
+        )
 
 
 @pytest.mark.asyncio
-async def test_grounded_runner_waits_between_new_requests_only(tmp_path: Path, monkeypatch) -> None:
+async def test_grounded_runner_waits_between_new_requests_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     cases = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[:3]
     output = tmp_path / "grounded.jsonl"
     output.write_text(
@@ -101,7 +105,7 @@ async def test_grounded_runner_waits_between_new_requests_only(tmp_path: Path, m
     async def fake_sleep(delay_seconds: float) -> None:
         events.append(("sleep", delay_seconds))
 
-    monkeypatch.setattr(rag_grounding.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
     await run_grounded_evaluation(
         cases,

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import date
+from typing import cast
 from uuid import UUID
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from verbaops.retrieval.evidence_gate import (
     DenseSimilarityGateScorer,
@@ -16,6 +18,7 @@ from verbaops.retrieval.models import (
     KnowledgeHit,
     RerankScore,
 )
+from verbaops.retrieval.repository import RetrievalRepository
 
 TENANT_ID = UUID("60000000-0000-0000-0000-000000000001")
 
@@ -106,8 +109,8 @@ async def test_dense_gate_scores_exact_final_candidates_including_lexical_only_e
         {candidate.chunk.chunk_id: [1.0] + [0.0] * 767 for candidate in candidates}
     )
     scorer = DenseSimilarityGateScorer(
-        _session_factory,
-        repository=repository,
+        cast(async_sessionmaker[AsyncSession], _session_factory),
+        repository=cast(RetrievalRepository, repository),
         embedding_profile="multilingual-e5-base-v1",
     )
 
@@ -127,8 +130,8 @@ async def test_dense_gate_rejects_when_any_supplied_candidate_lacks_its_stored_e
     candidates = _candidates(5, lexical_only=True)
     repository = FakeEmbeddingRepository({candidates[0].chunk.chunk_id: [1.0] + [0.0] * 767})
     scorer = DenseSimilarityGateScorer(
-        _session_factory,
-        repository=repository,
+        cast(async_sessionmaker[AsyncSession], _session_factory),
+        repository=cast(RetrievalRepository, repository),
         embedding_profile="multilingual-e5-base-v1",
     )
 

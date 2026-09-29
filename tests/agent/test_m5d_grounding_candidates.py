@@ -48,7 +48,9 @@ async def test_p1_uses_v3_prompt_and_keeps_exact_commerce_tools() -> None:
     )
 
     assert result["final_response"] == "I cannot verify that."
-    assert "Every company knowledge claim" in llm.requests[0].messages[0].content
+    prompt = llm.requests[0].messages[0].content
+    assert prompt is not None
+    assert "Every company knowledge claim" in prompt
     assert [tool.name for tool in llm.requests[0].tools or ()] == [
         "get_order_status",
         "get_shipment_status",
@@ -111,7 +113,9 @@ async def test_p3_makes_one_tool_free_repair_and_accepts_valid_citation() -> Non
     assert len(llm.requests) == 2
     assert llm.requests[1].tools == ()
     assert llm.requests[1].tool_choice == "none"
-    assert "may only add valid supplied citation handles" in llm.requests[1].messages[0].content
+    repair_prompt = llm.requests[1].messages[0].content
+    assert repair_prompt is not None
+    assert "may only add valid supplied citation handles" in repair_prompt
 
 
 @pytest.mark.asyncio

@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
 
+import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from verbaops.evaluation.live import TraceReader
 from verbaops.evaluation.rag_v02_grounded_runtime import PublicRagV02AgentAdapter
 
 
 @pytest.mark.asyncio
-async def test_p3_adapter_records_repair_trace_without_exposing_it_publicly() -> None:
+async def test_p3_adapter_records_repair_trace_without_exposing_it_publicly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     run_id = "00000000-0000-0000-0000-000000000001"
     conversation_id = "00000000-0000-0000-0000-000000000002"
     message_id = "00000000-0000-0000-0000-000000000003"
@@ -64,16 +70,16 @@ async def test_p3_adapter_records_repair_trace_without_exposing_it_publicly() ->
     adapter = PublicRagV02AgentAdapter(
         "http://localhost:8000",
         "development-token",
-        HTTPClient(),
-        None,
+        cast(httpx.AsyncClient, HTTPClient()),
+        cast(async_sessionmaker[AsyncSession], object()),
         grounding_candidate="P3_ONE_REPAIR_THEN_FAIL_CLOSED",
         gate_threshold=0.4,
     )
 
-    async def read_trace(_run_id: Any) -> Any:
+    async def read_trace(_run_id: UUID) -> Any:
         return trace
 
-    async def citation_rows(_message_id: Any) -> list[dict[str, Any]]:
+    async def citation_rows(_message_id: UUID) -> list[dict[str, Any]]:
         return [
             {
                 "document_slug": "returns-policy",
@@ -83,12 +89,14 @@ async def test_p3_adapter_records_repair_trace_without_exposing_it_publicly() ->
             }
         ]
 
-    async def retrieval_rows(_run_id: Any) -> tuple[list[str], float]:
+    async def retrieval_rows(_run_id: UUID) -> tuple[list[str], float]:
         return ["returns-policy|2026.1|Return window|1"], 0.5
 
-    adapter._trace_reader.read = read_trace
-    adapter._citation_rows = citation_rows
-    adapter._retrieval_rows = retrieval_rows
+    monkeypatch.setattr(
+        adapter, "_trace_reader", cast(TraceReader, SimpleNamespace(read=read_trace))
+    )
+    monkeypatch.setattr(adapter, "_citation_rows", citation_rows)
+    monkeypatch.setattr(adapter, "_retrieval_rows", retrieval_rows)
 
     result = await adapter.execute(SimpleNamespace(query="question"))
 

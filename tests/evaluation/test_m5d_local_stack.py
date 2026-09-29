@@ -4,10 +4,13 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
 from scripts import run_m5d_grounding_sweep_local
 
 
-def test_grounded_api_environment_points_to_isolated_redis(tmp_path: Path, monkeypatch) -> None:
+def test_grounded_api_environment_points_to_isolated_redis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     environment_file = tmp_path / "local.env"
     environment_file.write_text(
         "\n".join(
@@ -54,7 +57,9 @@ def test_isolated_compose_stack_defines_redis_service() -> None:
     assert "  redis:\n" in compose_file.read_text(encoding="utf-8")
 
 
-def test_redis_bootstrap_does_not_restart_the_commerce_stack(monkeypatch) -> None:
+def test_redis_bootstrap_does_not_restart_the_commerce_stack(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[tuple[str, ...]] = []
 
     def compose(*arguments: str) -> subprocess.CompletedProcess[str]:

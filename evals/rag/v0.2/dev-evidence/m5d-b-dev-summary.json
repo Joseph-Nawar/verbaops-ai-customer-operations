@@ -1,0 +1,328 @@
+{
+  "benchmark_version": "rag-v0.2",
+  "case_count": 96,
+  "credentials_committed_or_logged": false,
+  "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+  "decision_status": "PROVIDER_RATE_LIMIT_BLOCKED_INCOMPLETE_GROUNDING_SWEEP",
+  "evaluation_harness_commits": [
+    "44034e47119ec63c23f3abf4adcee20cac08ce4b",
+    "ebac389897bb44169b9dafff01a29926ec4e7615",
+    "88e3c7341815ea9e427ad3f96b9f75f1b4790e37"
+  ],
+  "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+  "gate_calibrations": [
+    {
+      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+      "selected": {
+        "answerable_acceptance": 0.18055555555555555,
+        "answerable_accepted": 13,
+        "answerable_total": 72,
+        "eligible": true,
+        "gate": "G0_CURRENT_RRF",
+        "latency_component_p50_ms": {
+          "hybrid_retrieval": 100.83345
+        },
+        "latency_component_p95_ms": {
+          "hybrid_retrieval": 160.6444
+        },
+        "no_answer_rejected": 24,
+        "no_answer_rejection": 1.0,
+        "no_answer_total": 24,
+        "threshold": 0.02964254577157803,
+        "total_latency_p50_ms": 100.83345,
+        "total_latency_p95_ms": 160.6444
+      }
+    },
+    {
+      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+      "selected": {
+        "answerable_acceptance": 0.5555555555555556,
+        "answerable_accepted": 40,
+        "answerable_total": 72,
+        "eligible": true,
+        "gate": "G1_DENSE_SIMILARITY",
+        "latency_component_p50_ms": {
+          "e5_candidate_vector_fetch": 6.90665,
+          "e5_cosine_scoring": 1.18215,
+          "hybrid_retrieval": 100.83345
+        },
+        "latency_component_p95_ms": {
+          "e5_candidate_vector_fetch": 12.810675,
+          "e5_cosine_scoring": 1.26865,
+          "hybrid_retrieval": 160.6444
+        },
+        "no_answer_rejected": 22,
+        "no_answer_rejection": 0.9166666666666666,
+        "no_answer_total": 24,
+        "threshold": 0.8573166988459672,
+        "total_latency_p50_ms": 109.6119,
+        "total_latency_p95_ms": 172.5761
+      }
+    },
+    {
+      "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+      "selected": {
+        "answerable_acceptance": 0.7777777777777778,
+        "answerable_accepted": 56,
+        "answerable_total": 72,
+        "eligible": true,
+        "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+        "latency_component_p50_ms": {
+          "cross_encoder_scoring": 105.8935,
+          "hybrid_retrieval": 100.83345
+        },
+        "latency_component_p95_ms": {
+          "cross_encoder_scoring": 227.0106,
+          "hybrid_retrieval": 160.6444
+        },
+        "no_answer_rejected": 22,
+        "no_answer_rejection": 0.9166666666666666,
+        "no_answer_total": 24,
+        "threshold": 0.2554669,
+        "total_latency_p50_ms": 214.22725,
+        "total_latency_p95_ms": 397.465825
+      }
+    }
+  ],
+  "grounding_candidates": {
+    "P0_CURRENT": {
+      "completed_cases": 96,
+      "metrics": {
+        "accepted_evidence_citation_compliance": {
+          "denominator": 58,
+          "numerator": 12,
+          "value": 0.20689655172413793
+        },
+        "answer_latency_p50_ms": 5382.292,
+        "answer_latency_p95_ms": 12884.25975,
+        "cases_without_evaluation_provenance": 0,
+        "citation_precision": {
+          "denominator": 19,
+          "numerator": 12,
+          "value": 0.631578947368421
+        },
+        "cost_metadata_coverage": {
+          "denominator": 96,
+          "numerator": 96,
+          "value": 1.0
+        },
+        "cost_metadata_observations": 96,
+        "execution_provenance_counts": [
+          {
+            "case_count": 96,
+            "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+            "worktree_dirty": true
+          }
+        ],
+        "expected_fact_coverage": {
+          "denominator": 72,
+          "numerator": 4,
+          "value": 0.05555555555555555
+        },
+        "groundedness": {
+          "denominator": 4,
+          "numerator": 0,
+          "value": 0.0
+        },
+        "mean_cost_usd_over_costed_observations": 0.00027919062499999996,
+        "model_metadata": {
+          "capability_aliases": [
+            "agent-fast"
+          ],
+          "models": [
+            "groq/openai/gpt-oss-120b"
+          ],
+          "observations_with_model_metadata": 96,
+          "providers": []
+        },
+        "recognized_fact_units": 4,
+        "repair_attempts": 0,
+        "repair_cost_mean_usd_over_costed_attempts": null,
+        "repair_cost_observations": 0,
+        "repair_cost_total_usd": null,
+        "repair_failures": 0,
+        "repair_model_latency_p50_ms": null,
+        "repair_model_latency_p95_ms": null,
+        "repair_successes": 0,
+        "retrieval_evidence_gate_accuracy": {
+          "denominator": 96,
+          "numerator": 78,
+          "value": 0.8125
+        },
+        "safe_fallback_count": 0,
+        "safe_fallback_rate": 0.0,
+        "total_cost_usd_over_costed_observations": 0.026802299999999998,
+        "unsupported_claim_rate": 1.0,
+        "unsupported_fact_units": 4
+      },
+      "status": "COMPLETE",
+      "total_cases": 96
+    },
+    "P1_PROMPT_V3": {
+      "completed_cases": 96,
+      "metrics": {
+        "accepted_evidence_citation_compliance": {
+          "denominator": 58,
+          "numerator": 54,
+          "value": 0.9310344827586207
+        },
+        "answer_latency_p50_ms": 3657.34,
+        "answer_latency_p95_ms": 13824.627499999999,
+        "cases_without_evaluation_provenance": 0,
+        "citation_precision": {
+          "denominator": 82,
+          "numerator": 52,
+          "value": 0.6341463414634146
+        },
+        "cost_metadata_coverage": {
+          "denominator": 96,
+          "numerator": 96,
+          "value": 1.0
+        },
+        "cost_metadata_observations": 96,
+        "execution_provenance_counts": [
+          {
+            "case_count": 96,
+            "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+            "worktree_dirty": true
+          }
+        ],
+        "expected_fact_coverage": {
+          "denominator": 72,
+          "numerator": 2,
+          "value": 0.027777777777777776
+        },
+        "groundedness": {
+          "denominator": 2,
+          "numerator": 2,
+          "value": 1.0
+        },
+        "mean_cost_usd_over_costed_observations": 0.000246890625,
+        "model_metadata": {
+          "capability_aliases": [
+            "agent-fast"
+          ],
+          "models": [
+            "groq/openai/gpt-oss-120b"
+          ],
+          "observations_with_model_metadata": 96,
+          "providers": []
+        },
+        "recognized_fact_units": 2,
+        "repair_attempts": 0,
+        "repair_cost_mean_usd_over_costed_attempts": null,
+        "repair_cost_observations": 0,
+        "repair_cost_total_usd": null,
+        "repair_failures": 0,
+        "repair_model_latency_p50_ms": null,
+        "repair_model_latency_p95_ms": null,
+        "repair_successes": 0,
+        "retrieval_evidence_gate_accuracy": {
+          "denominator": 96,
+          "numerator": 78,
+          "value": 0.8125
+        },
+        "safe_fallback_count": 0,
+        "safe_fallback_rate": 0.0,
+        "total_cost_usd_over_costed_observations": 0.0237015,
+        "unsupported_claim_rate": 0.0,
+        "unsupported_fact_units": 0
+      },
+      "status": "COMPLETE",
+      "total_cases": 96
+    },
+    "P2_FAIL_CLOSED_CITATIONS": {
+      "completed_cases": 39,
+      "execution_provenance_counts": [
+        {
+          "case_count": 31,
+          "evaluated_git_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+          "worktree_dirty": true
+        },
+        {
+          "case_count": 6,
+          "evaluated_git_sha": "44034e47119ec63c23f3abf4adcee20cac08ce4b",
+          "worktree_dirty": false
+        },
+        {
+          "case_count": 2,
+          "evaluated_git_sha": "ebac389897bb44169b9dafff01a29926ec4e7615",
+          "worktree_dirty": false
+        }
+      ],
+      "status": "PROVIDER_BLOCKED_INCOMPLETE",
+      "total_cases": 96
+    }
+  },
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "locked_base_sha": "0be9e43021beac020c29dc67d54fc367a7c31480",
+  "model_status": {
+    "M0": "EXECUTED_ON_P0_P1_AND_PARTIAL_P2",
+    "M1": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
+    "M1_environment_configuration_complete": false,
+    "comparison": "not performed; no comparative model recommendation",
+    "model": "groq/openai/gpt-oss-120b",
+    "provider_route": "Groq OpenAI-compatible endpoint",
+    "provider_trace_metadata": "null/omitted in the sanitized smoke and Stage 4 baseline; configured family recorded as groq"
+  },
+  "p3_one_repair_then_fail_closed": {
+    "completed_cases": 0,
+    "status": "NOT_RUN_PROVIDER_BLOCKED_BEFORE_P3",
+    "total_cases": 96
+  },
+  "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+  "production_promoted": false,
+  "provider_block": {
+    "blocked_checkpoint": "P2_FAIL_CLOSED_CITATIONS",
+    "capability_alias": "agent-fast",
+    "completed_cases": 39,
+    "gateway_diagnostic": "provider rate-limit (HTTP 429) events; provider key absent from inspected logs",
+    "observed_api_failure": "HTTP 503 from the public agent message endpoint",
+    "persisted_agent_error_code": "agent_unavailable",
+    "persisted_model_call_error_code": "llm_unavailable",
+    "total_cases": 96
+  },
+  "provider_smoke": {
+    "agent_fast_resolved": true,
+    "configured_provider_family": "groq",
+    "credential_output": "none",
+    "gateway_healthy": true,
+    "model": "groq/openai/gpt-oss-120b",
+    "provider_metadata": null,
+    "request_succeeded": true,
+    "response_content_printed": false
+  },
+  "release_holdout_executed": false,
+  "schema_version": "m5d-b-dev-evidence-v1",
+  "selected_gate": {
+    "answerable_acceptance": 0.7777777777777778,
+    "answerable_accepted": 56,
+    "answerable_total": 72,
+    "eligible": true,
+    "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "latency_component_p50_ms": {
+      "cross_encoder_scoring": 105.8935,
+      "hybrid_retrieval": 100.83345
+    },
+    "latency_component_p95_ms": {
+      "cross_encoder_scoring": 227.0106,
+      "hybrid_retrieval": 160.6444
+    },
+    "no_answer_rejected": 22,
+    "no_answer_rejection": 0.9166666666666666,
+    "no_answer_total": 24,
+    "threshold": 0.2554669,
+    "total_latency_p50_ms": 214.22725,
+    "total_latency_p95_ms": 397.465825
+  },
+  "selection_json_created": false,
+  "split": "dev",
+  "stage4_dev": {
+    "cases": 96,
+    "release_holdout_executed": false,
+    "status": "NOT_RUN_NO_COMPLETED_RAG_ELIGIBLE_GROUNDING_CANDIDATE"
+  },
+  "stage5_production_behavior_changed": false,
+  "stage6_started": false,
+  "stage_m5d_c_started": false
+}
