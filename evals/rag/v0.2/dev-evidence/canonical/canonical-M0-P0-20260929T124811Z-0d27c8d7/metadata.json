@@ -2,7 +2,7 @@
   "artifacts": [
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
-      "sha256": "1b1a6813ff8403871bc55069d7ae1d8f4c0df19d5917badf2e054e63f4cb1d67"
+      "sha256": "37e03d57ffc86a4a1e7f868c6ba687361c4b5df048f4e2249de72fd6b18671c8"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
@@ -10,14 +10,20 @@
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
-      "sha256": "aa94a7d0ab452eeb07de923ec4413b699b188e3c1da75bdf2fa60211baa8a7a0"
+      "sha256": "879a49be92f1a5bab7c961992f959df9bb061a341e3ff871eee0fbd3597806a9"
     }
   ],
-  "blocked_case_id": "m5d-v02-returns-009",
+  "blocked_case_id": "m5d-v02-warranty-003",
   "canonical": true,
-  "completed_case_count": 18,
+  "completed_case_count": 30,
+  "delay_excluded_from_answer_latency": true,
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "gateway_429_log_lines_since_stack_start": 5,
+  "gateway_rate_limit_marker_log_lines_since_stack_start": 4,
+  "gateway_retry_attribution": "not_determinable_from_available_logs",
+  "inter_case_delay_seconds_between_new_cases": 60.0,
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+  "rate_limit_reset_headers_recorded": false,
   "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
   "run_identity": {
     "agent_graph_version": "text-agent-v2",
@@ -38,5 +44,6 @@
     "split": "dev"
   },
   "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546",
-  "run_status": "INTERRUPTED"
+  "run_status": "INTERRUPTED",
+  "runner_retry_performed_after_http_503": false
 }
