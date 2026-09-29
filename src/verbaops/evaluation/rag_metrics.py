@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import cast
 
 from verbaops.evaluation.rag_models import GroundednessResult, MetricResult, RagLocator
@@ -77,6 +77,8 @@ def grounded_fact_score(
     answer: str,
     expected_facts: Sequence[dict[str, object]],
     cited_locators: Sequence[str | RagLocator],
+    *,
+    assertion_recognizer: Callable[[str, Sequence[str]], bool] | None = None,
 ) -> GroundednessResult:
     cited = {_locator_key(locator) for locator in cited_locators}
     recognized = 0
@@ -86,7 +88,11 @@ def grounded_fact_score(
         aliases = [
             str(alias).casefold() for alias in cast(Sequence[object], fact.get("aliases", ()))
         ]
-        if not aliases or not any(alias in normalized_answer for alias in aliases):
+        if assertion_recognizer is None:
+            recognized_fact = bool(aliases) and any(alias in normalized_answer for alias in aliases)
+        else:
+            recognized_fact = assertion_recognizer(answer, aliases)
+        if not recognized_fact:
             continue
         recognized += 1
         support = {

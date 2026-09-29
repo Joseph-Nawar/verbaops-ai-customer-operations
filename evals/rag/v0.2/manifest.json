@@ -17,7 +17,7 @@
     "faq": {"dev": 12, "release_holdout": 4},
     "no-answer": {"dev": 24, "release_holdout": 6}
   },
-  "questions_sha256": "6e828488909b54112c51c186eb18e56e4be2d09d8da579fed216d96a59102f5a",
+  "questions_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
   "knowledge_manifest": "knowledge/novacommerce/manifest.json",
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "chunking": {"max_chunk_tokens": 180, "overlap_tokens": 30},
