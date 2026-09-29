@@ -103,7 +103,14 @@ async def _run(args: argparse.Namespace) -> None:
     provenance = _evaluation_provenance()
     try:
         async with httpx.AsyncClient(timeout=args.timeout_seconds) as client:
-            adapter = PublicRagV02AgentAdapter(args.base_url, args.token, client, sessions)
+            adapter = PublicRagV02AgentAdapter(
+                args.base_url,
+                args.token,
+                client,
+                sessions,
+                grounding_candidate=args.grounding,
+                gate_threshold=args.threshold,
+            )
             new_records = await run_grounded_evaluation(
                 cases,
                 adapter,

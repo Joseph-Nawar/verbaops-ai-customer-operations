@@ -19,6 +19,7 @@ from verbaops.knowledge.repository_tables import (
     retrieval_candidates,
     retrieval_invocations,
 )
+from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK
 
 
 class PublicRagV02AgentAdapter:
@@ -30,11 +31,16 @@ class PublicRagV02AgentAdapter:
         bearer_token: str,
         http_client: httpx.AsyncClient,
         sessions: async_sessionmaker[AsyncSession],
+        *,
+        grounding_candidate: str,
+        gate_threshold: float,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._bearer_token = bearer_token
         self._http_client = http_client
         self._sessions = sessions
+        self._grounding_candidate = grounding_candidate
+        self._gate_threshold = gate_threshold
         self._trace_reader = TraceReader(sessions)
 
     async def execute(self, case: Any) -> dict[str, Any]:
@@ -57,6 +63,29 @@ class PublicRagV02AgentAdapter:
         trace = await self._trace_reader.read(run_id)
         citation_rows = await self._citation_rows(UUID(str(assistant["id"])))
         selected_evidence, top_score = await self._retrieval_rows(run_id)
+        tool_call_count = len(trace.tool_invocations)
+        accepted_evidence = (
+            top_score is not None and top_score >= self._gate_threshold and bool(selected_evidence)
+        )
+        repair_call = trace.model_calls[-1] if len(trace.model_calls) > 1 else None
+        repair_attempted = bool(
+            self._grounding_candidate == "P3_ONE_REPAIR_THEN_FAIL_CLOSED"
+            and accepted_evidence
+            and tool_call_count == 0
+            and repair_call is not None
+        )
+        repair_succeeded = bool(
+            repair_attempted
+            and citation_rows
+            and str(assistant["content"]).strip() != SAFE_GROUNDING_FALLBACK
+        )
+        repair_failed_reason = None
+        if repair_attempted and not repair_succeeded:
+            repair_failed_reason = (
+                "model_call_failed"
+                if repair_call is not None and repair_call.status == "failed"
+                else "no_acceptable_repaired_answer"
+            )
         costs = [call.cost_usd for call in trace.model_calls if call.cost_usd is not None]
         first_call = trace.model_calls[0] if trace.model_calls else None
         return {
@@ -73,6 +102,12 @@ class PublicRagV02AgentAdapter:
             "cost_usd": sum(costs) if costs else None,
             "cost_observations": len(costs),
             "model_call_count": len(trace.model_calls),
+            "tool_call_count": tool_call_count,
+            "repair_attempted": repair_attempted,
+            "repair_succeeded": repair_succeeded,
+            "repair_failed_reason": repair_failed_reason,
+            "repair_model_latency_ms": repair_call.latency_ms if repair_attempted else None,
+            "repair_cost_usd": repair_call.cost_usd if repair_attempted else None,
             "status": trace.run.status,
         }
 

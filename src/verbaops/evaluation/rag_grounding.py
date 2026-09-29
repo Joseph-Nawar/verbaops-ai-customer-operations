@@ -16,6 +16,7 @@ from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
 from verbaops.evaluation.rag_runner import score_meets_threshold
 from verbaops.evaluation.rag_v02 import RagV02Case, recognize_labeled_fact_assertion
+from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK
 
 GroundedCase = TypeVar("GroundedCase", RagCase, RagV02Case, contravariant=True)
 
@@ -137,6 +138,13 @@ def score_grounded_records(
     expected_recognized = 0
     expected_total = 0
     correct_evidence_gate_decisions = 0
+    accepted_evidence_turns = 0
+    accepted_evidence_with_citations = 0
+    safe_fallback_count = 0
+    repair_attempts = 0
+    repair_successes = 0
+    repair_latencies: list[float] = []
+    repair_costs: list[float] = []
     latencies: list[float] = []
     cost_observations = 0
     for case in cases:
@@ -146,6 +154,7 @@ def score_grounded_records(
         citation_numerator += case_citations.numerator
         citation_denominator += case_citations.denominator
         answer = str(record.get("final_answer", ""))
+        safe_fallback_count += int(answer.strip() == SAFE_GROUNDING_FALLBACK)
         score_options = (
             {"assertion_recognizer": recognize_labeled_fact_assertion}
             if case.dataset_version == "rag-v0.2"
@@ -167,6 +176,27 @@ def score_grounded_records(
             score_meets_threshold(float(top_score), threshold) if top_score is not None else False
         )
         correct_evidence_gate_decisions += int(accepted == case.answerable)
+        selected_evidence = record.get("selected_evidence", [])
+        tool_call_count = record.get("tool_call_count", 0)
+        if (
+            accepted
+            and isinstance(selected_evidence, list)
+            and selected_evidence
+            and tool_call_count == 0
+        ):
+            accepted_evidence_turns += 1
+            accepted_evidence_with_citations += int(bool(citations))
+        attempted_repair = bool(record.get("repair_attempted", False))
+        repair_attempts += int(attempted_repair)
+        repair_succeeded = attempted_repair and bool(record.get("repair_succeeded", False))
+        repair_successes += int(repair_succeeded)
+        if attempted_repair:
+            repair_latency = record.get("repair_model_latency_ms")
+            if isinstance(repair_latency, int | float) and not isinstance(repair_latency, bool):
+                repair_latencies.append(float(repair_latency))
+            repair_cost = record.get("repair_cost_usd")
+            if isinstance(repair_cost, int | float) and not isinstance(repair_cost, bool):
+                repair_costs.append(float(repair_cost))
         if record.get("answer_latency_ms") is not None:
             latencies.append(float(record["answer_latency_ms"]))
         cost_observations += int(record.get("cost_usd") is not None)
@@ -204,6 +234,27 @@ def score_grounded_records(
             denominator=len(cases),
             value=(cost_observations / len(cases) if cases else None),
         ).as_dict(),
+        "accepted_evidence_citation_compliance": MetricResult(
+            numerator=accepted_evidence_with_citations,
+            denominator=accepted_evidence_turns,
+            value=(
+                accepted_evidence_with_citations / accepted_evidence_turns
+                if accepted_evidence_turns
+                else None
+            ),
+        ).as_dict(),
+        "safe_fallback_count": safe_fallback_count,
+        "safe_fallback_rate": safe_fallback_count / len(cases) if cases else None,
+        "repair_attempts": repair_attempts,
+        "repair_successes": repair_successes,
+        "repair_failures": repair_attempts - repair_successes,
+        "repair_model_latency_p50_ms": percentile(repair_latencies, 0.5),
+        "repair_model_latency_p95_ms": percentile(repair_latencies, 0.95),
+        "repair_cost_total_usd": sum(repair_costs) if repair_costs else None,
+        "repair_cost_mean_usd_over_costed_attempts": (
+            sum(repair_costs) / len(repair_costs) if repair_costs else None
+        ),
+        "repair_cost_observations": len(repair_costs),
         "recognized_fact_units": grounded_recognized,
         "unsupported_fact_units": grounded_recognized - grounded_supported,
     }

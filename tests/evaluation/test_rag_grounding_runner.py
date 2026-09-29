@@ -12,6 +12,7 @@ from verbaops.evaluation.rag_grounding import (
     score_grounded_records,
 )
 from verbaops.evaluation.rag_models import RagCase, RelevanceJudgment
+from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK
 
 ROOT = Path(__file__).parents[2]
 
@@ -232,3 +233,64 @@ def test_grounded_citation_precision_has_explicit_zero_denominator() -> None:
         threshold=0.0,
     )
     assert result["citation_precision"] == {"numerator": 0, "denominator": 0, "value": None}
+
+
+def test_grounded_metrics_report_evidence_citation_compliance_and_fallbacks() -> None:
+    locator = "shipping-policy|2026.1|Delivery methods|1"
+    supported = _citation_case(
+        "case-supported",
+        answerable=True,
+        judgments=(
+            RelevanceJudgment(
+                document_slug="shipping-policy",
+                document_version="2026.1",
+                section="Delivery methods",
+                chunk_index=1,
+                relevance_grade=2,
+            ),
+        ),
+    )
+    refused = _citation_case("case-refused", answerable=False, judgments=())
+
+    result = score_grounded_records(
+        (supported, refused),
+        (
+            {
+                "case_id": supported.case_id,
+                "final_answer": "Supported answer.",
+                "public_citations": [locator],
+                "selected_evidence": [locator],
+                "top_confidence_score": 0.5,
+                "tool_call_count": 0,
+                "repair_attempted": False,
+                "repair_succeeded": False,
+            },
+            {
+                "case_id": refused.case_id,
+                "final_answer": SAFE_GROUNDING_FALLBACK,
+                "public_citations": [],
+                "selected_evidence": [],
+                "top_confidence_score": 0.1,
+                "tool_call_count": 0,
+                "repair_attempted": True,
+                "repair_succeeded": False,
+                "repair_failed_reason": "no_acceptable_repaired_answer",
+                "repair_model_latency_ms": 40.0,
+                "repair_cost_usd": 0.01,
+            },
+        ),
+        threshold=0.4,
+    )
+
+    assert result["accepted_evidence_citation_compliance"] == {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+    }
+    assert result["safe_fallback_count"] == 1
+    assert result["safe_fallback_rate"] == 0.5
+    assert result["repair_attempts"] == 1
+    assert result["repair_successes"] == 0
+    assert result["repair_failures"] == 1
+    assert result["repair_model_latency_p50_ms"] == 40.0
+    assert result["repair_cost_total_usd"] == 0.01
