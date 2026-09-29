@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,24 @@ GROUNDING_CANDIDATES = {
     "P2_FAIL_CLOSED_CITATIONS",
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
 }
+
+
+def _evaluation_provenance() -> dict[str, str | bool]:
+    git_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    worktree_status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return {"evaluated_git_sha": git_sha, "evaluation_worktree_dirty": bool(worktree_status)}
 
 
 async def _run(args: argparse.Namespace) -> None:
@@ -81,6 +100,7 @@ async def _run(args: argparse.Namespace) -> None:
         )
         if value
     )
+    provenance = _evaluation_provenance()
     try:
         async with httpx.AsyncClient(timeout=args.timeout_seconds) as client:
             adapter = PublicRagV02AgentAdapter(args.base_url, args.token, client, sessions)
@@ -90,6 +110,7 @@ async def _run(args: argparse.Namespace) -> None:
                 checkpoint,
                 secrets_to_hide=secrets_to_hide,
                 delay_seconds_between_cases=args.inter_case_delay_seconds,
+                record_metadata=provenance,
             )
     finally:
         await engine.dispose()
@@ -115,11 +136,15 @@ async def _run(args: argparse.Namespace) -> None:
         "grounding_candidate": args.grounding,
         "model_candidate": args.model_candidate,
         "completed_case_count": len(records),
+        "cases_without_evaluation_provenance": sum(
+            "evaluated_git_sha" not in record for record in records
+        ),
         "cases_collected_before_throttle": sum(
             "evaluation_inter_case_delay_seconds" not in record for record in records
         ),
         "inter_case_delay_seconds_for_new_cases": args.inter_case_delay_seconds,
         "new_case_count": len(new_records),
+        **provenance,
         "completed_at_utc": datetime.now(UTC).isoformat(),
         "holdout_executed": False,
         "production_promoted": False,

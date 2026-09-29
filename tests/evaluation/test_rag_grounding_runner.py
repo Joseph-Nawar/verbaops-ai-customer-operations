@@ -116,6 +116,28 @@ async def test_grounded_runner_waits_between_new_requests_only(tmp_path: Path, m
     ]
 
 
+@pytest.mark.asyncio
+async def test_grounded_runner_records_evaluation_provenance_per_case(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            return {"final_answer": "answer"}
+
+    records = await run_grounded_evaluation(
+        (case,),
+        Adapter(),
+        tmp_path / "grounded.jsonl",
+        record_metadata={
+            "evaluated_git_sha": "44034e47119ec63c23f3abf4adcee20cac08ce4b",
+            "evaluation_worktree_dirty": False,
+        },
+    )
+
+    assert records[0]["evaluated_git_sha"] == "44034e47119ec63c23f3abf4adcee20cac08ce4b"
+    assert records[0]["evaluation_worktree_dirty"] is False
+
+
 def test_grounded_scoring_uses_labeled_facts_and_retrieval_evidence_gate() -> None:
     cases = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")
     case = cases[0]

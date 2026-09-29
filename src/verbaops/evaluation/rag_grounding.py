@@ -56,6 +56,7 @@ async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
     *,
     secrets_to_hide: Sequence[str] = (),
     delay_seconds_between_cases: float = 0.0,
+    record_metadata: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Execute missing cases and fsync one sanitized JSONL checkpoint per result."""
 
@@ -79,7 +80,12 @@ async def run_grounded_evaluation[GroundedCaseType: (RagCase, RagV02Case)](
         observed = await adapter.execute(case)
         if not isinstance(observed, Mapping):
             raise ValueError("grounded adapter must return a mapping")
-        record_data: dict[str, Any] = {"case_id": case.case_id, **dict(observed)}
+        record_data: dict[str, Any] = {
+            "case_id": case.case_id,
+            **dict(observed),
+            **dict(record_metadata or {}),
+        }
+        record_data["case_id"] = case.case_id
         if delay_seconds_between_cases > 0:
             record_data["evaluation_inter_case_delay_seconds"] = delay_seconds_between_cases
         record = _sanitize(record_data, secrets_to_hide=secrets_to_hide)
