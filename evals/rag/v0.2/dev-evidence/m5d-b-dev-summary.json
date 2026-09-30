@@ -67,7 +67,7 @@
       "artifacts": [
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl",
-          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "sha256": "49b358e0436245d17009b765cc4e9c763396069a01977c14c1575555da220b01"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl.identity.json",
@@ -75,32 +75,40 @@
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/interruption.json",
-          "sha256": "b4a97885e0a3d549bfddaec207d98b87503c3223fa7f8da7dc3d79e402685531"
+          "sha256": "1d14a1869b2cc93ecd2a73d6e80ed1f0716822d4f97b4788f18dc16faab77817"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/metadata.json",
-          "sha256": "f37f51d31d529f302de0bc75c23cc4522a7dfe95a8c701e595404332de188d78"
+          "sha256": "bc10ddef0c0a987eaeba1acdf17ba8cc00e1b97e6b1f302b8d732afa33b9e87e"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/run-summary.json",
-          "sha256": "27388fdd3885b004f20c51417f0ff9fe222b5b8c029d945dcf97e23e612551d6"
+          "sha256": "9f38c1f5ae2037f9f887fcba1b5d5f943ed22f132b52e71b2969a60c26f0fc62"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/failure-diagnosis.json",
+          "sha256": "3f3b7299b0b542c31d3ef1957efa51b6f4d2ed85053e01abbc62d00ac8a5332a"
         }
       ],
-      "blocked_case_id": "m5d-v02-shipping-001",
+      "blocked_case_id": "m5d-v02-returns-007",
       "candidate": "P1_PROMPT_V3",
-      "completed_cases": 0,
+      "completed_cases": 16,
       "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
       "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
       "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
       "run_type": "GROUNDING_CANDIDATE",
-      "status": "INTERRUPTED_PUBLIC_API_503"
+      "status": "INTERRUPTED_PUBLIC_API_502_AGENT_BUDGET_EXCEEDED",
+      "total_cases": 96,
+      "classification": "B_APPLICATION_AGENT_BUDGET_EXCEEDED",
+      "initial_503_classification": "D_UNKNOWN_UNDERLYING_CAUSE",
+      "scoreable": false
     }
   ],
   "case_count": 96,
   "commerce_tools_changed": false,
   "credentials_committed_or_logged": false,
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
-  "decision_status": "PARTIAL_PUBLIC_503_BLOCKED_INCOMPLETE_GROUNDING_SWEEP",
+  "decision_status": "PARTIAL_APPLICATION_BUDGET_BLOCKED_INCOMPLETE_GROUNDING_SWEEP",
   "evaluated_git_shas": [
     "7f82c565e7f9fc085f2d81c2c04a9861444837a1"
   ],
@@ -286,7 +294,7 @@
       "artifacts": [
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl",
-          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          "sha256": "49b358e0436245d17009b765cc4e9c763396069a01977c14c1575555da220b01"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl.identity.json",
@@ -294,26 +302,33 @@
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/interruption.json",
-          "sha256": "b4a97885e0a3d549bfddaec207d98b87503c3223fa7f8da7dc3d79e402685531"
+          "sha256": "1d14a1869b2cc93ecd2a73d6e80ed1f0716822d4f97b4788f18dc16faab77817"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/metadata.json",
-          "sha256": "f37f51d31d529f302de0bc75c23cc4522a7dfe95a8c701e595404332de188d78"
+          "sha256": "bc10ddef0c0a987eaeba1acdf17ba8cc00e1b97e6b1f302b8d732afa33b9e87e"
         },
         {
           "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/run-summary.json",
-          "sha256": "27388fdd3885b004f20c51417f0ff9fe222b5b8c029d945dcf97e23e612551d6"
+          "sha256": "9f38c1f5ae2037f9f887fcba1b5d5f943ed22f132b52e71b2969a60c26f0fc62"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/failure-diagnosis.json",
+          "sha256": "3f3b7299b0b542c31d3ef1957efa51b6f4d2ed85053e01abbc62d00ac8a5332a"
         }
       ],
-      "completed_cases": 0,
+      "completed_cases": 16,
       "total_cases": 96,
-      "blocked_case_id": "m5d-v02-shipping-001",
+      "blocked_case_id": "m5d-v02-returns-007",
       "public_api_http_status": 503,
       "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
       "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
-      "status": "INTERRUPTED_PUBLIC_API_503",
+      "status": "INTERRUPTED_PUBLIC_API_502_AGENT_BUDGET_EXCEEDED",
       "scoreable": false,
-      "metrics": null
+      "metrics": null,
+      "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+      "classification": "B_APPLICATION_AGENT_BUDGET_EXCEEDED",
+      "initial_503_classification": "D_UNKNOWN_UNDERLYING_CAUSE"
     },
     "P2_FAIL_CLOSED_CITATIONS": {
       "completed_cases": 0,
@@ -363,7 +378,7 @@
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "locked_base_sha": "0be9e43021beac020c29dc67d54fc367a7c31480",
   "model_status": {
-    "M0": "P0_COMPLETE_P1_INTERRUPTED_PUBLIC_503",
+    "M0": "P0_COMPLETE_P1_PARTIAL_16_OF_96_APPLICATION_BUDGET_BLOCKED",
     "M0_model": "groq/openai/gpt-oss-120b",
     "M1": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
     "M1_comparison": "not performed",
@@ -389,7 +404,19 @@
     "provider_smoke_run_id": "m0-provider-smoke-20260929T124459Z",
     "provider_smoke_success": true,
     "provider_smoke_date": "2026-09-29",
-    "provider_smoke_repeated_today": false
+    "provider_smoke_repeated_today": false,
+    "canonical_P1_completed_cases": 16,
+    "canonical_P1_total_cases": 96,
+    "canonical_P1_model_metadata_observations": 16,
+    "canonical_P1_models": [
+      "groq/openai/gpt-oss-120b"
+    ],
+    "canonical_P1_capability_alias_observations": 16,
+    "canonical_P1_capability_aliases": [
+      "agent-fast"
+    ],
+    "canonical_P1_provider_metadata_observations": 0,
+    "canonical_P1_providers": []
   },
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
   "production_promoted": false,
@@ -424,16 +451,32 @@
       "sha256": "2003155820a7f1dd4eef24b75b2f70a2138bcbdfb7d98b3d6e738692f275d201"
     },
     {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/provider-smoke.json",
+      "sha256": "9a304b00cc4883a237fcc84aea592e936942c5dad414eaa534a4c2519b1683aa"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl",
+      "sha256": "49b358e0436245d17009b765cc4e9c763396069a01977c14c1575555da220b01"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl.identity.json",
+      "sha256": "78217c036e5d062f069ed5aa24a490bc00640c4aeea0b4cc543d64cf5d7ebf32"
+    },
+    {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/interruption.json",
-      "sha256": "b4a97885e0a3d549bfddaec207d98b87503c3223fa7f8da7dc3d79e402685531"
+      "sha256": "1d14a1869b2cc93ecd2a73d6e80ed1f0716822d4f97b4788f18dc16faab77817"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/metadata.json",
+      "sha256": "bc10ddef0c0a987eaeba1acdf17ba8cc00e1b97e6b1f302b8d732afa33b9e87e"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/run-summary.json",
-      "sha256": "27388fdd3885b004f20c51417f0ff9fe222b5b8c029d945dcf97e23e612551d6"
+      "sha256": "9f38c1f5ae2037f9f887fcba1b5d5f943ed22f132b52e71b2969a60c26f0fc62"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/provider-smoke.json",
-      "sha256": "9a304b00cc4883a237fcc84aea592e936942c5dad414eaa534a4c2519b1683aa"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/failure-diagnosis.json",
+      "sha256": "3f3b7299b0b542c31d3ef1957efa51b6f4d2ed85053e01abbc62d00ac8a5332a"
     }
   ],
   "canonical_run_ids": [
@@ -441,28 +484,40 @@
     "canonical-M0-P0-20260929T124811Z-0d27c8d7",
     "canonical-M0-P1-20260930T105712Z-c77394bd"
   ],
-  "provider_block": {
-    "blocked_candidate": "P1_PROMPT_V3",
-    "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
-    "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
-    "blocked_case_id": "m5d-v02-shipping-001",
-    "completed_cases": 0,
-    "total_cases": 96,
-    "public_api_http_status": 503,
-    "provider_rate_limit_cause": "UNKNOWN",
-    "gateway_rate_limit_markers_observed_in_current_log_scan": 0,
-    "rate_limit_reset_headers_recorded": false,
-    "runner_retry_performed_after_http_503": false,
-    "additional_provider_calls_after_failure": 0,
-    "inter_case_delay_seconds_for_new_cases": 20.0
-  },
   "partial_candidate_metrics_scored": false,
   "provider_calls_today": {
-    "completed_benchmark_cases": 66,
-    "public_application_failure_requests": 1,
+    "completed_benchmark_cases": 82,
+    "public_application_case_requests": 84,
+    "public_application_failure_requests": 2,
     "runner_retries_after_surfaced_failure": 0,
+    "operational_continuations_after_zero_observation_failure": 1,
     "provider_internal_retry_count": "UNKNOWN",
     "diagnostic_requests": 0,
-    "smoke_requests": 0
+    "smoke_requests": 0,
+    "inter_case_delay_seconds": 20.0
+  },
+  "execution_block": {
+    "candidate": "P1_PROMPT_V3",
+    "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+    "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
+    "blocked_case_id": "m5d-v02-returns-007",
+    "completed_cases": 16,
+    "total_cases": 96,
+    "public_api_http_status": 502,
+    "classification": "B_APPLICATION_AGENT_BUDGET_EXCEEDED",
+    "rate_limit_proven": false,
+    "provider_5xx_proven": false,
+    "persisted_agent_run_id": "c06b26e7-98ca-42fd-8ad3-b9fbb76d28c4",
+    "agent_run_error_code": "agent_budget_exceeded",
+    "model_calls_succeeded": 4,
+    "max_model_calls": 4,
+    "successful_search_products_tool_calls": 3,
+    "runner_retry_after_latest_failure": false,
+    "additional_provider_requests_after_latest_failure": 0,
+    "inter_case_delay_seconds_for_new_cases": 20.0,
+    "diagnosis_artifact": {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/failure-diagnosis.json",
+      "sha256": "3f3b7299b0b542c31d3ef1957efa51b6f4d2ed85053e01abbc62d00ac8a5332a"
+    }
   }
 }

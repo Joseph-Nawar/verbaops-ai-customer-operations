@@ -1,0 +1,68 @@
+{
+  "schema_version": "m5d-p1-failure-diagnosis-v1",
+  "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+  "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
+  "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "events": [
+    {
+      "event": "initial_public_api_503",
+      "case_id": "m5d-v02-shipping-001",
+      "classification": "D",
+      "classification_name": "unknown underlying cause",
+      "public_api_http_status": 503,
+      "observed_gateway_upstream_http_status": 400,
+      "observed_provider_error_type": "invalid_request_error",
+      "observed_provider_error_code": "tool_use_failed",
+      "sanitized_error_summary": "The upstream response rejected a generated tool name containing a commentary-channel marker appended to search_products, which did not match the declared tool name.",
+      "rate_limit_proven": false,
+      "provider_internal_retry_count": "UNKNOWN",
+      "canonical_observation_recorded": false,
+      "interpretation": "The retained gateway trace establishes the proximate upstream response but not why the model emitted the malformed tool name. No 429 or rate-limit evidence was present."
+    },
+    {
+      "event": "existing_run_continuation_http_502",
+      "case_id": "m5d-v02-returns-007",
+      "classification": "B",
+      "classification_name": "application agent-budget stop",
+      "public_api_http_status": 502,
+      "persisted_agent_run_id": "c06b26e7-98ca-42fd-8ad3-b9fbb76d28c4",
+      "agent_run_started_at_utc": "2026-09-30T12:04:32.450143+00:00",
+      "agent_run_completed_at_utc": "2026-09-30T12:04:36.705767+00:00",
+      "agent_run_status": "failed",
+      "agent_run_error_code": "agent_budget_exceeded",
+      "model_calls": {
+        "total": 4,
+        "succeeded": 4,
+        "fifth_call_blocked_by_max_model_calls": true
+      },
+      "tool_invocations": {
+        "total": 3,
+        "succeeded": 3,
+        "tool_name": "search_products"
+      },
+      "pinned_runtime_rule": {
+        "max_model_calls": 4,
+        "guard": "src/verbaops/agent/graph.py:model_node"
+      },
+      "public_api_mapping": "src/verbaops/api/routes/conversations.py maps AgentBudgetExceededError to HTTP 502 agent_execution_failed.",
+      "gateway_log_window_utc": {
+        "from": "2026-09-30T11:45:00Z",
+        "to": "2026-09-30T12:05:00Z"
+      },
+      "gateway_access_status_counts": {
+        "200": 275
+      },
+      "explicit_429_access_statuses": 0,
+      "rate_limit_phrase_count": 0,
+      "retry_after_header_count": 0,
+      "x_ratelimit_header_count": 0,
+      "provider_5xx_proven": false,
+      "runner_retry_after_failure": false,
+      "interpretation": "The public 502 came from the application budget guard after successful model/tool operations; gateway logs in the correlated window show successful HTTP requests and no rate-limit markers. No source change or retry was made."
+    }
+  ],
+  "canonical_case_observations_after_continuation": 16,
+  "blocked_case_has_observation": false,
+  "report_generated_for_incomplete_candidate": false,
+  "additional_provider_request_after_latest_failure": false
+}

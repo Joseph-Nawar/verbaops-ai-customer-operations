@@ -1,10 +1,10 @@
 {
-  "blocked_case_id": "m5d-v02-shipping-001",
-  "completed_case_count": 0,
+  "blocked_case_id": "m5d-v02-returns-007",
+  "completed_case_count": 16,
   "error_type": "HTTPStatusError",
   "grounding_candidate": "P1_PROMPT_V3",
   "holdout_executed": false,
-  "http_status_code": 503,
+  "http_status_code": 502,
   "model_candidate": "M0",
   "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
   "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b"

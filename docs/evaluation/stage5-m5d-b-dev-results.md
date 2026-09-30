@@ -1,6 +1,6 @@
 # Stage 5 M5D-B DEV Results
 
-**Status: PARTIAL - P0 completed and was scored; P1 stopped on its first public API HTTP 503. P2 and P3 were not run. The candidate sweep is incomplete, so no grounding candidate or model was selected. No production change was made.**
+**Status: PARTIAL - P0 completed and was scored; P1 has 16/96 observations and is unscored after a public API HTTP 502 at the pinned application model-call budget. P2 and P3 were not run. The candidate sweep is incomplete, so no grounding candidate or model was selected. No production change was made.**
 
 ## Canonical provenance
 
@@ -12,7 +12,7 @@
 - Canonical evaluated implementation SHA: `7f82c565e7f9fc085f2d81c2c04a9861444837a1`.
 - Gate run: `canonical-gate-20260929T123626Z-45586c67` (identity SHA256 `3b75a4202803336b70b2c04c8eccf356b788391c5cf17d20370842bf5c5828b4`).
 - P0 run: `canonical-M0-P0-20260929T124811Z-0d27c8d7` (identity SHA256 `02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546`).
-- P1 run: `canonical-M0-P1-20260930T105712Z-c77394bd` (identity SHA256 `d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b`).
+- P1 run: `canonical-M0-P1-20260930T105712Z-c77394bd` (identity SHA256 `d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b`), currently 16/96 observations.
 - P0 and P1 artifacts are under [canonical DEV evidence](../../evals/rag/v0.2/dev-evidence/canonical/). The decision and summary bind relative artifact paths and SHA256 values in [dev-decision.json](../../evals/rag/v0.2/dev-decision.json) and [m5d-b-dev-summary.json](../../evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json).
 
 The gate run completed all 96 DEV cases on the clean committed implementation. It retained frozen hybrid RRF ranking and the same final five evidence candidates; only the preregistered evaluation confidence signal varied by gate.
@@ -48,9 +48,13 @@ P0 resumed the existing identity-bound run and completed the remaining 66 cases 
 
 P0 is complete and scoreable, but it fails each listed grounding quality floor. The report's cost total and mean cover all 96 observations because cost metadata coverage is 96/96. Model metadata was present in 96/96 observations: model `groq/openai/gpt-oss-120b`, alias `agent-fast`. The provider field was not populated in model metadata, so Groq is identified as the configured provider family.
 
-### P1_PROMPT_V3 - interrupted, not scored
+### P1_PROMPT_V3 - interrupted at 16/96, not scored
 
-P1 started as a fresh canonical run on the same pinned implementation and received **public API HTTP 503** on its first case, `m5d-v02-shipping-001`. It has 0/96 completed observations and no report. No retry, diagnostic request, smoke request, or further provider-backed call followed. The available current gateway log scan had no rate-limit marker or reset header; the cause of the 503 is therefore **unknown**, and it is not labeled as a confirmed quota failure.
+P1 resumed the existing run and identity; no new run was created. The initial request for `m5d-v02-shipping-001` surfaced as public HTTP 503 and recorded no observation. The retained LiteLLM trace shows the upstream returned HTTP 400 `invalid_request_error` / `tool_use_failed`: a generated tool name included a commentary-channel marker appended to `search_products`, which did not match the declared tool. There was no 429 or rate-limit evidence. The trace establishes this proximate response, but not why the model emitted the malformed tool name, so the initial 503 is classified **D - unknown underlying cause**. Because P1 still had zero observations and the daily quota was known to have reset, one continuation of this same run was allowed; the first case then completed and was recorded.
+
+The continuation completed 16 unique expected DEV cases under the unchanged identity and stopped on `m5d-v02-returns-007` with public HTTP 502. The persisted application trace for that case records `agent_budget_exceeded`; all four model calls and all three `search_products` tool calls succeeded. The pinned runtime permits at most four model calls and raises the budget error before a fifth call; the public API maps that error to HTTP 502. Gateway access logs for the correlated window contain 275 HTTP 200 entries, with no 429, 5xx, retry-after, or x-ratelimit marker. This latest stop is classified **B - application agent-budget stop**, not a provider rate limit or upstream 5xx. No retry followed it.
+
+The P1 run remains **16/96 and unscored**. It has no `report.json`; its checkpoint, unchanged identity sidecar, latest interruption, metadata, run summary, and sanitized failure diagnosis are listed with SHA256 values in [dev-decision.json](../../evals/rag/v0.2/dev-decision.json). The diagnosis artifact is [failure-diagnosis.json](../../evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/failure-diagnosis.json). No metrics were computed from these partial observations.
 
 ### P2 and P3 - not run
 
@@ -58,11 +62,11 @@ P2 and P3 were not run after P1 stopped. No incomplete candidate was scored, and
 
 ## Model and provider
 
-M0 used `groq/openai/gpt-oss-120b` through LiteLLM capability alias `agent-fast`. The existing sanitized provider smoke from September 29 remains historical evidence; no new smoke or diagnostic request was made on September 30. Today, 66 new P0 benchmark cases completed and the first P1 case surfaced a public 503. The runner made no retry after that surfaced failure. The number of internal provider attempts behind the public API error is not established, and exact token consumption is not claimed. No credentials were persisted.
+M0 remained `groq/openai/gpt-oss-120b` through LiteLLM capability alias `agent-fast`. Today, 66 new P0 observations and 16 P1 observations completed. Two public application requests failed without producing benchmark observations: the initial P1 HTTP 503 and the later P1 HTTP 502. One operational continuation was made after the first P1 request had produced no observation. There were no runner retries after the latest surfaced failure, no diagnostic or smoke requests, and no additional provider request after the HTTP 502. The provider's internal retry count and exact token consumption are unknown. New cases used 20-second inter-case pacing, excluded from answer-latency measurements. No credentials were persisted.
 
 M1 (`Qwen/Qwen3-30B-A3B-Instruct-2507`) remains `M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK`; no model was downloaded or substituted, and there is no model comparison.
 
-Stage 4 DEV regression was not run because no grounding candidate qualified for the conditional regression. Release holdout was not executed; `selection.json` remains absent; production retrieval, prompt, model route, and Commerce tools are unchanged. M5D-C and Stage 6 have not begun.
+Stage 4 DEV regression was not run because no completed grounding candidate qualified. Release holdout was not executed; `selection.json` remains absent; production retrieval, prompt, model route, and Commerce tools are unchanged. M5D-C and Stage 6 have not begun.
 
 ## Historical/noncanonical evidence
 
