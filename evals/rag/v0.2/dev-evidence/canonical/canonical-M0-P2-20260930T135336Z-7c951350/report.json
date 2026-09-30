@@ -1,17 +1,17 @@
 {
   "accepted_evidence_citation_compliance": {
     "denominator": 58,
-    "numerator": 12,
-    "value": 0.20689655172413793
+    "numerator": 49,
+    "value": 0.8448275862068966
   },
-  "answer_latency_p50_ms": 1601.036,
-  "answer_latency_p95_ms": 9938.394250000001,
-  "canonical_run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
-  "canonical_run_identity_sha256": "0d464fd5a80c2081b63d96fa7d96a49d87bb1e23c4ef9aa690705f6db7d959f6",
+  "answer_latency_p50_ms": 1410.9965,
+  "answer_latency_p95_ms": 3617.5875,
+  "canonical_run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
+  "canonical_run_identity_sha256": "47c71abfc793ea6ebaa54a44e2354b6f3908e1902b86a32f3c2f888917397c16",
   "citation_precision": {
-    "denominator": 18,
-    "numerator": 12,
-    "value": 0.6666666666666666
+    "denominator": 71,
+    "numerator": 48,
+    "value": 0.676056338028169
   },
   "cost_metadata_coverage": {
     "denominator": 96,
@@ -21,15 +21,15 @@
   "cost_metadata_observations": 96,
   "expected_fact_coverage": {
     "denominator": 72,
-    "numerator": 4,
-    "value": 0.05555555555555555
+    "numerator": 0,
+    "value": 0.0
   },
   "groundedness": {
-    "denominator": 4,
-    "numerator": 2,
-    "value": 0.5
+    "denominator": 0,
+    "numerator": 0,
+    "value": null
   },
-  "mean_cost_usd_over_costed_observations": 0.00028531406249999997,
+  "mean_cost_usd_over_costed_observations": 0.0002479625,
   "model_metadata": {
     "capability_aliases": [
       "agent-fast"
@@ -40,7 +40,7 @@
     "observations_with_model_metadata": 96,
     "providers": []
   },
-  "recognized_fact_units": 4,
+  "recognized_fact_units": 0,
   "repair_attempts": 0,
   "repair_cost_mean_usd_over_costed_attempts": null,
   "repair_cost_observations": 0,
@@ -54,9 +54,9 @@
     "numerator": 78,
     "value": 0.8125
   },
-  "safe_fallback_count": 0,
-  "safe_fallback_rate": 0.0,
-  "total_cost_usd_over_costed_observations": 0.02739015,
-  "unsupported_claim_rate": 0.5,
-  "unsupported_fact_units": 2
+  "safe_fallback_count": 9,
+  "safe_fallback_rate": 0.09375,
+  "total_cost_usd_over_costed_observations": 0.0238044,
+  "unsupported_claim_rate": null,
+  "unsupported_fact_units": 0
 }

@@ -9,14 +9,14 @@
     "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
     "evidence_gate_threshold": 0.2554669,
     "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
-    "grounding_candidate": "P1_PROMPT_V3",
+    "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
     "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
     "model_candidate": "M0",
     "model_revision": "groq/openai/gpt-oss-120b",
     "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
     "retrieval_profile_version": "knowledge-retrieval-v1.1",
-    "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+    "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
     "split": "dev"
   },
-  "run_identity_sha256": "68364c40b7e713bbc1c14a98396f07ab652ad85252275a82897371df45da4bc4"
+  "run_identity_sha256": "47c71abfc793ea6ebaa54a44e2354b6f3908e1902b86a32f3c2f888917397c16"
 }

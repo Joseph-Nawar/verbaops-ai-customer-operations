@@ -1,0 +1,58 @@
+{
+  "additional_provider_requests_after_failure": false,
+  "application_trace": {
+    "agent_run_id": "49ac17b8-6fe7-43c1-ade0-1a6b6e8ae75b",
+    "completed_at_utc": "2026-09-30T17:12:03.644358+00:00",
+    "error_code": "agent_unavailable",
+    "graph_version": "text-agent-m5d-v1",
+    "model_call_count": 1,
+    "model_call_error_codes": [
+      "llm_unavailable"
+    ],
+    "model_call_gateway_request_ids": [
+      null
+    ],
+    "model_call_statuses": [
+      "failed"
+    ],
+    "prompt_version": "text-agent-system-v3",
+    "started_at_utc": "2026-09-30T17:11:58.084893+00:00",
+    "status": "failed"
+  },
+  "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "blocked_case_id": "m5d-v02-payments-004",
+  "candidate": "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+  "canonical_observation_recorded_for_blocked_case": false,
+  "classification": "PROVIDER_RATE_LIMIT_HTTP_429_CORRELATED",
+  "completed_observations": 39,
+  "decision": "Stop provider-backed execution. Do not retry or resume P3 after the explicitly observed rate limit.",
+  "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+  "expected_observations": 96,
+  "gateway_evidence": {
+    "configured_model": "groq/openai/gpt-oss-120b",
+    "correlation_window_utc": {
+      "from": "2026-09-30T17:11:30Z",
+      "to": "2026-09-30T17:13:00Z"
+    },
+    "explicit_http_429_event_count": 3,
+    "provider": "Groq",
+    "provider_error_code": "rate_limit_exceeded",
+    "provider_internal_retry_count": "UNKNOWN",
+    "quota_dimension": "UNKNOWN",
+    "rate_limit_error_type": "RateLimitError",
+    "rate_limit_exception_mentions_present": true,
+    "request_id_correlation": "No gateway request ID was persisted on the failed application model-call trace; correlation is temporal and matches the sole blocked P3 request.",
+    "retry_after_header_present": false,
+    "status_event_timestamp_utc": "2026-09-30T17:12:03.626066467Z",
+    "x_ratelimit_headers_present": false
+  },
+  "holdout_executed": false,
+  "public_api_http_status": 503,
+  "rate_limit_proven": true,
+  "report_generated": false,
+  "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
+  "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf",
+  "runner_retry_after_failure": false,
+  "schema_version": "m5d-p3-provider-failure-diagnosis-v1",
+  "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION"
+}

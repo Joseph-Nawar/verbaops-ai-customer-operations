@@ -1,0 +1,11 @@
+{
+  "blocked_case_id": "m5d-v02-payments-004",
+  "completed_case_count": 39,
+  "error_type": "HTTPStatusError",
+  "grounding_candidate": "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+  "holdout_executed": false,
+  "http_status_code": 503,
+  "model_candidate": "M0",
+  "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
+  "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf"
+}

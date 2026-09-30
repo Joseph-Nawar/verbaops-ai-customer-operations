@@ -2,32 +2,42 @@
   "artifacts": [
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
-      "sha256": "ab70329a03209cf24f65fc8c2d721cf432f1a09bc2a12cce8b1aa7d941a35d85"
+      "sha256": "937dbaa61247d1ab6b114dd7db6caf8f87b4b99d230f1bd3b075b1a8d1b6c453"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
-      "sha256": "2f5da3f8a75bbd35238ba8b6015d22f4b5d41f34e32ac6e0973e587f5aa3cd9e"
+      "sha256": "73d994502cfe8bb03ffd94629519f285d8ba2f78be6a7a4fa1742efbf2f17bb6"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
-      "sha256": "c91762d9ebea614f71754364b2fa6dee9215e554e268fa6edb1b9c494a525103"
+      "sha256": "b556db32853b73b3f4b8a27d62190ed7c75c51e6944f8d4439608bd2ff51093f"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/report.json",
-      "sha256": "e9775c544bb0ada6f85841fa7582465025bb35ee0bd519d4f544b8662538b5f1"
+      "sha256": "8fde71d87c0a079354851d41bf0d58f57b212288a4e5f15f454cbeb43ed42bec"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
+      "sha256": "879a49be92f1a5bab7c961992f959df9bb061a341e3ff871eee0fbd3597806a9"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/provenance-correction.json",
+      "sha256": "e834ae70fbc1f1d07a6753bff246883cdba8ac92c2e9f243e27fb20ad5d1d812"
     }
   ],
   "canonical": true,
   "completed_cases": 96,
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
   "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
   "run_identity": {
-    "agent_graph_version": "text-agent-v2",
+    "agent_graph_version": "text-agent-m5d-v1",
     "agent_prompt_version": "text-agent-system-v2",
     "benchmark_version": "rag-v0.2",
     "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
     "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
     "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
     "evidence_gate_threshold": 0.2554669,
     "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
@@ -40,5 +50,5 @@
     "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
     "split": "dev"
   },
-  "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546"
+  "run_identity_sha256": "0d464fd5a80c2081b63d96fa7d96a49d87bb1e23c4ef9aa690705f6db7d959f6"
 }

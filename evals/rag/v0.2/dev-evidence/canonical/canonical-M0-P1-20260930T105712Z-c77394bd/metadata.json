@@ -2,29 +2,35 @@
   "artifacts": [
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl",
-      "sha256": "49b358e0436245d17009b765cc4e9c763396069a01977c14c1575555da220b01"
+      "sha256": "753aa6dde8dd6480289484c6eebb9746360229f6241cfa73d21ca37c63ed3356"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/grounded_cases.jsonl.identity.json",
-      "sha256": "78217c036e5d062f069ed5aa24a490bc00640c4aeea0b4cc543d64cf5d7ebf32"
+      "sha256": "97c8dd0d972622095570dc0cf22dd94890c85fc5014671a250a64dcfe487b06b"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/interruption.json",
       "sha256": "1d14a1869b2cc93ecd2a73d6e80ed1f0716822d4f97b4788f18dc16faab77817"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P1-20260930T105712Z-c77394bd/provenance-correction.json",
+      "sha256": "a5c712a99eb3511200d37bb2c760798cc6e5a7331087de6c4d83ba1eb14dacdf"
     }
   ],
   "blocked_case_id": "m5d-v02-returns-007",
   "canonical": true,
   "completed_case_count": 16,
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
   "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
   "run_identity": {
-    "agent_graph_version": "text-agent-v2",
+    "agent_graph_version": "text-agent-m5d-v1",
     "agent_prompt_version": "text-agent-system-v3",
     "benchmark_version": "rag-v0.2",
     "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
     "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
     "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
     "evidence_gate_threshold": 0.2554669,
     "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
@@ -37,6 +43,6 @@
     "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
     "split": "dev"
   },
-  "run_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
+  "run_identity_sha256": "68364c40b7e713bbc1c14a98396f07ab652ad85252275a82897371df45da4bc4",
   "run_status": "INTERRUPTED"
 }

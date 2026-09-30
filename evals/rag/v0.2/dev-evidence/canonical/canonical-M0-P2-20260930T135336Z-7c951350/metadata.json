@@ -1,27 +1,23 @@
 {
   "artifacts": [
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
-      "sha256": "937dbaa61247d1ab6b114dd7db6caf8f87b4b99d230f1bd3b075b1a8d1b6c453"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P2-20260930T135336Z-7c951350/grounded_cases.jsonl",
+      "sha256": "24926b7ab2c3b96e8e6f713cd9353717cb28716dd5d7e818bbcb5a6fa7c7796a"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
-      "sha256": "73d994502cfe8bb03ffd94629519f285d8ba2f78be6a7a4fa1742efbf2f17bb6"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P2-20260930T135336Z-7c951350/grounded_cases.jsonl.identity.json",
+      "sha256": "6b6740a3e339be95107bd92d2aa54225656c491d76792a332634157bb478e24e"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
-      "sha256": "879a49be92f1a5bab7c961992f959df9bb061a341e3ff871eee0fbd3597806a9"
-    },
-    {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/provenance-correction.json",
-      "sha256": "e834ae70fbc1f1d07a6753bff246883cdba8ac92c2e9f243e27fb20ad5d1d812"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P2-20260930T135336Z-7c951350/provenance-correction.json",
+      "sha256": "5614129d7eaf2da04906113467f6856a5ae5aefd82f04798ae8406a015136b92"
     }
   ],
   "canonical": true,
   "case_count": 96,
-  "cases_collected_before_throttle": 18,
+  "cases_collected_before_throttle": 0,
   "cases_without_evaluation_provenance": 0,
-  "completed_at_utc": "2026-09-30T10:54:59.149905+00:00",
+  "completed_at_utc": "2026-09-30T16:55:13.083831+00:00",
   "completed_case_count": 96,
   "credentials_persisted": false,
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
@@ -30,17 +26,17 @@
   "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
   "evaluation_worktree_dirty": false,
   "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
-  "grounding_candidate": "P0_CURRENT",
+  "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
   "holdout_executed": false,
   "inter_case_delay_seconds_for_new_cases": 20.0,
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "model_candidate": "M0",
-  "new_case_count": 66,
+  "new_case_count": 64,
   "production_promoted": false,
-  "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+  "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
   "run_identity": {
     "agent_graph_version": "text-agent-m5d-v1",
-    "agent_prompt_version": "text-agent-system-v2",
+    "agent_prompt_version": "text-agent-system-v3",
     "benchmark_version": "rag-v0.2",
     "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
     "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
@@ -48,16 +44,16 @@
     "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
     "evidence_gate_threshold": 0.2554669,
     "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
-    "grounding_candidate": "P0_CURRENT",
+    "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
     "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
     "model_candidate": "M0",
     "model_revision": "groq/openai/gpt-oss-120b",
     "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
     "retrieval_profile_version": "knowledge-retrieval-v1.1",
-    "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
+    "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
     "split": "dev"
   },
-  "run_identity_sha256": "0d464fd5a80c2081b63d96fa7d96a49d87bb1e23c4ef9aa690705f6db7d959f6",
+  "run_identity_sha256": "47c71abfc793ea6ebaa54a44e2354b6f3908e1902b86a32f3c2f888917397c16",
   "selected_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
   "split": "dev",
   "threshold": 0.2554669
