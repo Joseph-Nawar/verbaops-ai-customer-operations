@@ -2,32 +2,25 @@
   "artifacts": [
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
-      "sha256": "37e03d57ffc86a4a1e7f868c6ba687361c4b5df048f4e2249de72fd6b18671c8"
+      "sha256": "ab70329a03209cf24f65fc8c2d721cf432f1a09bc2a12cce8b1aa7d941a35d85"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl.identity.json",
       "sha256": "2f5da3f8a75bbd35238ba8b6015d22f4b5d41f34e32ac6e0973e587f5aa3cd9e"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/interruption.json",
-      "sha256": "879a49be92f1a5bab7c961992f959df9bb061a341e3ff871eee0fbd3597806a9"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
+      "sha256": "c91762d9ebea614f71754364b2fa6dee9215e554e268fa6edb1b9c494a525103"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/metadata.json",
-      "sha256": "35b41bd6c66e38a850a32a8fb2535dcc8a9cd37af15683b5a2226eeb088a4b4f"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/report.json",
+      "sha256": "e9775c544bb0ada6f85841fa7582465025bb35ee0bd519d4f544b8662538b5f1"
     }
   ],
-  "blocked_case_id": "m5d-v02-warranty-003",
   "canonical": true,
-  "completed_cases": 30,
-  "delay_excluded_from_answer_latency": true,
+  "completed_cases": 96,
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
-  "gateway_429_log_lines_since_stack_start": 5,
-  "gateway_rate_limit_marker_log_lines_since_stack_start": 4,
-  "gateway_retry_attribution": "not_determinable_from_available_logs",
-  "inter_case_delay_seconds_between_new_cases": 60.0,
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-  "rate_limit_reset_headers_recorded": false,
   "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
   "run_identity": {
     "agent_graph_version": "text-agent-v2",
@@ -47,7 +40,5 @@
     "run_id": "canonical-M0-P0-20260929T124811Z-0d27c8d7",
     "split": "dev"
   },
-  "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546",
-  "run_status": "INTERRUPTED",
-  "runner_retry_performed_after_http_503": false
+  "run_identity_sha256": "02e58b8d147551130714ff754372c304a2ec4253295bd79365920ec5730ac546"
 }
