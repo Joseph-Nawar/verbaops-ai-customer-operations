@@ -13,14 +13,15 @@ from typing import Any
 import httpx
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION
 from verbaops.evaluation.m5d_run_identity import (
+    CANONICAL_APPLICATION_SHA,
     PRE_EXPERIMENT_SHA,
     artifact_reference,
     bind_checkpoint_identity,
+    build_agent_evaluation_profile,
     load_checkpoint_records,
+    require_canonical_revisions,
     require_canonical_run_directory,
-    require_committed_behavior,
     run_identity_sha256,
     verify_artifact_references,
 )
@@ -83,7 +84,10 @@ async def _run(args: argparse.Namespace) -> None:
     if gate_report.get("holdout_executed") is not False:
         raise ValueError("gate report does not attest DEV-only execution")
 
-    evaluated_git_sha = require_committed_behavior(ROOT, pre_experiment_sha=PRE_EXPERIMENT_SHA)
+    evaluated_git_sha, evaluation_harness_sha = require_canonical_revisions(
+        ROOT,
+        application_sha=CANONICAL_APPLICATION_SHA,
+    )
     gate_identity = gate_report.get("run_identity")
     if (
         not isinstance(gate_identity, dict)
@@ -99,10 +103,11 @@ async def _run(args: argparse.Namespace) -> None:
         raise ValueError("gate report is missing hash-bound artifacts")
     verify_artifact_references(ROOT, gate_artifacts)
     require_canonical_run_directory(ROOT, args.run_dir, run_id=args.run_id)
-    prompt_version = (
-        "text-agent-system-v3"
-        if args.grounding in {"P1_PROMPT_V3", "P3_ONE_REPAIR_THEN_FAIL_CLOSED"}
-        else PROMPT_VERSION
+    profile = build_agent_evaluation_profile(
+        args.grounding,
+        evidence_gate=gate.value,
+        evidence_gate_threshold=args.threshold,
+        model_candidate=args.model_candidate,
     )
     run_identity = {
         "benchmark_version": audit.dataset_version,
@@ -112,13 +117,14 @@ async def _run(args: argparse.Namespace) -> None:
         "experiment_plan_sha256": sha256_file(ROOT / "evals/rag/v0.2/experiment-plan.json"),
         "pre_experiment_sha": PRE_EXPERIMENT_SHA,
         "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_harness_sha": evaluation_harness_sha,
         "evidence_gate": gate.value,
         "evidence_gate_threshold": args.threshold,
         "grounding_candidate": args.grounding,
         "model_candidate": args.model_candidate,
         "retrieval_profile_version": PRODUCTION_RETRIEVAL_PROFILE.version,
-        "agent_prompt_version": prompt_version,
-        "agent_graph_version": GRAPH_VERSION,
+        "agent_prompt_version": f"text-agent-system-{profile.prompt_version}",
+        "agent_graph_version": profile.graph_version,
         "model_revision": "groq/openai/gpt-oss-120b"
         if args.model_candidate == "M0"
         else "M1-local",
@@ -141,6 +147,7 @@ async def _run(args: argparse.Namespace) -> None:
     )
     provenance = {
         "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_harness_sha": evaluation_harness_sha,
         "evaluation_worktree_dirty": False,
         "run_identity_sha256": identity_digest,
         "run_id": args.run_id,
@@ -226,6 +233,9 @@ async def _run(args: argparse.Namespace) -> None:
         artifact_reference(ROOT, checkpoint),
         artifact_reference(ROOT, identity_path),
     ]
+    correction_path = args.run_dir / "provenance-correction.json"
+    if correction_path.is_file():
+        metadata["artifacts"].append(artifact_reference(ROOT, correction_path))
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -238,6 +248,7 @@ async def _run(args: argparse.Namespace) -> None:
         "run_identity": run_identity,
         "run_identity_sha256": run_identity_sha256(run_identity),
         "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_harness_sha": evaluation_harness_sha,
         "pre_experiment_sha": PRE_EXPERIMENT_SHA,
         "completed_cases": len(records),
         "artifacts": [
@@ -247,6 +258,8 @@ async def _run(args: argparse.Namespace) -> None:
             artifact_reference(ROOT, report_path),
         ],
     }
+    if correction_path.is_file():
+        summary["artifacts"].append(artifact_reference(ROOT, correction_path))
     (args.run_dir / "run-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -318,6 +331,7 @@ def _write_interrupted_summary(
         "run_identity": run_identity,
         "run_identity_sha256": identity_digest,
         "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_harness_sha": run_identity["evaluation_harness_sha"],
         "pre_experiment_sha": PRE_EXPERIMENT_SHA,
         "completed_case_count": len(completed),
         "blocked_case_id": error.case_id,
@@ -327,6 +341,9 @@ def _write_interrupted_summary(
             artifact_reference(ROOT, interruption_path),
         ],
     }
+    correction_path = args.run_dir / "provenance-correction.json"
+    if correction_path.is_file():
+        metadata["artifacts"].append(artifact_reference(ROOT, correction_path))
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -337,6 +354,7 @@ def _write_interrupted_summary(
         "run_identity": run_identity,
         "run_identity_sha256": identity_digest,
         "evaluated_git_sha": evaluated_git_sha,
+        "evaluation_harness_sha": run_identity["evaluation_harness_sha"],
         "pre_experiment_sha": PRE_EXPERIMENT_SHA,
         "completed_cases": len(completed),
         "blocked_case_id": error.case_id,
@@ -347,6 +365,8 @@ def _write_interrupted_summary(
             artifact_reference(ROOT, metadata_path),
         ],
     }
+    if correction_path.is_file():
+        summary["artifacts"].append(artifact_reference(ROOT, correction_path))
     (args.run_dir / "run-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

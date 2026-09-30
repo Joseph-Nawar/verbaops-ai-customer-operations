@@ -6,12 +6,13 @@ import argparse
 
 import uvicorn
 
-from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
+from verbaops.agent.evaluation import GroundingCandidate
 from verbaops.api.app import create_app
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.auth.development import DevelopmentAuthProvider
 from verbaops.auth.provider import OpaqueCredential
 from verbaops.config.settings import Environment, Settings
+from verbaops.evaluation.m5d_run_identity import build_agent_evaluation_profile
 from verbaops.retrieval.evidence_gate import EvidenceGate
 
 
@@ -41,9 +42,9 @@ def main() -> None:
         {OpaqueCredential(settings.auth.development_token.get_secret_value()): trusted_context},
         environment=settings.environment,
     )
-    profile = AgentEvaluationProfile(
-        grounding_candidate=GroundingCandidate(args.grounding),
-        evidence_gate=EvidenceGate(args.gate),
+    profile = build_agent_evaluation_profile(
+        args.grounding,
+        evidence_gate=args.gate,
         evidence_gate_threshold=args.threshold,
         model_candidate=args.model_candidate,
     )

@@ -27,6 +27,7 @@ def _identity() -> dict[str, Any]:
         "experiment_plan_sha256": "c" * 64,
         "pre_experiment_sha": "d" * 40,
         "evaluated_git_sha": "e" * 40,
+        "evaluation_harness_sha": "f" * 40,
         "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
         "evidence_gate_threshold": 0.25,
         "grounding_candidate": "P0_CURRENT",
@@ -50,6 +51,7 @@ def _identity() -> dict[str, Any]:
         ("knowledge_manifest_sha256", "0" * 64),
         ("experiment_plan_sha256", "1" * 64),
         ("evaluated_git_sha", "2" * 40),
+        ("evaluation_harness_sha", "3" * 40),
         ("run_id", "different-run"),
     ],
 )
@@ -197,6 +199,30 @@ def test_completed_decision_requires_hash_bound_canonical_run_provenance() -> No
     decision["canonical_runs"][0]["artifacts"][0].pop("sha256")
     with pytest.raises(ValueError, match=r"artifact.*sha256"):
         validate_dev_decision_provenance(decision)
+
+
+def test_grounding_run_decision_binds_evaluation_harness_sha() -> None:
+    decision: dict[str, Any] = {
+        "canonical_evidence_status": "PARTIAL",
+        "pre_experiment_sha": "d" * 40,
+        "evaluated_git_shas": ["e" * 40],
+        "canonical_runs": [
+            {
+                "run_id": "canonical-grounding-run",
+                "run_type": "GROUNDING_CANDIDATE",
+                "evaluated_git_sha": "e" * 40,
+                "run_identity_sha256": "f" * 64,
+                "artifacts": [
+                    {"path": "evals/rag/v0.2/dev-evidence/run/report.json", "sha256": "a" * 64}
+                ],
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="harness SHA"):
+        validate_dev_decision_provenance(decision)
+
+    decision["canonical_runs"][0]["evaluation_harness_sha"] = "b" * 40
+    validate_dev_decision_provenance(decision)
 
 
 @pytest.mark.parametrize(
