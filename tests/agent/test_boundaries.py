@@ -56,6 +56,7 @@ def test_agent_state_contains_only_the_bounded_mutable_fields() -> None:
         "knowledge_evidence",
         "retrieval_invocation_id",
         "grounded_citations",
+        "p4_diagnostics",
     }
 
 

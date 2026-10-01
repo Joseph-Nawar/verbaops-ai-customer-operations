@@ -16,8 +16,9 @@ from verbaops.agent.errors import (
     AgentUnavailableError,
 )
 from verbaops.agent.evaluation import GroundingCandidate
-from verbaops.agent.prompts import load_system_prompt
+from verbaops.agent.p4_grounding import finalize_p4_response
 from verbaops.agent.p4_models import P4Response
+from verbaops.agent.prompts import load_system_prompt
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
     GRAPH_RECURSION_LIMIT,
@@ -283,15 +284,30 @@ async def finalize_grounding(
 
     context = _context(runtime)
     final_response = state.get("final_response")
-    if not isinstance(final_response, str) or not final_response.strip():
-        raise AgentProtocolError()
-    finalizer = context.citation_finalizer or CitationFinalizer()
     evidence = state.get("knowledge_evidence", [])
-    grounded = finalizer.finalize(final_response, evidence)
     profile = context.evaluation_profile
     candidate = (
         profile.grounding_candidate if profile is not None else GroundingCandidate.P0_CURRENT
     )
+    if (
+        candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        and _p4_extractive_mode_active(state, context)
+    ):
+        p4_result = finalize_p4_response(
+            final_response,
+            evidence,
+            context.citation_finalizer or CitationFinalizer(),
+        )
+        return {
+            "final_response": p4_result.final_response,
+            "grounded_citations": list(p4_result.citations),
+            "p4_diagnostics": p4_result.diagnostics(),
+        }
+
+    if not isinstance(final_response, str) or not final_response.strip():
+        raise AgentProtocolError()
+    finalizer = context.citation_finalizer or CitationFinalizer()
+    grounded = finalizer.finalize(final_response, evidence)
     is_pure_knowledge_turn = bool(evidence) and state.get("tool_call_count", 0) == 0
     repair_was_generated = False
     if (

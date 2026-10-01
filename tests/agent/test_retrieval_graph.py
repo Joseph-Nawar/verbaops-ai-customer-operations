@@ -55,7 +55,7 @@ def evidence(key: str = "K1") -> RetrievalEvidence:
     )
 
 
-def response(content: str) -> GenerateResponse:
+def response(content: str | None) -> GenerateResponse:
     return GenerateResponse(
         content=content,
         metadata=ResponseMetadata(capability_alias=CapabilityAlias.AGENT_FAST),

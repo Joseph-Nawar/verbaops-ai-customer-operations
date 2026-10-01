@@ -109,7 +109,9 @@ async def test_blank_p4_knowledge_content_reaches_terminal_finalizer(
 
     seen_terminal_content: list[str | None] = []
 
-    async def capture_terminal_content(terminal_state: dict[str, Any], runtime: Any) -> dict[str, Any]:
+    async def capture_terminal_content(
+        terminal_state: dict[str, Any], runtime: Any
+    ) -> dict[str, Any]:
         del runtime
         seen_terminal_content.append(terminal_state["final_response"])
         return {"final_response": "parsed by terminal finalizer", "grounded_citations": []}
@@ -124,6 +126,39 @@ async def test_blank_p4_knowledge_content_reaches_terminal_finalizer(
 
     assert result["final_response"] == "parsed by terminal finalizer"
     assert seen_terminal_content == [""]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("content", "failure_reason"),
+    [
+        ("{broken", "invalid_json"),
+        ('{"claims":[{"claim_text":"x"}]}', "invalid_p4_schema"),
+        (None, "missing_or_blank_terminal_content"),
+        ("  \n", "missing_or_blank_terminal_content"),
+    ],
+)
+async def test_malformed_p4_terminal_fails_closed_without_an_extra_model_call(
+    content: str | None, failure_reason: str
+) -> None:
+    llm = ScriptedLLMClient([response(content)])
+
+    result = cast(
+        dict[str, Any],
+        await build_agent_graph().ainvoke(
+            state("What is the return window?"),
+            context=_context(llm, GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS),
+        ),
+    )
+
+    assert result["final_response"] == (
+        "I'm unable to verify that information from the available company knowledge."
+    )
+    assert result["model_call_count"] == 1
+    assert len(llm.requests) == 1
+    assert result["p4_diagnostics"]["parse_success"] is False
+    assert result["p4_diagnostics"]["parse_failure_reason"] == failure_reason
+    assert result["p4_diagnostics"]["accepted_claims"] == []
 
 
 @pytest.mark.asyncio
