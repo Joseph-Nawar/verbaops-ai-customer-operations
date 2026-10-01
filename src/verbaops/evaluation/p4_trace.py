@@ -16,37 +16,54 @@ from uuid import UUID
 
 _RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,159}\Z")
 _TOP_LEVEL_FIELDS = {"schema_version", "run_id", "agent_run_id", "diagnostics"}
-_MODE_FIELDS = {
-    "p4_extractive_mode_active",
-    "p4_extractive_mode_reason",
-    "tool_path_entered",
-    "p4_extractive_mode_deactivated_after_tool",
-}
-_RESPONSE_FIELDS = {
-    "raw_structured_response",
-    "parse_success",
-    "parse_failure_reason",
-    "proposed_claims",
-    "claim_validation",
-    "accepted_claims",
-    "rendered_claims",
-    "final_rendered_answer",
-    "fallback_used",
-    "fallback_reason",
-}
+_FROZEN_P4_TRACE_FIELDS = frozenset(
+    {
+        "raw_structured_model_response",
+        "parse_success",
+        "parse_failure_reason",
+        "proposed_claims",
+        "proposed_evidence_handle_per_claim",
+        "proposed_excerpt_per_claim",
+        "handle_validation_result_per_claim",
+        "excerpt_validation_result_per_claim",
+        "deterministic_rejection_reason_per_claim",
+        "rendered_final_claims",
+        "p4_extractive_mode_active",
+        "p4_extractive_mode_reason",
+        "tool_path_entered",
+        "p4_extractive_mode_deactivated_after_tool",
+        "fallback_used",
+        "fallback_reason",
+    }
+)
+_FROZEN_P4_MODE_REASONS = frozenset(
+    {
+        "selected_evidence_knowledge_path",
+        "no_selected_knowledge_evidence",
+        "commerce_tool_call_emitted",
+        "deactivated_after_commerce_tool",
+        "terminal_tool_answer_bypassed_validator",
+        "terminal_knowledge_answer_validated",
+        "malformed_or_invalid_structured_knowledge_output",
+        "all_claims_rejected_safe_fallback",
+    }
+)
 _CLAIM_FIELDS = {"claim_text", "evidence_handle", "supporting_excerpt"}
-_VALIDATION_FIELDS = {
-    "index",
-    "claim_text",
-    "evidence_handle",
-    "supporting_excerpt",
-    "handle_valid",
-    "excerpt_nonempty",
-    "excerpt_matches_source",
-    "claim_nonempty",
-    "claim_matches_excerpt",
-    "accepted",
-    "rejection_reason",
+_PARSE_FAILURES = {
+    "invalid_json",
+    "invalid_p4_schema",
+    "missing_or_blank_terminal_content",
+}
+_REJECTION_REASONS = {
+    "invalid_handle",
+    "empty_excerpt",
+    "excerpt_mismatch",
+    "empty_claim",
+    "claim_not_substring",
+}
+_FALLBACK_REASONS = _PARSE_FAILURES | {
+    "all_claims_rejected",
+    "citation_finalizer_rejected_claims",
 }
 _SENSITIVE_ASSIGNMENT = re.compile(
     r"(?i)([\"']?(?:api[_-]?key|access[_-]?token|authorization|password|secret|credential)"
@@ -62,6 +79,12 @@ class P4TraceArtifact:
     relative_path: str
     sha256: str
     payload: dict[str, Any]
+
+
+def frozen_p4_observability_contract() -> tuple[frozenset[str], frozenset[str]]:
+    """Return the plan-checked trace contract without requiring eval files at runtime."""
+
+    return _FROZEN_P4_TRACE_FIELDS, _FROZEN_P4_MODE_REASONS
 
 
 class P4TraceStore:
@@ -247,10 +270,9 @@ def _sanitize_diagnostics(
 ) -> dict[str, Any]:
     if not isinstance(diagnostics, Mapping):
         raise ValueError("P4 diagnostics must be an object")
-    keys = set(diagnostics)
-    allowed = _MODE_FIELDS | _RESPONSE_FIELDS
-    if keys - allowed or not _MODE_FIELDS.issubset(keys):
-        raise ValueError("P4 diagnostic field is not allowed or required")
+    required_fields, allowed_reasons = frozen_p4_observability_contract()
+    if set(diagnostics) != required_fields:
+        raise ValueError("P4 diagnostic fields do not match the frozen observability contract")
 
     active = diagnostics["p4_extractive_mode_active"]
     mode_reason = diagnostics["p4_extractive_mode_reason"]
@@ -260,169 +282,152 @@ def _sanitize_diagnostics(
         raise ValueError("P4 mode diagnostics must be booleans")
     if not isinstance(deactivated, bool) or deactivated != tool_path_entered:
         raise ValueError("P4 tool mode diagnostics are inconsistent")
-    if not isinstance(mode_reason, str):
-        raise ValueError("P4 mode reason is malformed")
-    if active:
-        if mode_reason != "selected_evidence_no_tool_path" or tool_path_entered:
-            raise ValueError("active P4 mode has inconsistent provenance")
-        if keys != _MODE_FIELDS | _RESPONSE_FIELDS:
-            raise ValueError("active P4 mode is missing response diagnostics")
-    else:
-        if mode_reason not in {"no_selected_knowledge_evidence", "commerce_tool_path"}:
-            raise ValueError("inactive P4 mode has an unknown reason")
-        if (mode_reason == "commerce_tool_path") != tool_path_entered:
-            raise ValueError("inactive P4 mode reason does not match tool state")
-        if keys != _MODE_FIELDS:
-            raise ValueError("inactive P4 mode must not retain response diagnostics")
+    if not isinstance(mode_reason, str) or mode_reason not in allowed_reasons:
+        raise ValueError("P4 mode reason is outside the frozen vocabulary")
+
+    raw_response = diagnostics["raw_structured_model_response"]
+    parse_success = diagnostics["parse_success"]
+    parse_failure = diagnostics["parse_failure_reason"]
+    proposed = diagnostics["proposed_claims"]
+    handles = diagnostics["proposed_evidence_handle_per_claim"]
+    excerpts = diagnostics["proposed_excerpt_per_claim"]
+    handle_results = diagnostics["handle_validation_result_per_claim"]
+    excerpt_results = diagnostics["excerpt_validation_result_per_claim"]
+    rejection_reasons = diagnostics["deterministic_rejection_reason_per_claim"]
+    rendered = diagnostics["rendered_final_claims"]
+    fallback_used = diagnostics["fallback_used"]
+    fallback_reason = diagnostics["fallback_reason"]
+
+    if raw_response is not None and not isinstance(raw_response, str):
+        raise ValueError("P4 response diagnostics are malformed")
+    if parse_success is not None and not isinstance(parse_success, bool):
+        raise ValueError("P4 response diagnostics are malformed")
+    if parse_failure is not None and (
+        not isinstance(parse_failure, str) or parse_failure not in _PARSE_FAILURES
+    ):
+        raise ValueError("P4 response diagnostics are malformed")
+    if not isinstance(rendered, str) or not isinstance(fallback_used, bool):
+        raise ValueError("P4 response diagnostics are malformed")
+    if fallback_reason is not None and (
+        not isinstance(fallback_reason, str) or fallback_reason not in _FALLBACK_REASONS
+    ):
+        raise ValueError("P4 response diagnostics are malformed")
+    if fallback_used != (fallback_reason is not None):
+        raise ValueError("P4 response diagnostics are malformed")
+    if not all(
+        isinstance(items, list)
+        for items in (
+            proposed,
+            handles,
+            excerpts,
+            handle_results,
+            excerpt_results,
+            rejection_reasons,
+        )
+    ):
+        raise ValueError("P4 response diagnostics are malformed")
+    if any(
+        not isinstance(claim, dict)
+        or set(claim) != _CLAIM_FIELDS
+        or any(not isinstance(claim[field], str) for field in _CLAIM_FIELDS)
+        for claim in proposed
+    ):
+        raise ValueError("P4 claim diagnostics are malformed")
+    count = len(proposed)
+    if any(
+        len(items) != count
+        for items in (handles, excerpts, handle_results, excerpt_results, rejection_reasons)
+    ):
+        raise ValueError("P4 per-claim diagnostic arrays are inconsistent")
+    if handles != [claim["evidence_handle"] for claim in proposed] or excerpts != [
+        claim["supporting_excerpt"] for claim in proposed
+    ]:
+        raise ValueError("P4 per-claim diagnostic arrays do not match proposed claims")
+    if any(not isinstance(value, bool) for value in handle_results):
+        raise ValueError("P4 handle validation results are malformed")
+    if any(value is not None and not isinstance(value, bool) for value in excerpt_results):
+        raise ValueError("P4 excerpt validation results are malformed")
+    if any(
+        value is not None and (not isinstance(value, str) or value not in _REJECTION_REASONS)
+        for value in rejection_reasons
+    ):
+        raise ValueError("P4 deterministic rejection reasons are malformed")
+
+    accepted: list[dict[str, str]] = []
+    for index, claim in enumerate(proposed):
+        claim_text = claim["claim_text"]
+        excerpt = excerpts[index]
+        expected_rejection = (
+            "invalid_handle"
+            if not handle_results[index]
+            else "empty_excerpt"
+            if not excerpt.strip()
+            else "excerpt_mismatch"
+            if excerpt_results[index] is not True
+            else "empty_claim"
+            if not claim_text.strip()
+            else "claim_not_substring"
+            if claim_text not in excerpt
+            else None
+        )
+        if rejection_reasons[index] != expected_rejection:
+            raise ValueError("P4 deterministic rejection reason disagrees with validation results")
+        if expected_rejection is None:
+            accepted.append(claim)
+    expected_rendered = "\n".join(
+        f"{claim['claim_text']} [[{claim['evidence_handle']}]]" for claim in accepted
+    )
+    if rendered != expected_rendered:
+        raise ValueError("P4 rendered claims do not match accepted-claim diagnostics")
 
     if active:
-        raw_response = diagnostics["raw_structured_response"]
-        parse_success = diagnostics["parse_success"]
-        parse_failure = diagnostics["parse_failure_reason"]
-        proposed = diagnostics["proposed_claims"]
-        validations = diagnostics["claim_validation"]
-        accepted = diagnostics["accepted_claims"]
-        rendered = diagnostics["rendered_claims"]
-        final_answer = diagnostics["final_rendered_answer"]
-        fallback_used = diagnostics["fallback_used"]
-        fallback_reason = diagnostics["fallback_reason"]
-        allowed_parse_failures = {
-            "invalid_json",
-            "invalid_p4_schema",
-            "missing_or_blank_terminal_content",
-        }
-        allowed_fallbacks = allowed_parse_failures | {
-            "all_claims_rejected",
-            "citation_finalizer_rejected_claims",
-        }
-        if raw_response is not None and not isinstance(raw_response, str):
-            raise ValueError("P4 response diagnostics are malformed")
-        if not isinstance(parse_success, bool):
-            raise ValueError("P4 response diagnostics are malformed")
-        if not isinstance(rendered, str) or not isinstance(final_answer, str):
-            raise ValueError("P4 response diagnostics are malformed")
-        if not isinstance(fallback_used, bool):
-            raise ValueError("P4 response diagnostics are malformed")
-        if parse_failure is not None and (
-            not isinstance(parse_failure, str) or parse_failure not in allowed_parse_failures
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if fallback_reason is not None and (
-            not isinstance(fallback_reason, str) or fallback_reason not in allowed_fallbacks
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if fallback_used != (fallback_reason is not None):
-            raise ValueError("P4 response diagnostics are malformed")
+        if tool_path_entered or not isinstance(parse_success, bool):
+            raise ValueError("active P4 mode has inconsistent response diagnostics")
         if parse_success != (parse_failure is None):
-            raise ValueError("P4 response diagnostics are malformed")
-        if not all(isinstance(items, list) for items in (proposed, validations, accepted)):
-            raise ValueError("P4 response diagnostics are malformed")
-        if any(
-            not isinstance(claim, dict) or set(claim) != _CLAIM_FIELDS
-            for claim in (*proposed, *accepted)
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if any(
-            not isinstance(item, dict) or set(item) != _VALIDATION_FIELDS for item in validations
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if any(
-            not isinstance(item[field], str)
-            for item in validations
-            for field in ("claim_text", "evidence_handle", "supporting_excerpt")
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if any(
-            not isinstance(claim[field], str)
-            for claim in (*proposed, *accepted)
-            for field in _CLAIM_FIELDS
-        ):
-            raise ValueError("P4 response diagnostics are malformed")
-        if len(proposed) != len(validations):
-            raise ValueError("P4 response diagnostics are malformed")
-        rejection_reasons = {
-            "invalid_handle",
-            "empty_excerpt",
-            "excerpt_mismatch",
-            "empty_claim",
-            "claim_not_substring",
-        }
-        for index, item in enumerate(validations):
+            raise ValueError("P4 parse result is inconsistent")
+        if not parse_success:
             if (
-                not isinstance(item["index"], int)
-                or isinstance(item["index"], bool)
-                or item["index"] != index
+                mode_reason != "malformed_or_invalid_structured_knowledge_output"
+                or proposed
+                or rendered
+                or not fallback_used
+                or fallback_reason != parse_failure
             ):
-                raise ValueError("P4 response diagnostics are malformed")
-            if any(
-                not isinstance(item[field], bool)
-                for field in ("handle_valid", "excerpt_nonempty", "claim_nonempty", "accepted")
+                raise ValueError("malformed P4 response diagnostics are inconsistent")
+        elif not accepted:
+            if (
+                mode_reason != "all_claims_rejected_safe_fallback"
+                or not fallback_used
+                or fallback_reason != "all_claims_rejected"
             ):
-                raise ValueError("P4 response diagnostics are malformed")
-            if any(
-                item[field] is not None and not isinstance(item[field], bool)
-                for field in ("excerpt_matches_source", "claim_matches_excerpt")
-            ):
-                raise ValueError("P4 response diagnostics are malformed")
-            if item["rejection_reason"] is not None and (
-                not isinstance(item["rejection_reason"], str)
-                or item["rejection_reason"] not in rejection_reasons
-            ):
-                raise ValueError("P4 response diagnostics are malformed")
-            expected_rejection = (
-                "invalid_handle"
-                if not item["handle_valid"]
-                else "empty_excerpt"
-                if not item["excerpt_nonempty"]
-                else "excerpt_mismatch"
-                if item["excerpt_matches_source"] is not True
-                else "empty_claim"
-                if not item["claim_nonempty"]
-                else "claim_not_substring"
-                if item["claim_matches_excerpt"] is not True
-                else None
-            )
-            if item["rejection_reason"] != expected_rejection:
-                raise ValueError("P4 response diagnostics are malformed")
-            if (item["rejection_reason"] is None) != item["accepted"]:
-                raise ValueError("P4 response diagnostics are malformed")
-            proposed_claim = proposed[index]
-            if any(
-                item[field] != proposed_claim[field]
-                for field in ("claim_text", "evidence_handle", "supporting_excerpt")
-            ):
-                raise ValueError("P4 response diagnostics are malformed")
-        accepted_from_validation = [
-            proposed[index] for index, item in enumerate(validations) if item["accepted"]
-        ]
-        if accepted != accepted_from_validation:
-            raise ValueError("P4 response diagnostics are malformed")
-        expected_rendered = "\n".join(
-            f"{claim['claim_text']} [[{claim['evidence_handle']}]]" for claim in accepted
+                raise ValueError("all-claims-rejected P4 diagnostics are inconsistent")
+        elif mode_reason != "terminal_knowledge_answer_validated":
+            raise ValueError("terminal P4 knowledge diagnostics have an invalid reason")
+    else:
+        expected_reason = (
+            "terminal_tool_answer_bypassed_validator"
+            if tool_path_entered
+            else "no_selected_knowledge_evidence"
         )
-        if rendered != expected_rendered:
-            raise ValueError("P4 response diagnostics are malformed")
-        if (fallback_reason == "all_claims_rejected") != (parse_success and not accepted):
-            raise ValueError("P4 response diagnostics are malformed")
-        if fallback_reason == "citation_finalizer_rejected_claims" and not accepted:
-            raise ValueError("P4 response diagnostics are malformed")
-        if not parse_success and (
-            proposed or validations or accepted or fallback_reason != parse_failure
+        if (
+            mode_reason != expected_reason
+            or raw_response is not None
+            or parse_success is not None
+            or parse_failure is not None
+            or proposed
+            or handles
+            or excerpts
+            or handle_results
+            or excerpt_results
+            or rejection_reasons
+            or rendered
+            or fallback_used
+            or fallback_reason is not None
         ):
-            raise ValueError("P4 response diagnostics are malformed")
+            raise ValueError("inactive P4 diagnostics must use not-applicable response values")
 
     sanitized: dict[str, Any] = {}
     for key, value in diagnostics.items():
-        if key in {"proposed_claims", "accepted_claims"} and (
-            not isinstance(value, list)
-            or any(not isinstance(claim, dict) or set(claim) != _CLAIM_FIELDS for claim in value)
-        ):
-            raise ValueError("P4 claim diagnostics are malformed")
-        if key == "claim_validation" and (
-            not isinstance(value, list)
-            or any(not isinstance(item, dict) or set(item) != _VALIDATION_FIELDS for item in value)
-        ):
-            raise ValueError("P4 validation diagnostics are malformed")
         sanitized[key] = _sanitize_value(value, secrets_to_hide)
     return sanitized
 
@@ -456,4 +461,9 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-__all__ = ["P4TraceArtifact", "P4TraceStore", "verify_p4_trace_records"]
+__all__ = [
+    "P4TraceArtifact",
+    "P4TraceStore",
+    "frozen_p4_observability_contract",
+    "verify_p4_trace_records",
+]

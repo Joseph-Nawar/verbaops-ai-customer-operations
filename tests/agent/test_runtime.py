@@ -14,6 +14,7 @@ from pydantic import SecretStr
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.errors import AgentBusyError, AgentInputError, AgentUnavailableError
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
+from verbaops.agent.p4_grounding import empty_p4_response_diagnostics
 from verbaops.agent.runtime import AgentRuntime, AgentTurnResult
 from verbaops.agent.versions import (
     GRAPH_VERSION,
@@ -286,6 +287,7 @@ async def test_p4_runtime_writes_terminal_diagnostics_only_to_explicit_run_sidec
             return {
                 "final_response": "I'm unable to verify that information from the available company knowledge.",
                 "p4_diagnostics": {
+                    **empty_p4_response_diagnostics(),
                     "p4_extractive_mode_active": False,
                     "p4_extractive_mode_reason": "no_selected_knowledge_evidence",
                     "tool_path_entered": False,

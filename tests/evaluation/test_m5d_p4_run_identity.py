@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import subprocess
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
-from scripts.run_m5d_grounded_eval import _load_dev_cases_without_holdout
+from scripts.run_m5d_grounded_eval import _load_dev_cases_without_holdout, _run
 
 from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.evaluation.m5d_run_identity import (
@@ -150,3 +152,16 @@ def test_p4_runner_parses_dev_rows_without_parsing_release_holdout(tmp_path: Pat
 
     assert [case.case_id for case in cases] == ["m5d-v02-shipping-001"]
     assert all(case.split == "dev" for case in cases)
+
+
+def test_p4_runner_preflight_reads_frozen_plan_before_configuration_guard() -> None:
+    args = Namespace(
+        split="dev",
+        grounding="P4_EVIDENCE_LINKED_SINGLE_PASS",
+        run_id="canonical-M0-P4-preflight-plan-key-regression",
+        database_url=None,
+        token=None,
+    )
+
+    with pytest.raises(ValueError, match="database and public API bearer token are required"):
+        asyncio.run(_run(args))

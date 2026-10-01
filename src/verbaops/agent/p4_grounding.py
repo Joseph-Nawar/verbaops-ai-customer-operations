@@ -64,21 +64,60 @@ class P4FinalizationResult:
     rendered_claims: str
     fallback_reason: str | None
 
+    @property
+    def terminal_mode_reason(self) -> str:
+        if not self.parse_success:
+            return "malformed_or_invalid_structured_knowledge_output"
+        if not self.accepted_claims:
+            return "all_claims_rejected_safe_fallback"
+        return "terminal_knowledge_answer_validated"
+
     def diagnostics(self) -> dict[str, Any]:
         """Return only P4 response and validation details for the run sidecar."""
 
         return {
-            "raw_structured_response": self.raw_structured_response,
+            "raw_structured_model_response": self.raw_structured_response,
             "parse_success": self.parse_success,
             "parse_failure_reason": self.parse_failure_reason,
             "proposed_claims": [claim.model_dump(mode="json") for claim in self.proposed_claims],
-            "claim_validation": [item.as_dict() for item in self.claim_diagnostics],
-            "accepted_claims": [claim.model_dump(mode="json") for claim in self.accepted_claims],
-            "rendered_claims": self.rendered_claims,
-            "final_rendered_answer": self.final_response,
+            "proposed_evidence_handle_per_claim": [
+                item.evidence_handle for item in self.proposed_claims
+            ],
+            "proposed_excerpt_per_claim": [
+                item.supporting_excerpt for item in self.proposed_claims
+            ],
+            "handle_validation_result_per_claim": [
+                item.handle_valid for item in self.claim_diagnostics
+            ],
+            "excerpt_validation_result_per_claim": [
+                item.excerpt_matches_source for item in self.claim_diagnostics
+            ],
+            "deterministic_rejection_reason_per_claim": [
+                item.rejection_reason for item in self.claim_diagnostics
+            ],
+            "rendered_final_claims": self.rendered_claims,
             "fallback_used": self.fallback_reason is not None,
             "fallback_reason": self.fallback_reason,
         }
+
+
+def empty_p4_response_diagnostics() -> dict[str, Any]:
+    """Return the JSON-safe not-applicable values for a P4 non-knowledge path."""
+
+    return {
+        "raw_structured_model_response": None,
+        "parse_success": None,
+        "parse_failure_reason": None,
+        "proposed_claims": [],
+        "proposed_evidence_handle_per_claim": [],
+        "proposed_excerpt_per_claim": [],
+        "handle_validation_result_per_claim": [],
+        "excerpt_validation_result_per_claim": [],
+        "deterministic_rejection_reason_per_claim": [],
+        "rendered_final_claims": "",
+        "fallback_used": False,
+        "fallback_reason": None,
+    }
 
 
 def parse_p4_response(content: str | None) -> P4ParseResult:
@@ -230,6 +269,7 @@ __all__ = [
     "P4ClaimValidation",
     "P4FinalizationResult",
     "P4ParseResult",
+    "empty_p4_response_diagnostics",
     "finalize_p4_response",
     "parse_p4_response",
     "render_p4_claims",

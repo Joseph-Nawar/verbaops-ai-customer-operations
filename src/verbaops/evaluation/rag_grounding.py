@@ -15,6 +15,7 @@ from verbaops.evaluation.m5d_run_identity import (
     bind_checkpoint_identity,
     load_checkpoint_records,
 )
+from verbaops.evaluation.p4_trace import frozen_p4_observability_contract
 from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_score
 from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
@@ -513,6 +514,9 @@ def _validate_p4_fixture_for_fact(
 def _accumulate_p4_trace_counts(counts: dict[str, int], raw: Any) -> None:
     if not isinstance(raw, Mapping):
         raise ValueError("P4 scorer requires validated per-case trace diagnostics")
+    required_fields, allowed_reasons = frozen_p4_observability_contract()
+    if set(raw) != required_fields:
+        raise ValueError("P4 scorer diagnostics do not match the frozen observability contract")
     active = raw.get("p4_extractive_mode_active")
     reason = raw.get("p4_extractive_mode_reason")
     tool_path = raw.get("tool_path_entered")
@@ -524,53 +528,97 @@ def _accumulate_p4_trace_counts(counts: dict[str, int], raw: Any) -> None:
         or deactivated != tool_path
     ):
         raise ValueError("P4 per-case trace mode diagnostics are malformed")
-    if not isinstance(reason, str):
+    if not isinstance(reason, str) or reason not in allowed_reasons:
         raise ValueError("P4 per-case trace mode reason is malformed")
-    if active and (reason != "selected_evidence_no_tool_path" or tool_path):
-        raise ValueError("P4 active-mode diagnostics are inconsistent")
-    if not active and reason not in {"no_selected_knowledge_evidence", "commerce_tool_path"}:
-        raise ValueError("P4 inactive-mode diagnostics are inconsistent")
-    if (reason == "commerce_tool_path") != tool_path:
-        raise ValueError("P4 tool-path diagnostics are inconsistent")
+    rejection_projection = raw.get("deterministic_rejection_reason_per_claim")
+    expected_reason = (
+        "terminal_tool_answer_bypassed_validator"
+        if tool_path
+        else (
+            "malformed_or_invalid_structured_knowledge_output"
+            if active and raw.get("parse_success") is False
+            else "all_claims_rejected_safe_fallback"
+            if active
+            and raw.get("parse_success") is True
+            and isinstance(rejection_projection, list)
+            and all(value is not None for value in rejection_projection)
+            else "terminal_knowledge_answer_validated"
+            if active
+            else "no_selected_knowledge_evidence"
+        )
+    )
+    if reason != expected_reason or (active and tool_path):
+        raise ValueError("P4 terminal mode diagnostics are inconsistent")
     counts["extractive_mode_case_count"] += int(active)
     counts["no_evidence_path_case_count"] += int(reason == "no_selected_knowledge_evidence")
     counts["tool_path_case_count"] += int(tool_path)
     if not active:
+        if (
+            raw.get("raw_structured_model_response") is not None
+            or raw.get("parse_success") is not None
+            or raw.get("parse_failure_reason") is not None
+            or raw.get("proposed_claims") != []
+            or raw.get("proposed_evidence_handle_per_claim") != []
+            or raw.get("proposed_excerpt_per_claim") != []
+            or raw.get("handle_validation_result_per_claim") != []
+            or raw.get("excerpt_validation_result_per_claim") != []
+            or raw.get("deterministic_rejection_reason_per_claim") != []
+            or raw.get("rendered_final_claims") != ""
+            or raw.get("fallback_used") is not False
+            or raw.get("fallback_reason") is not None
+        ):
+            raise ValueError("P4 inactive-mode diagnostics contain response data")
         return
     if not isinstance(raw.get("parse_success"), bool):
         raise ValueError("P4 per-case parse diagnostics are malformed")
     counts["malformed_structured_response_count"] += int(not raw["parse_success"])
     proposed = raw.get("proposed_claims")
-    accepted = raw.get("accepted_claims")
-    validations = raw.get("claim_validation")
+    handles = raw.get("proposed_evidence_handle_per_claim")
+    excerpts = raw.get("proposed_excerpt_per_claim")
+    handle_results = raw.get("handle_validation_result_per_claim")
+    excerpt_results = raw.get("excerpt_validation_result_per_claim")
+    rejection_reasons = raw.get("deterministic_rejection_reason_per_claim")
     if (
         not isinstance(proposed, list)
-        or not isinstance(accepted, list)
-        or not isinstance(validations, list)
+        or not isinstance(handles, list)
+        or not isinstance(excerpts, list)
+        or not isinstance(handle_results, list)
+        or not isinstance(excerpt_results, list)
+        or not isinstance(rejection_reasons, list)
     ):
         raise ValueError("P4 per-case claim diagnostics are malformed")
     if any(
         not isinstance(claim, Mapping)
         or set(claim) != _P4_CLAIM_DIAGNOSTIC_FIELDS
         or any(not isinstance(claim[field], str) for field in _P4_CLAIM_DIAGNOSTIC_FIELDS)
-        for claim in (*proposed, *accepted)
+        for claim in proposed
     ):
         raise ValueError("P4 per-case proposed claims are malformed")
-    if any(not isinstance(item, Mapping) or "rejection_reason" not in item for item in validations):
-        raise ValueError("P4 per-case claim validation is malformed")
+    if any(
+        len(items) != len(proposed)
+        for items in (handles, excerpts, handle_results, excerpt_results, rejection_reasons)
+    ):
+        raise ValueError("P4 per-case claim diagnostic arrays are inconsistent")
+    if handles != [claim["evidence_handle"] for claim in proposed] or excerpts != [
+        claim["supporting_excerpt"] for claim in proposed
+    ]:
+        raise ValueError("P4 per-case projection arrays do not match proposed claims")
+    if any(not isinstance(value, bool) for value in handle_results):
+        raise ValueError("P4 per-case handle validations are malformed")
+    accepted_count = sum(value is None for value in rejection_reasons)
     counts["proposed_claim_count"] += len(proposed)
-    counts["accepted_claim_count"] += len(accepted)
+    counts["accepted_claim_count"] += accepted_count
     counts["invalid_handle_rejection_count"] += sum(
-        item.get("rejection_reason") == "invalid_handle" for item in validations
+        reason == "invalid_handle" for reason in rejection_reasons
     )
     counts["excerpt_mismatch_rejection_count"] += sum(
-        item.get("rejection_reason") == "excerpt_mismatch" for item in validations
+        reason == "excerpt_mismatch" for reason in rejection_reasons
     )
     counts["claim_not_substring_rejection_count"] += sum(
-        item.get("rejection_reason") == "claim_not_substring" for item in validations
+        reason == "claim_not_substring" for reason in rejection_reasons
     )
     counts["all_claims_rejected_fallback_count"] += int(
-        raw.get("fallback_reason") == "all_claims_rejected"
+        reason == "all_claims_rejected_safe_fallback"
     )
 
 

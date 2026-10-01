@@ -64,22 +64,30 @@ def _case_fixture_and_records(
         diagnostics: dict[str, Any] = {
             "p4_extractive_mode_active": active,
             "p4_extractive_mode_reason": (
-                "selected_evidence_no_tool_path" if active else "no_selected_knowledge_evidence"
+                "all_claims_rejected_safe_fallback" if active else "no_selected_knowledge_evidence"
             ),
             "tool_path_entered": False,
             "p4_extractive_mode_deactivated_after_tool": False,
+            "raw_structured_model_response": None,
+            "parse_success": None,
+            "parse_failure_reason": None,
+            "proposed_claims": [],
+            "proposed_evidence_handle_per_claim": [],
+            "proposed_excerpt_per_claim": [],
+            "handle_validation_result_per_claim": [],
+            "excerpt_validation_result_per_claim": [],
+            "deterministic_rejection_reason_per_claim": [],
+            "rendered_final_claims": "",
+            "fallback_used": False,
+            "fallback_reason": None,
         }
         if active:
             diagnostics.update(
                 {
-                    "raw_structured_response": '{"claims":[]}',
+                    "raw_structured_model_response": '{"claims":[]}',
                     "parse_success": True,
                     "parse_failure_reason": None,
-                    "proposed_claims": [],
-                    "claim_validation": [],
-                    "accepted_claims": [],
-                    "rendered_claims": "",
-                    "final_rendered_answer": current_answer,
+                    "rendered_final_claims": "",
                     "fallback_used": True,
                     "fallback_reason": "all_claims_rejected",
                 }
@@ -195,21 +203,11 @@ def test_p4_report_exposes_trace_diagnostics_and_handle_trust_invariant() -> Non
     diagnostics["proposed_claims"] = [
         {"claim_text": "x", "evidence_handle": "K9", "supporting_excerpt": "x"}
     ]
-    diagnostics["claim_validation"] = [
-        {
-            "index": 0,
-            "claim_text": "x",
-            "evidence_handle": "K9",
-            "supporting_excerpt": "x",
-            "handle_valid": False,
-            "excerpt_nonempty": True,
-            "excerpt_matches_source": None,
-            "claim_nonempty": True,
-            "claim_matches_excerpt": True,
-            "accepted": False,
-            "rejection_reason": "invalid_handle",
-        }
-    ]
+    diagnostics["proposed_evidence_handle_per_claim"] = ["K9"]
+    diagnostics["proposed_excerpt_per_claim"] = ["x"]
+    diagnostics["handle_validation_result_per_claim"] = [False]
+    diagnostics["excerpt_validation_result_per_claim"] = [None]
+    diagnostics["deterministic_rejection_reason_per_claim"] = ["invalid_handle"]
     report = score_p4_grounded_records(cases, records, 0.2554669, repo_root=ROOT)
 
     assert report["p4_diagnostics"]["extractive_mode_case_count"] == 72
@@ -217,3 +215,30 @@ def test_p4_report_exposes_trace_diagnostics_and_handle_trust_invariant() -> Non
     assert report["p4_diagnostics"]["invalid_handle_rejection_count"] == 1
     assert report["p4_diagnostics"]["fabricated_or_non_supplied_evidence_handle_count"] == 1
     assert report["p4_diagnostics"]["zero_fabricated_or_non_supplied_evidence_handles"] is False
+
+
+def test_p4_report_derives_accepted_claim_count_from_null_rejection_entries() -> None:
+    cases, _case, _fixture, records, record = _case_fixture_and_records()
+    diagnostics = record["p4_diagnostics"]
+    claim = {"claim_text": "x", "evidence_handle": "K1", "supporting_excerpt": "x"}
+    diagnostics.update(
+        {
+            "p4_extractive_mode_reason": "terminal_knowledge_answer_validated",
+            "raw_structured_model_response": '{"claims":[{"claim_text":"x",'
+            '"evidence_handle":"K1","supporting_excerpt":"x"}]}',
+            "proposed_claims": [claim],
+            "proposed_evidence_handle_per_claim": ["K1"],
+            "proposed_excerpt_per_claim": ["x"],
+            "handle_validation_result_per_claim": [True],
+            "excerpt_validation_result_per_claim": [True],
+            "deterministic_rejection_reason_per_claim": [None],
+            "rendered_final_claims": "x [[K1]]",
+            "fallback_used": False,
+            "fallback_reason": None,
+        }
+    )
+
+    report = score_p4_grounded_records(cases, records, 0.2554669, repo_root=ROOT)
+
+    assert report["p4_diagnostics"]["proposed_claim_count"] == 1
+    assert report["p4_diagnostics"]["accepted_claim_count"] == 1

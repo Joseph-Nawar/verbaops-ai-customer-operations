@@ -191,7 +191,9 @@ async def test_p4_tool_call_deactivates_structured_mode_for_terminal_tool_answer
     assert result["grounded_citations"] == []
     assert result["tool_path_entered"] is True
     assert result["p4_diagnostics"]["p4_extractive_mode_active"] is False
-    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == "commerce_tool_path"
+    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == (
+        "terminal_tool_answer_bypassed_validator"
+    )
     assert result["p4_diagnostics"]["tool_path_entered"] is True
     assert result["p4_diagnostics"]["p4_extractive_mode_deactivated_after_tool"] is True
     assert len(service.tool_calls) == 1

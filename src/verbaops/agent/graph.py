@@ -16,7 +16,7 @@ from verbaops.agent.errors import (
     AgentUnavailableError,
 )
 from verbaops.agent.evaluation import GroundingCandidate
-from verbaops.agent.p4_grounding import finalize_p4_response
+from verbaops.agent.p4_grounding import empty_p4_response_diagnostics, finalize_p4_response
 from verbaops.agent.p4_models import P4Response
 from verbaops.agent.prompts import load_system_prompt
 from verbaops.agent.state import AgentState
@@ -303,7 +303,9 @@ async def finalize_grounding(
             "grounded_citations": list(p4_result.citations),
             "p4_diagnostics": {
                 **p4_result.diagnostics(),
-                **_p4_mode_diagnostics(state, active=True),
+                **_p4_mode_diagnostics(
+                    state, active=True, terminal_reason=p4_result.terminal_mode_reason
+                ),
             },
         }
 
@@ -346,7 +348,10 @@ async def finalize_grounding(
         "model_call_count": state["model_call_count"] + int(repair_was_generated),
     }
     if candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
-        result["p4_diagnostics"] = _p4_mode_diagnostics(state, active=False)
+        result["p4_diagnostics"] = {
+            **empty_p4_response_diagnostics(),
+            **_p4_mode_diagnostics(state, active=False),
+        }
     return result
 
 
@@ -375,17 +380,27 @@ def _p4_extractive_mode_active(state: AgentState, context: AgentContext) -> bool
     )
 
 
-def _p4_mode_diagnostics(state: AgentState, *, active: bool) -> dict[str, object]:
+def _p4_mode_diagnostics(
+    state: AgentState, *, active: bool, terminal_reason: str | None = None
+) -> dict[str, object]:
     tool_path_entered = bool(state.get("tool_path_entered", False))
+    if tool_path_entered:
+        if active:
+            raise ValueError("P4 extractive mode cannot remain active after a Commerce tool")
+        reason = "terminal_tool_answer_bypassed_validator"
+    elif active:
+        if terminal_reason not in {
+            "terminal_knowledge_answer_validated",
+            "malformed_or_invalid_structured_knowledge_output",
+            "all_claims_rejected_safe_fallback",
+        }:
+            raise ValueError("P4 terminal knowledge diagnostics are missing a frozen reason")
+        reason = terminal_reason
+    else:
+        reason = "no_selected_knowledge_evidence"
     return {
         "p4_extractive_mode_active": active,
-        "p4_extractive_mode_reason": (
-            "selected_evidence_no_tool_path"
-            if active
-            else "commerce_tool_path"
-            if tool_path_entered
-            else "no_selected_knowledge_evidence"
-        ),
+        "p4_extractive_mode_reason": reason,
         "tool_path_entered": tool_path_entered,
         "p4_extractive_mode_deactivated_after_tool": tool_path_entered,
     }

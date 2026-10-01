@@ -109,7 +109,7 @@ async def _run(args: argparse.Namespace) -> None:
         knowledge_manifest_sha = sha256_file(knowledge_manifest_path)
         if dataset_sha != plan["dataset_sha256"]:
             raise ValueError("P4 dataset SHA256 differs from the frozen experiment plan")
-        if knowledge_manifest_sha != plan["frozen_environment"]["knowledge_manifest_sha256"]:
+        if knowledge_manifest_sha != plan["knowledge_manifest_sha256"]:
             raise ValueError("P4 knowledge manifest SHA256 differs from the frozen experiment plan")
         cases = _load_dev_cases_without_holdout(dataset_path)
         dataset_version = plan["benchmark_version"]
