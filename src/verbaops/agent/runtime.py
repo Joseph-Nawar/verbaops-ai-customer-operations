@@ -212,6 +212,7 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "model_call_count": 0,
         "tool_round_count": 0,
         "tool_call_count": 0,
+        "tool_path_entered": False,
         "validation_repair_count": 0,
         "final_response": None,
         "failure": None,

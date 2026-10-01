@@ -17,18 +17,23 @@ from verbaops.agent.graph import build_agent_graph
 from verbaops.retrieval.models import RetrievalResult, RetrievalStatus
 
 
-def _retrieval() -> RecordingRetrieval:
+def _retrieval(*, include_evidence: bool = True) -> RecordingRetrieval:
     return RecordingRetrieval(
         RetrievalResult(
             invocation_id=uuid4(),
             status=RetrievalStatus.SUCCEEDED,
-            evidence=(evidence(),),
+            evidence=(evidence(),) if include_evidence else (),
         )
     )
 
 
-def _context(llm: ScriptedLLMClient, candidate: GroundingCandidate) -> Any:
-    original = context(llm, _retrieval())
+def _context(
+    llm: ScriptedLLMClient,
+    candidate: GroundingCandidate,
+    *,
+    include_evidence: bool = True,
+) -> Any:
+    original = context(llm, _retrieval(include_evidence=include_evidence))
     return replace(
         original,
         evaluation_profile=AgentEvaluationProfile(grounding_candidate=candidate),
@@ -54,6 +59,71 @@ def test_p4_profile_does_not_change_production_or_historical_prompt_versions() -
         ).prompt_version
         == "v3"
     )
+
+
+@pytest.mark.asyncio
+async def test_p4_knowledge_request_keeps_tools_and_adds_frozen_schema() -> None:
+    llm = ScriptedLLMClient([response("{}")])
+
+    await build_agent_graph().ainvoke(
+        state("What is the return window?"),
+        context=_context(llm, GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS),
+    )
+
+    request = llm.requests[0]
+    assert request.response_format is not None
+    assert request.response_format["type"] == "json_schema"
+    assert request.tool_choice == "auto"
+    assert [tool.name for tool in request.tools or ()] == [
+        "get_order_status",
+        "get_shipment_status",
+        "get_refund_status",
+        "search_products",
+        "list_delivery_slots",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_p4_request_without_selected_evidence_uses_plain_path() -> None:
+    llm = ScriptedLLMClient([response("I cannot verify that.")])
+
+    await build_agent_graph().ainvoke(
+        state("What is the return window?"),
+        context=_context(
+            llm,
+            GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS,
+            include_evidence=False,
+        ),
+    )
+
+    assert llm.requests[0].response_format is None
+    assert llm.requests[0].tool_choice == "auto"
+    assert len(llm.requests[0].tools or ()) == 5
+
+
+@pytest.mark.asyncio
+async def test_blank_p4_knowledge_content_reaches_terminal_finalizer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import verbaops.agent.graph as graph_module
+
+    seen_terminal_content: list[str | None] = []
+
+    async def capture_terminal_content(terminal_state: dict[str, Any], runtime: Any) -> dict[str, Any]:
+        del runtime
+        seen_terminal_content.append(terminal_state["final_response"])
+        return {"final_response": "parsed by terminal finalizer", "grounded_citations": []}
+
+    monkeypatch.setattr(graph_module, "finalize_grounding", capture_terminal_content)
+    llm = ScriptedLLMClient([response("")])
+
+    result = await build_agent_graph().ainvoke(
+        state("What is the return window?"),
+        context=_context(llm, GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS),
+    )
+
+    assert result["final_response"] == "parsed by terminal finalizer"
+    assert seen_terminal_content == [""]
 
 
 @pytest.mark.asyncio

@@ -17,6 +17,7 @@ from verbaops.agent.errors import (
 )
 from verbaops.agent.evaluation import GroundingCandidate
 from verbaops.agent.prompts import load_system_prompt
+from verbaops.agent.p4_models import P4Response
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
     GRAPH_RECURSION_LIMIT,
@@ -39,6 +40,7 @@ from verbaops.llm.models import (
     ChatMessage,
     GenerateRequest,
     ResponseMetadata,
+    StructuredResponse,
 )
 from verbaops.llm.models import (
     ToolDefinition as LLMToolDefinition,
@@ -110,6 +112,11 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         messages=tuple(_request_messages(state, context)),
         tools=tuple(_tool_schemas(context)),
         tool_choice="auto",
+        response_format=(
+            StructuredResponse.response_format(P4Response)
+            if _p4_extractive_mode_active(state, context)
+            else None
+        ),
     )
     try:
         response = await context.llm_client.generate(request)
@@ -132,7 +139,12 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         raise AgentUnavailableError() from None
 
     content = response.content
-    if not response.tool_calls and (content is None or not content.strip()):
+    p4_extractive_mode_active = _p4_extractive_mode_active(state, context)
+    if (
+        not response.tool_calls
+        and (content is None or not content.strip())
+        and not p4_extractive_mode_active
+    ):
         raise AgentProtocolError()
 
     assistant_message = ChatMessage(
@@ -201,9 +213,11 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
     context = _context(runtime)
     invalid_call_ids = {message.tool_call_id for message in state["last_tool_results"]}
     tool_messages = list(state["last_tool_results"])
+    tool_path_entered = state.get("tool_path_entered", False)
     for call in state["pending_tool_calls"]:
         if call.id in invalid_call_ids:
             continue
+        tool_path_entered = True
         definition = context.tool_registry.get(call.name)
         started_at = perf_counter()
         try:
@@ -258,6 +272,7 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
         "messages": [*state["messages"], *tool_messages],
         "pending_tool_calls": [],
         "last_tool_results": tool_messages,
+        "tool_path_entered": tool_path_entered,
     }
 
 
@@ -326,6 +341,16 @@ def _context(runtime: Runtime[AgentContext]) -> AgentContext:
     if not isinstance(context, AgentContext):
         raise AgentProtocolError()
     return context
+
+
+def _p4_extractive_mode_active(state: AgentState, context: AgentContext) -> bool:
+    profile = context.evaluation_profile
+    return bool(
+        profile is not None
+        and profile.grounding_candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        and state.get("knowledge_evidence")
+        and not state.get("tool_path_entered", False)
+    )
 
 
 def _request_messages(state: AgentState, context: AgentContext | None = None) -> list[ChatMessage]:

@@ -17,6 +17,7 @@ class AgentState(TypedDict):
     model_call_count: int
     tool_round_count: int
     tool_call_count: int
+    tool_path_entered: bool
     validation_repair_count: int
     final_response: str | None
     failure: AgentError | None
