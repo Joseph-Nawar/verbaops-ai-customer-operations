@@ -1,0 +1,431 @@
+{
+  "answerable_cases": 72,
+  "candidates": {
+    "P0_CURRENT": {
+      "accepted_fact_omitted_from_final": 52,
+      "accepted_fallbacks": 0,
+      "citation_precision_answerable_only": {
+        "denominator": 18,
+        "numerator": 12,
+        "value": 0.6666666666666666
+      },
+      "expected_fact_denominator": 72,
+      "expected_fact_recognized": 4,
+      "expected_support_locator_cited_case_ids": [
+        "m5d-v02-shipping-007",
+        "m5d-v02-shipping-008",
+        "m5d-v02-returns-005",
+        "m5d-v02-refunds-003",
+        "m5d-v02-privacy-005",
+        "m5d-v02-product-guides-002",
+        "m5d-v02-product-guides-005",
+        "m5d-v02-product-guides-012",
+        "m5d-v02-faq-001",
+        "m5d-v02-faq-003",
+        "m5d-v02-faq-004",
+        "m5d-v02-faq-006"
+      ],
+      "expected_support_locator_cited_cases": 12,
+      "failure_class_counts": {
+        "CITATION_MISSING": 2,
+        "EVALUATOR_RECOGNITION_GAP": 8,
+        "GATE_REJECTED_RELEVANT_EVIDENCE": 13,
+        "NONE_EXPECTED_FACT_RECOGNIZED_AND_SUPPORT_CITED": 2,
+        "OTHER": 44,
+        "RETRIEVAL_MISS": 3
+      },
+      "fallback_cases": 0,
+      "policy_category_tool_case_ids": [],
+      "policy_category_tool_cases": 0,
+      "potential_evaluator_recognition_gap_review_flags": 8,
+      "recognized_fact_with_support_citation": 2,
+      "recognized_without_expected_support_citation": 2,
+      "support_selected_accepted": 56,
+      "tool_invocation_count_answerable": 1,
+      "tool_using_accepted_answerable_cases": 0,
+      "tool_using_answerable_cases": 1
+    },
+    "P2_FAIL_CLOSED_CITATIONS": {
+      "accepted_fact_omitted_from_final": 56,
+      "accepted_fallbacks": 8,
+      "citation_precision_answerable_only": {
+        "denominator": 70,
+        "numerator": 48,
+        "value": 0.6857142857142857
+      },
+      "expected_fact_denominator": 72,
+      "expected_fact_recognized": 0,
+      "expected_support_locator_cited_case_ids": [
+        "m5d-v02-shipping-002",
+        "m5d-v02-shipping-003",
+        "m5d-v02-shipping-006",
+        "m5d-v02-shipping-008",
+        "m5d-v02-shipping-010",
+        "m5d-v02-returns-003",
+        "m5d-v02-returns-004",
+        "m5d-v02-returns-005",
+        "m5d-v02-returns-006",
+        "m5d-v02-returns-008",
+        "m5d-v02-returns-009",
+        "m5d-v02-refunds-002",
+        "m5d-v02-refunds-003",
+        "m5d-v02-refunds-004",
+        "m5d-v02-refunds-005",
+        "m5d-v02-refunds-006",
+        "m5d-v02-refunds-007",
+        "m5d-v02-refunds-008",
+        "m5d-v02-warranty-001",
+        "m5d-v02-warranty-002",
+        "m5d-v02-warranty-004",
+        "m5d-v02-warranty-006",
+        "m5d-v02-warranty-007",
+        "m5d-v02-payments-003",
+        "m5d-v02-payments-005",
+        "m5d-v02-privacy-001",
+        "m5d-v02-privacy-002",
+        "m5d-v02-privacy-003",
+        "m5d-v02-privacy-004",
+        "m5d-v02-privacy-005",
+        "m5d-v02-product-guides-002",
+        "m5d-v02-product-guides-005",
+        "m5d-v02-product-guides-006",
+        "m5d-v02-product-guides-007",
+        "m5d-v02-product-guides-008",
+        "m5d-v02-product-guides-010",
+        "m5d-v02-product-guides-012",
+        "m5d-v02-product-guides-013",
+        "m5d-v02-faq-001",
+        "m5d-v02-faq-002",
+        "m5d-v02-faq-003",
+        "m5d-v02-faq-004",
+        "m5d-v02-faq-005",
+        "m5d-v02-faq-008",
+        "m5d-v02-faq-009",
+        "m5d-v02-faq-010",
+        "m5d-v02-faq-011",
+        "m5d-v02-faq-012"
+      ],
+      "expected_support_locator_cited_cases": 48,
+      "failure_class_counts": {
+        "EVALUATOR_RECOGNITION_GAP": 31,
+        "GATE_REJECTED_RELEVANT_EVIDENCE": 13,
+        "OTHER": 25,
+        "RETRIEVAL_MISS": 3
+      },
+      "fallback_cases": 8,
+      "policy_category_tool_case_ids": [
+        "m5d-v02-shipping-004",
+        "m5d-v02-returns-010",
+        "m5d-v02-payments-006"
+      ],
+      "policy_category_tool_cases": 3,
+      "potential_evaluator_recognition_gap_review_flags": 31,
+      "recognized_fact_with_support_citation": 0,
+      "recognized_without_expected_support_citation": 0,
+      "support_selected_accepted": 56,
+      "tool_invocation_count_answerable": 8,
+      "tool_using_accepted_answerable_cases": 0,
+      "tool_using_answerable_cases": 6
+    },
+    "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+      "accepted_fact_omitted_from_final": 55,
+      "accepted_fallbacks": 6,
+      "citation_precision_answerable_only": {
+        "denominator": 76,
+        "numerator": 50,
+        "value": 0.6578947368421053
+      },
+      "expected_fact_denominator": 72,
+      "expected_fact_recognized": 1,
+      "expected_support_locator_cited_case_ids": [
+        "m5d-v02-shipping-002",
+        "m5d-v02-shipping-003",
+        "m5d-v02-shipping-006",
+        "m5d-v02-shipping-007",
+        "m5d-v02-shipping-008",
+        "m5d-v02-shipping-010",
+        "m5d-v02-returns-003",
+        "m5d-v02-returns-004",
+        "m5d-v02-returns-005",
+        "m5d-v02-returns-006",
+        "m5d-v02-returns-008",
+        "m5d-v02-returns-009",
+        "m5d-v02-refunds-002",
+        "m5d-v02-refunds-004",
+        "m5d-v02-refunds-005",
+        "m5d-v02-refunds-006",
+        "m5d-v02-refunds-007",
+        "m5d-v02-refunds-008",
+        "m5d-v02-warranty-001",
+        "m5d-v02-warranty-002",
+        "m5d-v02-warranty-003",
+        "m5d-v02-warranty-005",
+        "m5d-v02-warranty-006",
+        "m5d-v02-warranty-007",
+        "m5d-v02-payments-003",
+        "m5d-v02-payments-004",
+        "m5d-v02-payments-005",
+        "m5d-v02-privacy-001",
+        "m5d-v02-privacy-002",
+        "m5d-v02-privacy-003",
+        "m5d-v02-privacy-004",
+        "m5d-v02-privacy-005",
+        "m5d-v02-product-guides-002",
+        "m5d-v02-product-guides-005",
+        "m5d-v02-product-guides-006",
+        "m5d-v02-product-guides-007",
+        "m5d-v02-product-guides-008",
+        "m5d-v02-product-guides-012",
+        "m5d-v02-product-guides-013",
+        "m5d-v02-faq-001",
+        "m5d-v02-faq-002",
+        "m5d-v02-faq-003",
+        "m5d-v02-faq-004",
+        "m5d-v02-faq-005",
+        "m5d-v02-faq-006",
+        "m5d-v02-faq-008",
+        "m5d-v02-faq-009",
+        "m5d-v02-faq-010",
+        "m5d-v02-faq-011",
+        "m5d-v02-faq-012"
+      ],
+      "expected_support_locator_cited_cases": 50,
+      "failure_class_counts": {
+        "EVALUATOR_RECOGNITION_GAP": 27,
+        "GATE_REJECTED_RELEVANT_EVIDENCE": 13,
+        "NONE_EXPECTED_FACT_RECOGNIZED_AND_SUPPORT_CITED": 1,
+        "OTHER": 28,
+        "RETRIEVAL_MISS": 3
+      },
+      "fallback_cases": 6,
+      "policy_category_tool_case_ids": [
+        "m5d-v02-shipping-001",
+        "m5d-v02-warranty-008"
+      ],
+      "policy_category_tool_cases": 2,
+      "potential_evaluator_recognition_gap_review_flags": 27,
+      "recognized_fact_with_support_citation": 1,
+      "recognized_without_expected_support_citation": 0,
+      "support_selected_accepted": 56,
+      "tool_invocation_count_answerable": 7,
+      "tool_using_accepted_answerable_cases": 0,
+      "tool_using_answerable_cases": 3
+    }
+  },
+  "category_breakdown": {
+    "faq": {
+      "answerable_cases": 12,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 2,
+          "recognized_expected_facts": 1,
+          "support_locator_cited_cases": 4,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 6,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 10,
+          "tool_using_cases": 0
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 4,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 11,
+          "tool_using_cases": 0
+        }
+      }
+    },
+    "payments": {
+      "answerable_cases": 6,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 0,
+          "recognized_expected_facts": 1,
+          "support_locator_cited_cases": 0,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 2,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 2,
+          "tool_using_cases": 1
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 2,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 3,
+          "tool_using_cases": 0
+        }
+      }
+    },
+    "privacy": {
+      "answerable_cases": 5,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 1,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 1,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 5,
+          "tool_using_cases": 0
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 5,
+          "tool_using_cases": 0
+        }
+      }
+    },
+    "product-guides": {
+      "answerable_cases": 13,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 2,
+          "recognized_expected_facts": 1,
+          "support_locator_cited_cases": 3,
+          "tool_using_cases": 1
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 7,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 8,
+          "tool_using_cases": 3
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 6,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 7,
+          "tool_using_cases": 1
+        }
+      }
+    },
+    "refunds": {
+      "answerable_cases": 8,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 1,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 1,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 7,
+          "tool_using_cases": 0
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 2,
+          "potential_recognition_gap_review_flags": 2,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 6,
+          "tool_using_cases": 0
+        }
+      }
+    },
+    "returns": {
+      "answerable_cases": 10,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 1,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 1,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 6,
+          "tool_using_cases": 1
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 6,
+          "tool_using_cases": 0
+        }
+      }
+    },
+    "shipping": {
+      "answerable_cases": 10,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 1,
+          "recognized_expected_facts": 1,
+          "support_locator_cited_cases": 2,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 2,
+          "potential_recognition_gap_review_flags": 4,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 5,
+          "tool_using_cases": 1
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 1,
+          "support_locator_cited_cases": 6,
+          "tool_using_cases": 1
+        }
+      }
+    },
+    "warranty": {
+      "answerable_cases": 8,
+      "candidates": {
+        "P0_CURRENT": {
+          "fallback_cases": 0,
+          "potential_recognition_gap_review_flags": 0,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 0,
+          "tool_using_cases": 0
+        },
+        "P2_FAIL_CLOSED_CITATIONS": {
+          "fallback_cases": 2,
+          "potential_recognition_gap_review_flags": 3,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 5,
+          "tool_using_cases": 0
+        },
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+          "fallback_cases": 1,
+          "potential_recognition_gap_review_flags": 4,
+          "recognized_expected_facts": 0,
+          "support_locator_cited_cases": 6,
+          "tool_using_cases": 1
+        }
+      }
+    }
+  },
+  "retrieval_and_gate": {
+    "g2_accepted": 56,
+    "support_absent_from_final_five": 3,
+    "support_present_and_g2_accepted": 56,
+    "support_present_in_final_five": 69
+  }
+}
