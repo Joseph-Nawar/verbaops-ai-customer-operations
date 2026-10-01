@@ -1,5 +1,5 @@
 {
-  "schema_version": "m5d-b2-experiment-plan-v1",
+  "schema_version": "m5d-b2-experiment-plan-v2",
   "status": "preregistration_only_no_results",
   "benchmark_version": "rag-v0.2",
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
@@ -9,14 +9,18 @@
   ],
   "scorer_contract": {
     "version": "rag-v0.2-scorer-v2",
+    "definition_commit_sha": "fa800f5bfee4ee903905d89bf600642e9ddb0d95",
     "manifest_path": "evals/rag/v0.2/scorer-v2/manifest.json",
-    "manifest_sha256": "1a8064278a183f28d22b112e8118048e3ec6fedb72bd18df3000757d879fdf7e",
+    "manifest_sha256": "6a86c9d93f3ab9f53595d99138745311f1f4cad8e2673150be7446d1ecdd5bbb",
     "fixture_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
-    "fixture_sha256": "f7def3e10aaa15af50ad71ad30fd320ea8c705aab9eddc96a661c7eed24a361d",
+    "fixture_sha256": "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a",
     "p4_outputs_used_for_construction": false,
     "p2_p3_output_text_used_for_construction": false,
     "spec_path": "evals/rag/v0.2/scorer-v2/spec.json",
-    "spec_sha256": "37b0fe459e07c09646afdef11d9eaf196555ef7191b13d11d39af53a810e207e"
+    "spec_sha256": "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120",
+    "implementation_path": "src/verbaops/evaluation/rag_v02_scorer_impl.py",
+    "implementation_sha256": "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a",
+    "entrypoint": "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion"
   },
   "execution": {
     "split": "dev",
@@ -86,7 +90,7 @@
     "candidate_specific_repair_generations": 0,
     "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
     "agent_graph_version": "text-agent-m5d-v1",
-    "grounding_finalizer_version": "evidence-linked-single-pass-v1",
+    "grounding_finalizer_version": "evidence-linked-extractive-single-pass-v1",
     "schema_path": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
     "claim_fields": [
       "claim_text",
@@ -95,16 +99,26 @@
     ],
     "claim_linked_evidence_required": true,
     "free_floating_global_citation_list": false,
+    "evaluation_labels_or_expected_facts_exposed_to_model": false,
     "validation": {
       "reject_malformed_or_extra_fields": true,
       "handle_must_belong_to_supplied_selected_evidence": true,
       "exactly_one_handle_per_claim": true,
       "supporting_excerpt_must_be_nonempty": true,
       "supporting_excerpt_must_be_an_exact_source_substring": true,
+      "claim_text_must_be_a_nonempty_exact_substring_of_supporting_excerpt": true,
+      "substring_matching": "literal_case_sensitive",
       "only_validated_claim_records_are_rendered": true,
       "if_no_valid_claims": "use the existing deterministic safe fallback"
     },
-    "explicit_limitation": "Exact excerpt validation proves source provenance, not semantic entailment between the claim and excerpt."
+    "validation_chain": [
+      "valid structured schema",
+      "server-issued handle belongs to supplied selected evidence",
+      "nonempty supporting excerpt is a literal exact substring of that evidence source",
+      "nonempty claim text is a literal exact substring of the supporting excerpt"
+    ],
+    "explicit_limitation": "Extractive validation proves the rendered claim text occurs in the cited source excerpt and that the excerpt comes from supplied evidence; it does not establish every possible contextual interpretation of that source. Benchmark relevance and scorer metrics remain the quality evaluation.",
+    "schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9"
   },
   "observability": {
     "scope": "evaluation-only where practical",
@@ -158,7 +172,11 @@
       "agent_prompt_version",
       "agent_graph_version",
       "grounding_finalizer_version",
-      "run_id"
+      "run_id",
+      "scorer_spec_sha256",
+      "scorer_implementation_sha256",
+      "scorer_definition_commit_sha",
+      "p4_schema_sha256"
     ]
   },
   "resume_identity": {

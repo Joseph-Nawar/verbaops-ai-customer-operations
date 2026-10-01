@@ -5,13 +5,15 @@ import importlib
 import importlib.util
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCORER_MODULE = "verbaops.evaluation.rag_v02_scorer_v2"
+SCORER_MODULE = "verbaops.evaluation.rag_v02_scorer_impl"
+AUDIT_MODULE = "verbaops.evaluation.rag_v02_scorer_v2"
 FREEZE_MODULE = "verbaops.evaluation.m5d_b2_preregistration"
 
 
@@ -20,17 +22,84 @@ def _module(name: str) -> Any:
     return importlib.import_module(name)
 
 
-def test_scorer_v2_fixture_examples_cover_assertion_semantics() -> None:
-    scorer = _module(SCORER_MODULE)
-    audited = scorer.audit_scorer_v2(ROOT)
-    assert audited["manifest"]["scorer_version"] == "rag-v0.2-scorer-v2"
-    example_statuses = {
-        example["expected_status"]
-        for fact in audited["fixtures"]["representative_facts"]
-        for example in fact["examples"]
+def _audit() -> Any:
+    return _module(AUDIT_MODULE)
+
+
+def _assessment(
+    scorer: Any,
+    fact: dict[str, Any],
+    text: str,
+    *,
+    partial_patterns: list[str] | None = None,
+    contradiction_patterns: list[str] | None = None,
+) -> Any:
+    return scorer.classify_labeled_fact_assertion(
+        text,
+        fact["benchmark_aliases"],
+        positive_paraphrases=fact["positive_paraphrases"],
+        partial_patterns=partial_patterns or [],
+        contradiction_patterns=contradiction_patterns or [],
+    )
+
+
+def _copy_audit_repo(destination: Path) -> Path:
+    """Copy only provider-free scorer audit inputs; candidate outputs are excluded."""
+    manifest = json.loads(
+        (ROOT / "evals/rag/v0.2/scorer-v2/manifest.json").read_text(encoding="utf-8")
+    )
+    paths = {
+        "evals/rag/v0.2/questions.jsonl",
+        "evals/rag/v0.2/m5d-b2-experiment-plan.json",
+        "evals/rag/v0.2/scorer-v2/manifest.json",
+        "evals/rag/v0.2/scorer-v2/fixtures.json",
+        "evals/rag/v0.2/scorer-v2/spec.json",
+        "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+        manifest["scorer_implementation_path"],
+        "knowledge/novacommerce/manifest.json",
+        *manifest["source_corpus_sha256"],
     }
-    assert {
-        "asserted",
+    for relative in paths:
+        source = ROOT / relative
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+    return destination
+
+
+def test_all_72_dev_fact_fixtures_and_authored_paraphrases_are_recognized() -> None:
+    scorer = _module(SCORER_MODULE)
+    audited = _audit().audit_scorer_v2(ROOT)
+    manifest = audited["manifest"]
+    facts = audited["fixtures"]["facts"]
+    fact_keys = [f"{fact['case_id']}::{fact['fact_id']}" for fact in facts]
+
+    assert len(facts) == 72
+    assert manifest["fixture_fact_count"] == 72
+    assert manifest["authored_positive_paraphrase_count"] == 72
+    assert len(set(fact_keys)) == 72
+    assert set(fact_keys) == set(manifest["source_fact_ids"])
+    assert set(fact_keys) == audited["fixture_fact_keys"]
+    for fact in facts:
+        assert fact["positive_paraphrases"]
+        assert all(paraphrase.strip() for paraphrase in fact["positive_paraphrases"])
+        for alias in fact["benchmark_aliases"]:
+            result = scorer.classify_labeled_fact_assertion(alias, fact["benchmark_aliases"])
+            assert result.status.value == "asserted", fact["case_id"]
+            assert result.recognized is True, fact["case_id"]
+        for paraphrase in fact["positive_paraphrases"]:
+            result = _assessment(scorer, fact, paraphrase)
+            assert result.status.value == "asserted", fact["case_id"]
+            assert result.recognized is True, fact["case_id"]
+
+
+def test_compact_negative_regressions_preserve_assertion_semantics() -> None:
+    scorer = _module(SCORER_MODULE)
+    audited = _audit().audit_scorer_v2(ROOT)
+    fixtures = audited["fixtures"]
+    fact_by_key = {f"{fact['case_id']}::{fact['fact_id']}": fact for fact in fixtures["facts"]}
+    matrix = fixtures["semantic_regression_matrix"]
+    expected_statuses = {
         "partial",
         "negated",
         "contradicted",
@@ -38,37 +107,154 @@ def test_scorer_v2_fixture_examples_cover_assertion_semantics() -> None:
         "quoted",
         "uncertain",
         "unrelated_overlap",
-    } <= example_statuses
+        "asserted",
+    }
+    observed_statuses: set[str] = set()
+    expected_examples = {
+        "returns-complete-assertion": ("asserted", True),
+        "returns-valid-authored-paraphrase": ("asserted", True),
+        "returns-contradictory-time-window": ("contradicted", False),
+        "returns-uncertain-30-day-mention": ("uncertain", False),
+        "returns-partial-compound": ("partial", False),
+        "returns-negated-complete-fact": ("negated", False),
+        "returns-refusal-repeats-fact": ("refusal", False),
+        "returns-quoted-fact": ("quoted", False),
+        "returns-uncertain-fact": ("uncertain", False),
+        "returns-unrelated-overlap": ("unrelated_overlap", False),
+        "pending-authorization-negative-form-is-asserted": ("asserted", True),
+        "pending-authorization-valid-paraphrase-is-asserted": ("asserted", True),
+        "charger-negative-wording-is-asserted": ("asserted", True),
+        "charger-valid-negative-form-paraphrase-is-asserted": ("asserted", True),
+        "charger-contradictory-claim": ("contradicted", False),
+    }
+    seen_examples: dict[str, tuple[str, bool]] = {}
 
-    for fact in audited["fixtures"]["representative_facts"]:
-        for example in fact["examples"]:
-            result = scorer.classify_labeled_fact_assertion(
+    for regression in matrix:
+        key = f"{regression['case_id']}::{regression['fact_id']}"
+        fact = fact_by_key[key]
+        for example in regression["examples"]:
+            result = _assessment(
+                scorer,
+                fact,
                 example["text"],
-                fact["benchmark_aliases"],
-                positive_paraphrases=fact["positive_paraphrases"],
-                partial_patterns=fact["partial_patterns"],
-                contradiction_patterns=fact["contradiction_patterns"],
+                partial_patterns=regression.get("partial_patterns"),
+                contradiction_patterns=regression.get("contradiction_patterns"),
             )
             assert result.status.value == example["expected_status"], example["id"]
             assert result.recognized is example["expected_recognized"], example["id"]
+            observed_statuses.add(result.status.value)
+            seen_examples[example["id"]] = (result.status.value, result.recognized)
+
+    assert seen_examples == expected_examples
+    assert expected_statuses <= observed_statuses
+    feature_tags = {tag for regression in matrix for tag in regression.get("feature_tags", [])}
+    assert {
+        "affirmative_fact",
+        "compound",
+        "conditional_eligibility",
+        "numeric_time_window",
+        "inherently_negative_fact",
+    } <= feature_tags
+    assert fixtures["negative_matrix_provenance"]["candidate_outputs_consulted"] == []
+    assert fixtures["negative_matrix_provenance"]["p2_p3_answer_text_used"] is False
+    assert fixtures["negative_matrix_provenance"]["p4_outputs_available"] is False
 
 
-def test_scorer_v2_manifest_binds_only_dev_facts_and_fixture_bytes() -> None:
-    scorer = _module(SCORER_MODULE)
-    audited = scorer.audit_scorer_v2(ROOT)
+def test_scorer_manifest_binds_full_dev_fixture_and_immutable_inputs() -> None:
+    audited = _audit().audit_scorer_v2(ROOT)
     manifest = audited["manifest"]
     fixtures_path = ROOT / "evals/rag/v0.2/scorer-v2/fixtures.json"
     spec_path = ROOT / "evals/rag/v0.2/scorer-v2/spec.json"
     dataset_path = ROOT / "evals/rag/v0.2/questions.jsonl"
+    implementation_path = ROOT / manifest["scorer_implementation_path"]
 
     assert manifest["fixture_data_sha256"] == hashlib.sha256(fixtures_path.read_bytes()).hexdigest()
     assert manifest["scorer_spec_sha256"] == hashlib.sha256(spec_path.read_bytes()).hexdigest()
     assert manifest["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
     assert manifest["fixture_provenance"]["p4_outputs_available_during_construction"] is False
     assert manifest["fixture_provenance"]["candidate_outputs_consulted"] == []
+    assert manifest["fixture_provenance"]["p2_p3_answer_text_used"] is False
     assert len(manifest["source_fact_ids"]) == 72
     assert len(set(manifest["source_fact_ids"])) == 72
     assert re.fullmatch(r"[a-f0-9]{40}", manifest["scorer_frozen_at_commit_sha"])
+    assert (
+        manifest["scorer_implementation_sha256"]
+        == hashlib.sha256(implementation_path.read_bytes()).hexdigest()
+    )
+    assert manifest["scorer_entrypoint"] == (
+        "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion"
+    )
+    assert manifest["scorer_frozen_at_commit_sha"] == "fa800f5bfee4ee903905d89bf600642e9ddb0d95"
+    assert manifest["scorer_frozen_at_commit_sha"] != ("c8a55e63c20e209d7ee920c3020977d001b41a1b")
+
+
+def test_only_hash_bound_module_exports_the_scorer_entrypoint() -> None:
+    scorer = _module(SCORER_MODULE)
+    audit = _audit()
+    assert scorer.__file__ is not None
+    assert (
+        Path(scorer.__file__).resolve()
+        == (ROOT / "src/verbaops/evaluation/rag_v02_scorer_impl.py").resolve()
+    )
+    assert callable(scorer.classify_labeled_fact_assertion)
+    assert not hasattr(audit, "classify_labeled_fact_assertion")
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "manifest_field"),
+    [
+        ("evals/rag/v0.2/scorer-v2/fixtures.json", "fixture_data_sha256"),
+        ("evals/rag/v0.2/scorer-v2/spec.json", "scorer_spec_sha256"),
+        (None, "scorer_implementation_sha256"),
+    ],
+)
+def test_tampered_frozen_scorer_artifact_hash_is_rejected(
+    tmp_path: Path, relative_path: str | None, manifest_field: str
+) -> None:
+    scorer = _audit()
+    manifest = _audit().audit_scorer_v2(ROOT)["manifest"]
+    original_path = ROOT / (relative_path or manifest["scorer_implementation_path"])
+    copied_root = _copy_audit_repo(tmp_path / "repo")
+    tampered = copied_root / (relative_path or manifest["scorer_implementation_path"])
+    suffix = b" \n" if relative_path else b"\n# contract drift\n"
+    tampered.write_bytes(original_path.read_bytes() + suffix)
+
+    with pytest.raises(scorer.ScorerV2Error, match="SHA256 mismatch"):
+        scorer.audit_scorer_v2(copied_root)
+
+
+def test_incompatible_manifest_binding_is_rejected(tmp_path: Path) -> None:
+    scorer = _audit()
+    copied_root = _copy_audit_repo(tmp_path / "repo")
+    manifest_path = copied_root / "evals/rag/v0.2/scorer-v2/manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scorer_implementation_sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(scorer.ScorerV2Error, match="scorer implementation SHA256 mismatch"):
+        scorer.audit_scorer_v2(copied_root)
+
+
+def test_incompatible_plan_binding_is_rejected(tmp_path: Path) -> None:
+    freeze = _module(FREEZE_MODULE)
+    copied_root = _copy_audit_repo(tmp_path / "repo")
+    plan_path = copied_root / "evals/rag/v0.2/m5d-b2-experiment-plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["scorer_contract"]["implementation_sha256"] = "0" * 64
+    plan_path.write_text(json.dumps(plan), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="scorer-implementation hash mismatch"):
+        freeze.audit_m5d_b2_preregistration(copied_root)
+
+
+def test_tampered_p4_schema_is_rejected(tmp_path: Path) -> None:
+    freeze = _module(FREEZE_MODULE)
+    copied_root = _copy_audit_repo(tmp_path / "repo")
+    schema_path = copied_root / "evals/rag/v0.2/scorer-v2/p4-output.schema.json"
+    schema_path.write_bytes(schema_path.read_bytes() + b" \n")
+
+    with pytest.raises(ValueError, match="P4 output schema SHA256 mismatch"):
+        freeze.audit_m5d_b2_preregistration(copied_root)
 
 
 def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() -> None:
@@ -89,13 +275,22 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
     assert plan["frozen_environment"]["model"] == "groq/openai/gpt-oss-120b"
     assert plan["candidate"]["structured_final_answer_generations_per_case_answer"] == 1
     assert plan["candidate"]["candidate_specific_repair_generations"] == 0
+    assert plan["candidate"]["evaluation_labels_or_expected_facts_exposed_to_model"] is False
     assert plan["candidate"]["agent_prompt_version"] == "text-agent-system-p4-evidence-linked-v1"
-    assert plan["candidate"]["grounding_finalizer_version"] == "evidence-linked-single-pass-v1"
-    assert plan["candidate"]["validation"]["handle_must_belong_to_supplied_selected_evidence"]
-    assert plan["candidate"]["validation"]["supporting_excerpt_must_be_an_exact_source_substring"]
-    assert "not semantic entailment" in plan["candidate"]["explicit_limitation"]
-    assert plan["provider_call_budget"]["public_case_requests"] == 96
-    assert plan["provider_call_budget"]["maximum_model_calls_total"] == 384
+    assert plan["candidate"]["grounding_finalizer_version"] == (
+        "evidence-linked-extractive-single-pass-v1"
+    )
+    validation = plan["candidate"]["validation"]
+    assert validation["handle_must_belong_to_supplied_selected_evidence"]
+    assert validation["supporting_excerpt_must_be_an_exact_source_substring"]
+    assert validation["claim_text_must_be_a_nonempty_exact_substring_of_supporting_excerpt"]
+    assert validation["substring_matching"] == "literal_case_sensitive"
+    assert plan["candidate"]["explicit_limitation"] == (
+        "Extractive validation proves the rendered claim text occurs in the cited source "
+        "excerpt and that the excerpt comes from supplied evidence; it does not establish "
+        "every possible contextual interpretation of that source. Benchmark relevance and "
+        "scorer metrics remain the quality evaluation."
+    )
     assert plan["quality_floors"] == {
         "citation_precision_minimum": 0.95,
         "citation_precision_requires_nonzero_denominator": True,
@@ -113,69 +308,80 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
     assert plan["resume_identity"]["completed_cases_are_never_replayed"] is True
 
 
-def test_future_p4_inference_requires_green_ci_on_exact_freeze_commit() -> None:
-    freeze = _module(FREEZE_MODULE)
-    commit_sha = "a" * 40
-    jobs = dict.fromkeys(freeze.REQUIRED_HOSTED_CI_JOBS, "success")
-
-    with pytest.raises(ValueError, match="hosted CI run ID"):
-        freeze.require_p4_inference_authorized(
-            freeze_commit_sha=commit_sha,
-            hosted_ci_run_id=None,
-            hosted_ci_head_sha=commit_sha,
-            hosted_ci_conclusion="success",
-            job_conclusions=jobs,
-        )
-    with pytest.raises(ValueError, match="freeze commit"):
-        freeze.require_p4_inference_authorized(
-            freeze_commit_sha=None,
-            hosted_ci_run_id=123,
-            hosted_ci_head_sha=commit_sha,
-            hosted_ci_conclusion="success",
-            job_conclusions=jobs,
-        )
-    with pytest.raises(ValueError, match="exact freeze commit"):
-        freeze.require_p4_inference_authorized(
-            freeze_commit_sha=commit_sha,
-            hosted_ci_run_id=123,
-            hosted_ci_head_sha="b" * 40,
-            hosted_ci_conclusion="success",
-            job_conclusions=jobs,
-        )
-    with pytest.raises(ValueError, match="successful hosted CI"):
-        freeze.require_p4_inference_authorized(
-            freeze_commit_sha=commit_sha,
-            hosted_ci_run_id=123,
-            hosted_ci_head_sha=commit_sha,
-            hosted_ci_conclusion="failure",
-            job_conclusions=jobs,
-        )
-    with pytest.raises(ValueError, match="required jobs"):
-        freeze.require_p4_inference_authorized(
-            freeze_commit_sha=commit_sha,
-            hosted_ci_run_id=123,
-            hosted_ci_head_sha=commit_sha,
-            hosted_ci_conclusion="success",
-            job_conclusions={"quality": "success"},
-        )
-
-    freeze.require_p4_inference_authorized(
-        freeze_commit_sha=commit_sha,
-        hosted_ci_run_id=123,
-        hosted_ci_head_sha=commit_sha,
-        hosted_ci_conclusion="success",
-        job_conclusions=jobs,
+def test_p4_schema_and_plan_freeze_the_literal_extractive_chain_without_answer_keys() -> None:
+    plan = json.loads(
+        (ROOT / "evals/rag/v0.2/m5d-b2-experiment-plan.json").read_text(encoding="utf-8")
     )
-
-
-def test_p4_schema_is_claim_linked_and_forbids_global_citations() -> None:
     schema = json.loads(
         (ROOT / "evals/rag/v0.2/scorer-v2/p4-output.schema.json").read_text(encoding="utf-8")
     )
 
     assert schema["additionalProperties"] is False
     assert schema["required"] == ["claims"]
+    assert "citations" not in schema["properties"]
+    assert not {"expected_answer", "expected_facts", "aliases"} & set(schema["properties"])
     claim = schema["$defs"]["claim"]
     assert claim["required"] == ["claim_text", "evidence_handle", "supporting_excerpt"]
     assert claim["additionalProperties"] is False
-    assert "citations" not in schema["properties"]
+    assert plan["candidate"]["validation_chain"] == [
+        "valid structured schema",
+        "server-issued handle belongs to supplied selected evidence",
+        "nonempty supporting excerpt is a literal exact substring of that evidence source",
+        "nonempty claim text is a literal exact substring of the supporting excerpt",
+    ]
+
+
+def test_future_p4_inference_requires_green_ci_on_exact_freeze_commit() -> None:
+    freeze = _module(FREEZE_MODULE)
+    commit_sha = "a" * 40
+    jobs = dict.fromkeys(freeze.REQUIRED_HOSTED_CI_JOBS, "success")
+    authorization = {
+        "repo_root": ROOT,
+        "freeze_commit_sha": commit_sha,
+        "hosted_ci_run_id": 123,
+        "hosted_ci_head_sha": commit_sha,
+        "hosted_ci_conclusion": "success",
+        "job_conclusions": jobs,
+    }
+
+    with pytest.raises(ValueError, match="hosted CI run ID"):
+        freeze.require_p4_inference_authorized(**{**authorization, "hosted_ci_run_id": None})
+    with pytest.raises(ValueError, match="freeze commit"):
+        freeze.require_p4_inference_authorized(**{**authorization, "freeze_commit_sha": None})
+    with pytest.raises(ValueError, match="exact freeze commit"):
+        freeze.require_p4_inference_authorized(**{**authorization, "hosted_ci_head_sha": "b" * 40})
+    with pytest.raises(ValueError, match="successful hosted CI"):
+        freeze.require_p4_inference_authorized(
+            **{**authorization, "hosted_ci_conclusion": "failure"}
+        )
+    with pytest.raises(ValueError, match="required jobs"):
+        freeze.require_p4_inference_authorized(
+            **{**authorization, "job_conclusions": {"quality": "success"}}
+        )
+
+    freeze.require_p4_inference_authorized(**authorization)
+
+
+def test_future_inference_authorization_reaudits_scorer_implementation(
+    tmp_path: Path,
+) -> None:
+    scorer = _audit()
+    freeze = _module(FREEZE_MODULE)
+    copied_root = _copy_audit_repo(tmp_path / "repo")
+    manifest = json.loads(
+        (copied_root / "evals/rag/v0.2/scorer-v2/manifest.json").read_text(encoding="utf-8")
+    )
+    implementation = copied_root / manifest["scorer_implementation_path"]
+    implementation.write_bytes(implementation.read_bytes() + b"\n# unauthorized drift\n")
+    commit_sha = "a" * 40
+    jobs = dict.fromkeys(freeze.REQUIRED_HOSTED_CI_JOBS, "success")
+
+    with pytest.raises(scorer.ScorerV2Error, match="scorer implementation SHA256 mismatch"):
+        freeze.require_p4_inference_authorized(
+            repo_root=copied_root,
+            freeze_commit_sha=commit_sha,
+            hosted_ci_run_id=123,
+            hosted_ci_head_sha=commit_sha,
+            hosted_ci_conclusion="success",
+            job_conclusions=jobs,
+        )

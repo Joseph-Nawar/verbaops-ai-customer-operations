@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://verbaops.invalid/evals/rag/v0.2/p4-output.schema.json",
-  "title": "P4 evidence-linked answer",
+  "title": "P4 evidence-linked extractive answer",
   "type": "object",
   "additionalProperties": false,
   "required": ["claims"],
@@ -21,7 +21,7 @@
         "claim_text": {
           "type": "string",
           "minLength": 1,
-          "description": "One factual claim to render after validation."
+          "description": "One factual claim to render only when its literal text is a non-empty substring of supporting_excerpt."
         },
         "evidence_handle": {
           "type": "string",
@@ -31,7 +31,7 @@
         "supporting_excerpt": {
           "type": "string",
           "minLength": 1,
-          "description": "An exact non-empty substring copied from the evidence item referenced by evidence_handle."
+          "description": "A non-empty exact substring copied from the evidence item referenced by evidence_handle; claim_text must be a literal substring of this value."
         }
       }
     }

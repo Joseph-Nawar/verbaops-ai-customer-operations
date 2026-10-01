@@ -1,10 +1,10 @@
 {
-  "schema_version": "m5d-b2-scorer-v2-manifest-v1",
+  "schema_version": "m5d-b2-scorer-v2-manifest-v2",
   "scorer_version": "rag-v0.2-scorer-v2",
   "source_benchmark_version": "rag-v0.2",
   "source_split": "dev",
   "frozen_on_date": "2026-10-01",
-  "scorer_frozen_at_commit_sha": "c8a55e63c20e209d7ee920c3020977d001b41a1b",
+  "scorer_frozen_at_commit_sha": "fa800f5bfee4ee903905d89bf600642e9ddb0d95",
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "source_fact_ids": [
@@ -82,12 +82,20 @@
     "m5d-v02-faq-012::fact-012"
   ],
   "fixture_data_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
-  "fixture_data_sha256": "f7def3e10aaa15af50ad71ad30fd320ea8c705aab9eddc96a661c7eed24a361d",
+  "fixture_data_sha256": "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a",
   "source_corpus_sha256": {
+    "knowledge/novacommerce/en/faq/orders.md": "edbc70411c85a3dd3663dfa035cb3ae12b47b9ac9d8b8277e05f09bf74d9349f",
+    "knowledge/novacommerce/en/faq/returns.md": "ff13dc1c82d49af9232587e54d4c6cdcde53b8d4b5405d5e1f4cc00c8d7f2209",
+    "knowledge/novacommerce/en/faq/shipping.md": "07e9c48ecdf75f063cb2f482b74143932fb4e6538dcefd19e26004628fc38142",
+    "knowledge/novacommerce/en/payment-policy.md": "af249158de419276f556bf0104f3d039046bbb538a3442943e670db3de7f5ada",
+    "knowledge/novacommerce/en/privacy.md": "a8216e06bb44152f3551967a6f58241532225c7b9f09d088275f90e3a03f9cd3",
+    "knowledge/novacommerce/en/product-guides/accessories.md": "754c4a9c3883f52cfc87c0aa92303cc5e0626fc098ed61ed4a6abbc71e9f1d8a",
+    "knowledge/novacommerce/en/product-guides/laptops.md": "e78e7192033e1f9a2aec81a7178de071e86784cb598521abe7a1f474932166ac",
+    "knowledge/novacommerce/en/product-guides/phones-and-tablets.md": "2111dd63f0ccacc17d7b4ecc62ae9a410313ad213ca8e90a9562316fe0bd7cad",
+    "knowledge/novacommerce/en/refund-policy.md": "2f33010a0d5d2dd6c97de9f5e21322f10c567fd7b19cf8e6a20d60a67b7304d5",
     "knowledge/novacommerce/en/returns-policy.md": "1664674204ef20db6e538d4729065f87429d5ca7ea7d44df8a03a5ad0d31c182",
     "knowledge/novacommerce/en/shipping-policy.md": "a9dd50b9d94334770604e6ca6cf0435f77010b4b12aaa4959330c406b996ac23",
-    "knowledge/novacommerce/en/warranty.md": "3ac03a77e8ac189cec5b36674093d5a3870bb5926e95a179bdaab41d6d30774e",
-    "knowledge/novacommerce/en/product-guides/accessories.md": "754c4a9c3883f52cfc87c0aa92303cc5e0626fc098ed61ed4a6abbc71e9f1d8a"
+    "knowledge/novacommerce/en/warranty.md": "3ac03a77e8ac189cec5b36674093d5a3870bb5926e95a179bdaab41d6d30774e"
   },
   "fixture_provenance": {
     "positive_paraphrases": "Manually authored from the labeled expected fact and committed supporting corpus excerpt.",
@@ -98,5 +106,10 @@
     "external_nlp_dependency_used": false
   },
   "scorer_spec_path": "evals/rag/v0.2/scorer-v2/spec.json",
-  "scorer_spec_sha256": "37b0fe459e07c09646afdef11d9eaf196555ef7191b13d11d39af53a810e207e"
+  "scorer_spec_sha256": "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120",
+  "fixture_fact_count": 72,
+  "authored_positive_paraphrase_count": 72,
+  "scorer_implementation_path": "src/verbaops/evaluation/rag_v02_scorer_impl.py",
+  "scorer_implementation_sha256": "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a",
+  "scorer_entrypoint": "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion"
 }

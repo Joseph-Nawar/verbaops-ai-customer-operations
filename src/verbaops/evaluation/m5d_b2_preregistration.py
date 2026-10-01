@@ -41,8 +41,8 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
     plan_path = root / PLAN_PATH
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     scorer = audit_scorer_v2(root)
-    scorer_manifest_path = root / scorer["manifest"]["fixture_data_path"]
-    scorer_manifest_path = scorer_manifest_path.parent / "manifest.json"
+    scorer_manifest_path = root / "evals/rag/v0.2/scorer-v2/manifest.json"
+    p4_schema_path = root / "evals/rag/v0.2/scorer-v2/p4-output.schema.json"
 
     if plan.get("status") != "preregistration_only_no_results":
         raise ValueError("M5D-B2 freeze must remain a preregistration without results")
@@ -62,6 +62,8 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
         raise ValueError("selection.json is disallowed during M5D-B2")
     if plan["candidate"].get("status") != "preregistered_not_implemented":
         raise ValueError("P4 application behavior must remain unimplemented")
+    if plan["candidate"].get("evaluation_labels_or_expected_facts_exposed_to_model") is not False:
+        raise ValueError("benchmark answer keys must not be exposed to P4 model inputs")
     boundary = plan.get("production_boundary", {})
     if (
         boundary.get("production_default_prompt_or_finalizer_changed") is not False
@@ -71,13 +73,46 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
         or boundary.get("p4_behavior_is_evaluation_candidate_only") is not True
     ):
         raise ValueError("the P4 preregistration must preserve production defaults")
-    if plan["scorer_contract"].get("version") != scorer["manifest"]["scorer_version"]:
+    scorer_contract = plan.get("scorer_contract", {})
+    manifest = scorer["manifest"]
+    if scorer_contract.get("version") != manifest["scorer_version"]:
         raise ValueError("experiment plan references a different scorer version")
-    if plan["scorer_contract"].get("fixture_sha256") != scorer["manifest"]["fixture_data_sha256"]:
+    if scorer_contract.get("manifest_path") != scorer_manifest_path.relative_to(root).as_posix():
+        raise ValueError("experiment plan scorer-manifest path mismatch")
+    if scorer_contract.get("fixture_path") != manifest["fixture_data_path"]:
+        raise ValueError("experiment plan scorer-fixture path mismatch")
+    if scorer_contract.get("fixture_sha256") != manifest["fixture_data_sha256"]:
         raise ValueError("experiment plan fixture hash does not match the scorer manifest")
-    manifest_sha = plan["scorer_contract"].get("manifest_sha256")
+    if scorer_contract.get("spec_path") != manifest["scorer_spec_path"]:
+        raise ValueError("experiment plan scorer-spec path mismatch")
+    if scorer_contract.get("spec_sha256") != manifest["scorer_spec_sha256"]:
+        raise ValueError("experiment plan scorer-spec hash mismatch")
+    if scorer_contract.get("implementation_path") != manifest["scorer_implementation_path"]:
+        raise ValueError("experiment plan scorer-implementation path mismatch")
+    if scorer_contract.get("implementation_sha256") != manifest["scorer_implementation_sha256"]:
+        raise ValueError("experiment plan scorer-implementation hash mismatch")
+    if scorer_contract.get("entrypoint") != manifest["scorer_entrypoint"]:
+        raise ValueError("experiment plan scorer entrypoint mismatch")
+    if plan["candidate"].get("schema_path") != p4_schema_path.relative_to(root).as_posix():
+        raise ValueError("P4 output schema path mismatch")
+    if plan["candidate"].get("schema_sha256") != _sha256(p4_schema_path):
+        raise ValueError("P4 output schema SHA256 mismatch")
+    manifest_sha = scorer_contract.get("manifest_sha256")
     if manifest_sha != _sha256(scorer_manifest_path):
         raise ValueError("experiment plan scorer-manifest SHA256 mismatch")
+    if scorer_contract.get("definition_commit_sha") != manifest["scorer_frozen_at_commit_sha"]:
+        raise ValueError("experiment plan scorer-definition commit mismatch")
+    required_identity_fields = set(plan["run_identity"].get("required_fields", []))
+    if (
+        not {
+            "scorer_spec_sha256",
+            "scorer_implementation_sha256",
+            "scorer_definition_commit_sha",
+            "p4_schema_sha256",
+        }
+        <= required_identity_fields
+    ):
+        raise ValueError("P4 run identity must bind all frozen scorer and schema versions")
     if plan["execution"]["freeze_gate"].get("required_hosted_jobs") != list(
         REQUIRED_HOSTED_CI_JOBS
     ):
@@ -111,6 +146,7 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
 
 def require_p4_inference_authorized(
     *,
+    repo_root: Path,
     hosted_ci_run_id: int | None = None,
     freeze_commit_sha: str | None,
     hosted_ci_head_sha: str | None,
@@ -119,6 +155,9 @@ def require_p4_inference_authorized(
 ) -> None:
     """Require exact-head green hosted CI before a future canonical P4 request."""
 
+    # Revalidate byte-bound scorer artifacts at the point of future inference
+    # authorization, so later P4 commits cannot silently change scoring rules.
+    audit_m5d_b2_preregistration(repo_root)
     if freeze_commit_sha is None or not re.fullmatch(r"[a-f0-9]{40}", freeze_commit_sha):
         raise ValueError("a committed full 40-hex freeze commit SHA is required")
     if (
