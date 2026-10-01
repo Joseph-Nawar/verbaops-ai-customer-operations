@@ -1,0 +1,479 @@
+{
+  "candidate_citation_audit": {
+    "P0_CURRENT": {
+      "all_dev_citations": 18,
+      "citations_matching_expected_support": 12,
+      "citations_on_answerable_cases": 18,
+      "citations_on_no_answer_cases": 0,
+      "citations_outside_supplied_evidence": 0,
+      "handle_or_unresolved_citation_evidence_available": false,
+      "most_common_nonpositive_locators": [
+        [
+          "faq-shipping|2026.1|Tracking has not updated|1",
+          1
+        ],
+        [
+          "warranty|2026.1|Service request|2",
+          1
+        ],
+        [
+          "faq-returns|2026.1|Is a return label free?|1",
+          1
+        ],
+        [
+          "accessories|2026.1|Chargers and cables|0",
+          1
+        ],
+        [
+          "faq-orders|2026.1|How do I check an order?|0",
+          1
+        ],
+        [
+          "shipping-policy|2026.1|Tracking and delays|2",
+          1
+        ]
+      ],
+      "nonpositive_or_unjudged": 6,
+      "positive_case_relevance": 12,
+      "precision": 0.6666666666666666
+    },
+    "P2_FAIL_CLOSED_CITATIONS": {
+      "all_dev_citations": 71,
+      "citations_matching_expected_support": 48,
+      "citations_on_answerable_cases": 70,
+      "citations_on_no_answer_cases": 1,
+      "citations_outside_supplied_evidence": 0,
+      "handle_or_unresolved_citation_evidence_available": false,
+      "most_common_nonpositive_locators": [
+        [
+          "faq-shipping|2026.1|Tracking has not updated|1",
+          2
+        ],
+        [
+          "faq-returns|2026.1|Is a return label free?|1",
+          2
+        ],
+        [
+          "faq-warranty|2026.1|How long is the warranty?|0",
+          2
+        ],
+        [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          2
+        ],
+        [
+          "privacy|2026.1|Support conversations|3",
+          2
+        ],
+        [
+          "faq-payments|2026.1|Why is a card charge pending?|0",
+          2
+        ],
+        [
+          "shipping-policy|2026.1|Tracking and delays|2",
+          2
+        ],
+        [
+          "refund-policy|2026.1|Refund Policy|0",
+          1
+        ],
+        [
+          "refund-policy|2026.1|Partial refunds|2",
+          1
+        ],
+        [
+          "faq-warranty|2026.1|What should I send support?|2",
+          1
+        ]
+      ],
+      "nonpositive_or_unjudged": 23,
+      "positive_case_relevance": 48,
+      "precision": 0.676056338028169
+    },
+    "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
+      "all_dev_citations": 79,
+      "citations_matching_expected_support": 50,
+      "citations_on_answerable_cases": 76,
+      "citations_on_no_answer_cases": 3,
+      "citations_outside_supplied_evidence": 0,
+      "handle_or_unresolved_citation_evidence_available": false,
+      "most_common_nonpositive_locators": [
+        [
+          "faq-orders|2026.1|How do I check an order?|0",
+          3
+        ],
+        [
+          "shipping-policy|2026.1|Tracking and delays|2",
+          3
+        ],
+        [
+          "faq-shipping|2026.1|Tracking has not updated|1",
+          2
+        ],
+        [
+          "faq-returns|2026.1|Is a return label free?|1",
+          2
+        ],
+        [
+          "faq-warranty|2026.1|How long is the warranty?|0",
+          2
+        ],
+        [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          2
+        ],
+        [
+          "faq-payments|2026.1|Why is a card charge pending?|0",
+          2
+        ],
+        [
+          "refund-policy|2026.1|Failed payments and cancellations|3",
+          2
+        ],
+        [
+          "returns-policy|2026.1|Exclusions|1",
+          1
+        ],
+        [
+          "refund-policy|2026.1|Refund Policy|0",
+          1
+        ]
+      ],
+      "nonpositive_or_unjudged": 29,
+      "positive_case_relevance": 50,
+      "precision": 0.6329113924050633
+    }
+  },
+  "evidence_gate": {
+    "accepted_answerable": 56,
+    "accepted_with_positive_support": 56,
+    "answerable_cases": 72,
+    "positive_support_final_five": 69,
+    "rejected_with_positive_support": 13,
+    "selected_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "threshold": 0.2554669
+  },
+  "p2_vs_p3_answerable_case_delta": {
+    "answer_changed_case_ids": [
+      "m5d-v02-shipping-001",
+      "m5d-v02-shipping-002",
+      "m5d-v02-shipping-003",
+      "m5d-v02-shipping-004",
+      "m5d-v02-shipping-006",
+      "m5d-v02-shipping-007",
+      "m5d-v02-shipping-008",
+      "m5d-v02-shipping-009",
+      "m5d-v02-shipping-010",
+      "m5d-v02-returns-002",
+      "m5d-v02-returns-003",
+      "m5d-v02-returns-004",
+      "m5d-v02-returns-005",
+      "m5d-v02-returns-006",
+      "m5d-v02-returns-007",
+      "m5d-v02-returns-008",
+      "m5d-v02-returns-009",
+      "m5d-v02-returns-010",
+      "m5d-v02-refunds-002",
+      "m5d-v02-refunds-003",
+      "m5d-v02-refunds-004",
+      "m5d-v02-refunds-005",
+      "m5d-v02-refunds-006",
+      "m5d-v02-refunds-007",
+      "m5d-v02-refunds-008",
+      "m5d-v02-warranty-001",
+      "m5d-v02-warranty-002",
+      "m5d-v02-warranty-003",
+      "m5d-v02-warranty-004",
+      "m5d-v02-warranty-005",
+      "m5d-v02-warranty-006",
+      "m5d-v02-warranty-007",
+      "m5d-v02-warranty-008",
+      "m5d-v02-payments-001",
+      "m5d-v02-payments-002",
+      "m5d-v02-payments-003",
+      "m5d-v02-payments-004",
+      "m5d-v02-payments-005",
+      "m5d-v02-payments-006",
+      "m5d-v02-privacy-001",
+      "m5d-v02-privacy-002",
+      "m5d-v02-privacy-003",
+      "m5d-v02-privacy-004",
+      "m5d-v02-privacy-005",
+      "m5d-v02-product-guides-001",
+      "m5d-v02-product-guides-002",
+      "m5d-v02-product-guides-003",
+      "m5d-v02-product-guides-004",
+      "m5d-v02-product-guides-005",
+      "m5d-v02-product-guides-006",
+      "m5d-v02-product-guides-007",
+      "m5d-v02-product-guides-008",
+      "m5d-v02-product-guides-009",
+      "m5d-v02-product-guides-010",
+      "m5d-v02-product-guides-011",
+      "m5d-v02-product-guides-012",
+      "m5d-v02-product-guides-013",
+      "m5d-v02-faq-001",
+      "m5d-v02-faq-002",
+      "m5d-v02-faq-003",
+      "m5d-v02-faq-004",
+      "m5d-v02-faq-005",
+      "m5d-v02-faq-006",
+      "m5d-v02-faq-007",
+      "m5d-v02-faq-008",
+      "m5d-v02-faq-009",
+      "m5d-v02-faq-010",
+      "m5d-v02-faq-011",
+      "m5d-v02-faq-012"
+    ],
+    "answer_same": 3,
+    "citation_changed_case_ids": [
+      "m5d-v02-shipping-007",
+      "m5d-v02-returns-006",
+      "m5d-v02-refunds-003",
+      "m5d-v02-refunds-008",
+      "m5d-v02-warranty-002",
+      "m5d-v02-warranty-003",
+      "m5d-v02-warranty-004",
+      "m5d-v02-warranty-005",
+      "m5d-v02-warranty-007",
+      "m5d-v02-payments-004",
+      "m5d-v02-privacy-001",
+      "m5d-v02-privacy-002",
+      "m5d-v02-product-guides-010",
+      "m5d-v02-faq-002",
+      "m5d-v02-faq-006"
+    ],
+    "citation_locators_same": 57,
+    "expected_support_citation_changed_case_ids": [
+      "m5d-v02-shipping-007",
+      "m5d-v02-refunds-003",
+      "m5d-v02-warranty-003",
+      "m5d-v02-warranty-004",
+      "m5d-v02-warranty-005",
+      "m5d-v02-payments-004",
+      "m5d-v02-product-guides-010",
+      "m5d-v02-faq-006"
+    ],
+    "fact_recognition_same": 71,
+    "fallback_same": 64,
+    "recognized_fact_case_ids_p2_only": [],
+    "recognized_fact_case_ids_p3_only": [
+      "m5d-v02-shipping-003"
+    ],
+    "support_citation_same": 64
+  },
+  "p3_repair_audit": {
+    "answerable_case_attempts": 8,
+    "answerable_case_failures": 6,
+    "answerable_case_successes": 2,
+    "attempts_all_dev": 9,
+    "cases": [
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-shipping-005",
+        "category": "shipping",
+        "p2_citations": [],
+        "p2_final_answer_was_fallback": true,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-returns-001",
+        "category": "returns",
+        "p2_citations": [],
+        "p2_final_answer_was_fallback": true,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-refunds-001",
+        "category": "refunds",
+        "p2_citations": [],
+        "p2_final_answer_was_fallback": true,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-refunds-003",
+        "category": "refunds",
+        "p2_citations": [
+          "refund-policy|2026.1|Timing|1"
+        ],
+        "p2_final_answer_was_fallback": false,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-warranty-004",
+        "category": "warranty",
+        "p2_citations": [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          "warranty|2026.1|Coverage|1"
+        ],
+        "p2_final_answer_was_fallback": false,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-warranty-005",
+        "category": "warranty",
+        "p2_citations": [],
+        "p2_final_answer_was_fallback": true,
+        "p3_citations": [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          "warranty|2026.1|Coverage|1"
+        ],
+        "p3_final_answer_is_fallback": false,
+        "p3_model_calls": 2,
+        "repair_failed_reason": null,
+        "repair_succeeded": true
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-warranty-006",
+        "category": "warranty",
+        "p2_citations": [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          "warranty|2026.1|Coverage|1"
+        ],
+        "p2_final_answer_was_fallback": false,
+        "p3_citations": [
+          "faq-warranty|2026.1|Does accidental damage qualify?|1",
+          "warranty|2026.1|Coverage|1"
+        ],
+        "p3_final_answer_is_fallback": false,
+        "p3_model_calls": 2,
+        "repair_failed_reason": null,
+        "repair_succeeded": true
+      },
+      {
+        "answerable": true,
+        "case_id": "m5d-v02-product-guides-010",
+        "category": "product-guides",
+        "p2_citations": [
+          "laptops|2026.1|Setup and care|1"
+        ],
+        "p2_final_answer_was_fallback": false,
+        "p3_citations": [],
+        "p3_final_answer_is_fallback": true,
+        "p3_model_calls": 2,
+        "repair_failed_reason": "no_acceptable_repaired_answer",
+        "repair_succeeded": false
+      },
+      {
+        "answerable": false,
+        "case_id": "m5d-v02-no-answer-012",
+        "category": "no-answer",
+        "p2_citations": [],
+        "p2_final_answer_was_fallback": true,
+        "p3_citations": [
+          "refund-policy|2026.1|Failed payments and cancellations|3",
+          "faq-orders|2026.1|How do I check an order?|0"
+        ],
+        "p3_final_answer_is_fallback": false,
+        "p3_model_calls": 2,
+        "repair_failed_reason": null,
+        "repair_succeeded": true
+      }
+    ],
+    "failures_all_dev": 6,
+    "successes_all_dev": 3
+  },
+  "provenance": {
+    "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+    "forensics_tool_sha256": {
+      "scripts/analyze_m5d_b2_forensics.py": "20a124908e0e73e08e91d82cc07f50efe4889c382d2dfbb0ea6a891aaaad32f2",
+      "src/verbaops/evaluation/m5d_b2_forensics.py": "0a387571eaa9efbf748fe03f0524842640d0d8feb58a8d805f5bc49fd10c239b"
+    },
+    "input_artifacts": [
+      {
+        "path": "evals/rag/v0.2/questions.jsonl",
+        "sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595"
+      },
+      {
+        "path": "evals/rag/v0.2/manifest.json",
+        "sha256": "f5badb26ee596d795e74ab4d709a99a83b3eec1f2a12eb7c29a9667c7d4c02a9"
+      },
+      {
+        "path": "evals/rag/v0.2/experiment-plan.json",
+        "sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-decision.json",
+        "sha256": "c0b4392d7e03217e51b04fc3af10757bbad8510b3ee163cb47fb277db671de2c"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json",
+        "sha256": "4208723dbcaaaf32f4bc74bb6097c3f8909c7e32d971758b96a256e81db2acec"
+      },
+      {
+        "path": "docs/evaluation/stage5-m5d-b-dev-results.md",
+        "sha256": "1d26cbb54d6de91ab534271c74ef1a951bd43c19fdd48324395e641d0f0bc3f7"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl",
+        "sha256": "167e97a96e0260578b1c93ef1a8aa007026172d1b0712f37893426e908e3adae"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate-report.json",
+        "sha256": "ad96bd0e53f87dd43f02d7024df2f91d5b29661806abc015f859a6d1dcab5628"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/grounded_cases.jsonl",
+        "sha256": "937dbaa61247d1ab6b114dd7db6caf8f87b4b99d230f1bd3b075b1a8d1b6c453"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P0-20260929T124811Z-0d27c8d7/report.json",
+        "sha256": "8fde71d87c0a079354851d41bf0d58f57b212288a4e5f15f454cbeb43ed42bec"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P2-20260930T135336Z-7c951350/grounded_cases.jsonl",
+        "sha256": "24926b7ab2c3b96e8e6f713cd9353717cb28716dd5d7e818bbcb5a6fa7c7796a"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P2-20260930T135336Z-7c951350/report.json",
+        "sha256": "5932a43f04f7ba0986468eed5d106910078fc1a6cf0e5f3172dcdc34f655450e"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl",
+        "sha256": "98a2325a2d479d5934532a0cbc779bd2cf533d0be77b7ad7d5049faaeb2ee681"
+      },
+      {
+        "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/report.json",
+        "sha256": "7c01474f33065d2a5fdce663d53dbf2d87c73de82bf4b3d12ed7e063117a9244"
+      }
+    ],
+    "provider_calls_made": false,
+    "release_holdout_executed": false,
+    "selected_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "selection_json_present": false,
+    "split": "dev",
+    "threshold": 0.2554669
+  },
+  "trace_visibility_limitations": [
+    "Canonical case records include final answers, resolved public citation locators, model/tool call counts, and aggregate repair fields.",
+    "Raw pre-finalization model answers, tool names/arguments/results, unresolved citation handles, and claim-span citation attachment are not present in the committed case artifacts.",
+    "Therefore generation omission versus finalizer removal cannot be resolved, and tool invocation can be counted but not named or semantically attributed from these artifacts alone."
+  ]
+}
