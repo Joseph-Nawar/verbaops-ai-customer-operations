@@ -87,7 +87,7 @@ async def test_p4_knowledge_request_keeps_tools_and_adds_frozen_schema() -> None
 async def test_p4_request_without_selected_evidence_uses_plain_path() -> None:
     llm = ScriptedLLMClient([response("I cannot verify that.")])
 
-    await build_agent_graph().ainvoke(
+    result = await build_agent_graph().ainvoke(
         state("What is the return window?"),
         context=_context(
             llm,
@@ -99,6 +99,11 @@ async def test_p4_request_without_selected_evidence_uses_plain_path() -> None:
     assert llm.requests[0].response_format is None
     assert llm.requests[0].tool_choice == "auto"
     assert len(llm.requests[0].tools or ()) == 5
+    assert result["p4_diagnostics"]["p4_extractive_mode_active"] is False
+    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == (
+        "no_selected_knowledge_evidence"
+    )
+    assert result["p4_diagnostics"]["tool_path_entered"] is False
 
 
 @pytest.mark.asyncio
@@ -159,6 +164,10 @@ async def test_malformed_p4_terminal_fails_closed_without_an_extra_model_call(
     assert result["p4_diagnostics"]["parse_success"] is False
     assert result["p4_diagnostics"]["parse_failure_reason"] == failure_reason
     assert result["p4_diagnostics"]["accepted_claims"] == []
+    assert result["p4_diagnostics"]["p4_extractive_mode_active"] is True
+    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == (
+        "selected_evidence_no_tool_path"
+    )
 
 
 @pytest.mark.asyncio

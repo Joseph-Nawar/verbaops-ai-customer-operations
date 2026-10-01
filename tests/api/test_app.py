@@ -3,6 +3,7 @@
 import pytest
 from fastapi import FastAPI
 
+from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.api.app import create_app
 
 from .conftest import build_provider, build_settings, request
@@ -25,6 +26,40 @@ def test_application_factory_returns_independent_instances() -> None:
     assert second.state.verbaops_dependencies.settings is second_settings
     assert first.state.verbaops_dependencies.auth_provider is first_provider
     assert second.state.verbaops_dependencies.auth_provider is second_provider
+
+
+def test_p4_trace_sink_requires_explicit_candidate_and_canonical_run_identity(tmp_path) -> None:
+    settings = build_settings()
+    provider = build_provider()
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+    )
+
+    with pytest.raises(ValueError, match="P4 trace"):
+        create_app(settings=settings, auth_provider=provider, evaluation_profile=profile)
+
+    run_id = "canonical-p4-app"
+    run_directory = tmp_path / run_id
+    app = create_app(
+        settings=settings,
+        auth_provider=provider,
+        evaluation_profile=profile,
+        p4_trace_run_directory=run_directory,
+        p4_trace_run_id=run_id,
+    )
+
+    assert app.state.verbaops_dependencies.p4_trace_run_directory == run_directory
+    assert app.state.verbaops_dependencies.p4_trace_run_id == run_id
+
+
+def test_non_p4_application_rejects_evaluation_trace_sink(tmp_path) -> None:
+    with pytest.raises(ValueError, match="P4 trace"):
+        create_app(
+            settings=build_settings(),
+            auth_provider=build_provider(),
+            p4_trace_run_directory=tmp_path / "run",
+            p4_trace_run_id="run",
+        )
 
 
 @pytest.mark.asyncio

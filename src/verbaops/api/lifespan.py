@@ -8,6 +8,7 @@ import httpx
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from verbaops.agent.evaluation import GroundingCandidate
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.api.dependencies import ApplicationDependencies
 from verbaops.cache.redis import close_redis, create_redis_client
@@ -18,6 +19,7 @@ from verbaops.db.resources import (
     create_database_resources,
     dispose_database_resources,
 )
+from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.knowledge.embeddings import EmbeddingClient
 from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.service import KnowledgeService
@@ -135,6 +137,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 retrieval_service=retrieval_service,
                 citation_finalizer=CitationFinalizer(),
                 evaluation_profile=evaluation_profile,
+                p4_trace_store=(
+                    P4TraceStore(
+                        dependencies.p4_trace_run_directory,
+                        dependencies.p4_trace_run_id,
+                        secrets_to_hide=(
+                            dependencies.settings.llm.api_key.get_secret_value(),
+                            dependencies.settings.commerce.service_token.get_secret_value(),
+                            dependencies.settings.auth.development_token.get_secret_value(),
+                        ),
+                    )
+                    if evaluation_profile is not None
+                    and evaluation_profile.grounding_candidate
+                    is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+                    and dependencies.p4_trace_run_directory is not None
+                    and dependencies.p4_trace_run_id is not None
+                    else None
+                ),
             )
         app.state.verbaops_runtime_resources = RuntimeResources(
             database=database,

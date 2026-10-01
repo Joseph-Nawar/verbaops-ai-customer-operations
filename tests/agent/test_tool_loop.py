@@ -11,12 +11,12 @@ from pydantic import SecretStr
 from tests.agent.test_retrieval_graph import evidence as knowledge_evidence
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.context import AgentContext
-from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.errors import (
     AgentBudgetExceededError,
     AgentProtocolError,
     AgentUnavailableError,
 )
+from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
@@ -189,6 +189,10 @@ async def test_p4_tool_call_deactivates_structured_mode_for_terminal_tool_answer
 
     assert result["final_response"] == "Your shipment is in transit."
     assert result["tool_path_entered"] is True
+    assert result["p4_diagnostics"]["p4_extractive_mode_active"] is False
+    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == "commerce_tool_path"
+    assert result["p4_diagnostics"]["tool_path_entered"] is True
+    assert result["p4_diagnostics"]["p4_extractive_mode_deactivated_after_tool"] is True
     assert llm.requests[0].response_format is not None
     assert llm.requests[0].tool_choice == "auto"
     assert [tool.name for tool in llm.requests[0].tools or ()] == [

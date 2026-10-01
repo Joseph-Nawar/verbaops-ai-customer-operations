@@ -162,6 +162,12 @@ async def _run(args: argparse.Namespace) -> None:
                 sessions,
                 grounding_candidate=args.grounding,
                 gate_threshold=args.threshold,
+                p4_trace_run_directory=(
+                    args.run_dir if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS" else None
+                ),
+                p4_trace_run_id=(
+                    args.run_id if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS" else None
+                ),
             )
             new_records = await run_grounded_evaluation(
                 cases,

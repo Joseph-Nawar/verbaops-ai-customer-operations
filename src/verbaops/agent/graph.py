@@ -301,7 +301,10 @@ async def finalize_grounding(
         return {
             "final_response": p4_result.final_response,
             "grounded_citations": list(p4_result.citations),
-            "p4_diagnostics": p4_result.diagnostics(),
+            "p4_diagnostics": {
+                **p4_result.diagnostics(),
+                **_p4_mode_diagnostics(state, active=True),
+            },
         }
 
     if not isinstance(final_response, str) or not final_response.strip():
@@ -337,11 +340,14 @@ async def finalize_grounding(
                         ],
                     }
         grounded = finalizer.finalize(SAFE_GROUNDING_FALLBACK, ())
-    return {
+    result = {
         "final_response": grounded.content,
         "grounded_citations": list(grounded.citations),
         "model_call_count": state["model_call_count"] + int(repair_was_generated),
     }
+    if candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+        result["p4_diagnostics"] = _p4_mode_diagnostics(state, active=False)
+    return result
 
 
 def route_after_agent(state: AgentState) -> str:
@@ -367,6 +373,22 @@ def _p4_extractive_mode_active(state: AgentState, context: AgentContext) -> bool
         and state.get("knowledge_evidence")
         and not state.get("tool_path_entered", False)
     )
+
+
+def _p4_mode_diagnostics(state: AgentState, *, active: bool) -> dict[str, object]:
+    tool_path_entered = bool(state.get("tool_path_entered", False))
+    return {
+        "p4_extractive_mode_active": active,
+        "p4_extractive_mode_reason": (
+            "selected_evidence_no_tool_path"
+            if active
+            else "commerce_tool_path"
+            if tool_path_entered
+            else "no_selected_knowledge_evidence"
+        ),
+        "tool_path_entered": tool_path_entered,
+        "p4_extractive_mode_deactivated_after_tool": tool_path_entered,
+    }
 
 
 def _request_messages(state: AgentState, context: AgentContext | None = None) -> list[ChatMessage]:

@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Request
@@ -32,6 +33,8 @@ class ApplicationDependencies:
     settings: Settings
     auth_provider: AuthProvider
     evaluation_profile: AgentEvaluationProfile | None = None
+    p4_trace_run_directory: Path | None = None
+    p4_trace_run_id: str | None = None
 
 
 class RuntimeResourceUnavailableError(RuntimeError):

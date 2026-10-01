@@ -12,6 +12,7 @@ from pydantic import SecretStr
 
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.errors import AgentBusyError, AgentInputError, AgentUnavailableError
+from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.runtime import AgentRuntime, AgentTurnResult
 from verbaops.agent.versions import (
     GRAPH_VERSION,
@@ -31,6 +32,7 @@ from verbaops.conversations.domain import (
 )
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
+from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.llm.errors import LLMUnavailableError
 from verbaops.llm.models import CapabilityAlias, GenerateResponse, ResponseMetadata, ToolCall
 from verbaops.tools.registry import build_commerce_read_registry
@@ -269,6 +271,57 @@ async def test_runtime_bounds_only_initial_persisted_visible_history() -> None:
     assert len(messages) == MAX_VISIBLE_HISTORY
     assert messages[0].content == "history-11"
     assert messages[-1].content == "current message"
+
+
+@pytest.mark.asyncio
+async def test_p4_runtime_writes_terminal_diagnostics_only_to_explicit_run_sidecar(
+    tmp_path,
+) -> None:
+    class P4Graph:
+        async def ainvoke(
+            self, _state: dict[str, Any], *, context: Any, config: dict[str, Any]
+        ) -> dict[str, Any]:
+            del context, config
+            return {
+                "final_response": "I'm unable to verify that information from the available company knowledge.",
+                "p4_diagnostics": {
+                    "p4_extractive_mode_active": False,
+                    "p4_extractive_mode_reason": "no_selected_knowledge_evidence",
+                    "tool_path_entered": False,
+                    "p4_extractive_mode_deactivated_after_tool": False,
+                },
+            }
+
+    run_id = "canonical-p4-runtime"
+    trace_store = P4TraceStore(tmp_path / run_id, run_id)
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+    )
+    service = RecordingConversationService()
+    commerce = CommerceClient(
+        CommerceSettings(
+            base_url="https://commerce.test",
+            service_token=SecretStr("test-token"),
+            timeout_seconds=1.0,
+        ),
+        httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(500))),
+    )
+    runtime = AgentRuntime(
+        conversation_service=cast(ConversationService, service),
+        llm_client=ScriptedLLMClient([]),
+        commerce_client=commerce,
+        graph=P4Graph(),
+        evaluation_profile=profile,
+        p4_trace_store=trace_store,
+    )
+
+    result = await runtime.run_turn(scope(), uuid4(), uuid4(), "What is the policy?")
+
+    artifact = trace_store.read(result.agent_run_id)
+    assert artifact.payload["agent_run_id"] == str(result.agent_run_id)
+    assert artifact.payload["diagnostics"]["p4_extractive_mode_reason"] == (
+        "no_selected_knowledge_evidence"
+    )
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -11,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from verbaops.evaluation.live import TraceReader
+from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.knowledge.repository_tables import (
     knowledge_chunks,
     knowledge_documents,
@@ -34,13 +36,25 @@ class PublicRagV02AgentAdapter:
         *,
         grounding_candidate: str,
         gate_threshold: float,
+        p4_trace_run_directory: Path | None = None,
+        p4_trace_run_id: str | None = None,
     ) -> None:
+        is_p4 = grounding_candidate == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+        if is_p4 != (p4_trace_run_directory is not None and p4_trace_run_id is not None):
+            raise ValueError("P4 adapter requires an explicitly configured trace run")
+        if (p4_trace_run_directory is None) != (p4_trace_run_id is None):
+            raise ValueError("P4 trace directory and run ID must be configured together")
         self._base_url = base_url.rstrip("/")
         self._bearer_token = bearer_token
         self._http_client = http_client
         self._sessions = sessions
         self._grounding_candidate = grounding_candidate
         self._gate_threshold = gate_threshold
+        self._p4_trace_store = (
+            P4TraceStore(p4_trace_run_directory, p4_trace_run_id)
+            if p4_trace_run_directory is not None and p4_trace_run_id is not None
+            else None
+        )
         self._trace_reader = TraceReader(sessions)
 
     async def execute(self, case: Any) -> dict[str, Any]:
@@ -88,7 +102,7 @@ class PublicRagV02AgentAdapter:
             )
         costs = [call.cost_usd for call in trace.model_calls if call.cost_usd is not None]
         first_call = trace.model_calls[0] if trace.model_calls else None
-        return {
+        result = {
             "final_answer": str(assistant["content"]),
             "public_citations": [_citation_locator(row) for row in citation_rows],
             "selected_evidence": selected_evidence,
@@ -114,6 +128,14 @@ class PublicRagV02AgentAdapter:
             ),
             "status": trace.run.status,
         }
+        if self._p4_trace_store is not None:
+            p4_artifact = self._p4_trace_store.read(run_id)
+            result["p4_diagnostics"] = p4_artifact.payload["diagnostics"]
+            result["p4_trace_artifact"] = {
+                "path": p4_artifact.relative_path,
+                "sha256": p4_artifact.sha256,
+            }
+        return result
 
     async def _citation_rows(self, message_id: UUID) -> list[dict[str, Any]]:
         async with self._sessions() as session:
