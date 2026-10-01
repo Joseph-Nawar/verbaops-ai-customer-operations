@@ -30,6 +30,7 @@ GROUNDING_CANDIDATES = {
     "P1_PROMPT_V3",
     "P2_FAIL_CLOSED_CITATIONS",
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+    "P4_EVIDENCE_LINKED_SINGLE_PASS",
 }
 
 
@@ -57,6 +58,10 @@ async def _run(args: argparse.Namespace) -> None:
         raise ValueError("grounding candidate is not preregistered")
     if args.model_candidate != "M0":
         raise ValueError("Stage 4 comparison runs the incumbent M0 only")
+    if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS" and (
+        args.gate != "G2_TOP_EVIDENCE_CROSS_ENCODER" or args.threshold != 0.2554669
+    ):
+        raise ValueError("P4 requires the frozen G2 gate and threshold")
     if not args.database_url or not args.token:
         raise ValueError("database and public API bearer token are required")
 
