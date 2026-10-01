@@ -81,6 +81,12 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sha256_lf_normalized(path: Path) -> str:
+    """Hash a text artifact using the repository's normalized LF bytes."""
+
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def _canonical_p4_run_directories(root: Path) -> list[Path]:
     canonical_root = root / "evals/rag/v0.2/dev-evidence/canonical"
     if not canonical_root.exists():
@@ -360,11 +366,11 @@ def audit_m5d_b2_p4_closeout(root: Path) -> dict[str, Any]:
     summary_reference = decision.get("summary_artifact", {})
     if summary_reference.get("path") != summary_path.relative_to(
         root
-    ).as_posix() or summary_reference.get("sha256") != _sha256(summary_path):
+    ).as_posix() or summary_reference.get("sha256") != _sha256_lf_normalized(summary_path):
         raise ValueError("M5D summary artifact hash reference mismatch")
     summary_rel = summary_path.relative_to(root).as_posix()
     summary_references = _find_artifact_references(decision, summary_rel)
-    summary_sha = _sha256(summary_path)
+    summary_sha = _sha256_lf_normalized(summary_path)
     if not summary_references or any(
         item.get("sha256") != summary_sha for item in summary_references
     ):

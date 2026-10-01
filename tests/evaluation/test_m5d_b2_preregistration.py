@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -138,6 +139,8 @@ def test_preregistration_contract_requires_complete_identity_field_list() -> Non
 
 def test_final_p4_closeout_audit_validates_canonical_evidence() -> None:
     audit = preregistration.audit_m5d_b2_p4_closeout(ROOT)
+    summary_path = ROOT / "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json"
+    committed_bytes = summary_path.read_bytes().replace(b"\r\n", b"\n")
 
     assert audit["run_id"] == "canonical-M0-P4-20261001T173102Z-31113cc8"
     assert audit["classification"] == (
@@ -157,6 +160,7 @@ def test_final_p4_closeout_audit_validates_canonical_evidence() -> None:
     assert audit["selection_json_present"] is False
     assert audit["canonical_evidence_status"] == "COMPLETE"
     assert audit["artifact_hashes_valid"] is True
+    assert audit["summary_sha256"] == hashlib.sha256(committed_bytes).hexdigest()
 
 
 def test_closed_p4_run_cannot_resume_or_start_a_second_run(

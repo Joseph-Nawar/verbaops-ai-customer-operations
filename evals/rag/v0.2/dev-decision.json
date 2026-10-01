@@ -896,7 +896,7 @@
   "status": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
   "summary_artifact": {
     "path": "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json",
-    "sha256": "5bece14148dd10c2ab7416b829759bd9f2e509aa3f65a7bf3ba080ed23f3ed1e"
+    "sha256": "9cfe800ce17cf4d42404708d691f95e5bcee047acaa18c60612e82ade6f208ac"
   },
   "summary_artifacts": [
     {
