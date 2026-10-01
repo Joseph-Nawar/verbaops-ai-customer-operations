@@ -1,0 +1,148 @@
+"""Provider-free M5D-B2 preregistration and future inference-unlock checks."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from verbaops.evaluation.rag_v02_scorer_v2 import audit_scorer_v2
+
+PLAN_PATH = Path("evals/rag/v0.2/m5d-b2-experiment-plan.json")
+REQUIRED_HOSTED_CI_JOBS = (
+    "quality",
+    "postgres-contract",
+    "postgres-concurrency",
+    "postgres-m3b",
+    "postgres-m3d",
+    "knowledge-contract",
+    "rag-contract",
+    "rag-evaluation-contract",
+    "m5d-evaluation-contract",
+    "commerce-acceptance",
+    "llm-gateway-contract",
+    "commerce-client-contract",
+    "agent-acceptance",
+    "web-quality",
+    "evaluation-contract",
+    "docker-build",
+)
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
+    """Validate the frozen scorer/P4 plan without reading holdout question rows."""
+
+    plan_path = root / PLAN_PATH
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    scorer = audit_scorer_v2(root)
+    scorer_manifest_path = root / scorer["manifest"]["fixture_data_path"]
+    scorer_manifest_path = scorer_manifest_path.parent / "manifest.json"
+
+    if plan.get("status") != "preregistration_only_no_results":
+        raise ValueError("M5D-B2 freeze must remain a preregistration without results")
+    if plan.get("candidate_ids") != ["P4_EVIDENCE_LINKED_SINGLE_PASS"]:
+        raise ValueError("M5D-B2 must preregister exactly the single P4 candidate")
+    if plan.get("execution", {}).get("split") != "dev" or plan["execution"].get("case_count") != 96:
+        raise ValueError("P4 preregistration must target exactly the 96 DEV cases")
+    if plan["execution"].get("release_holdout_access_allowed") is not False:
+        raise ValueError("release holdout access must remain disabled")
+    if plan["execution"].get("canonical_p4_inference_enabled_in_this_pr") is not False:
+        raise ValueError("this preregistration change must not enable P4 inference")
+    if plan["execution"].get("provider_inference_in_this_freeze_change") is not False:
+        raise ValueError("provider inference is disallowed in the freeze change")
+    if plan["execution"].get("p4_results_present_in_this_freeze_change") is not False:
+        raise ValueError("P4 result artifacts are disallowed in the freeze change")
+    if plan["execution"].get("selection_artifact_allowed") is not False:
+        raise ValueError("selection.json is disallowed during M5D-B2")
+    if plan["candidate"].get("status") != "preregistered_not_implemented":
+        raise ValueError("P4 application behavior must remain unimplemented")
+    boundary = plan.get("production_boundary", {})
+    if (
+        boundary.get("production_default_prompt_or_finalizer_changed") is not False
+        or boundary.get("production_model_provider_changed") is not False
+        or boundary.get("production_retrieval_or_threshold_changed") is not False
+        or boundary.get("production_tool_set_or_authorization_changed") is not False
+        or boundary.get("p4_behavior_is_evaluation_candidate_only") is not True
+    ):
+        raise ValueError("the P4 preregistration must preserve production defaults")
+    if plan["scorer_contract"].get("version") != scorer["manifest"]["scorer_version"]:
+        raise ValueError("experiment plan references a different scorer version")
+    if plan["scorer_contract"].get("fixture_sha256") != scorer["manifest"]["fixture_data_sha256"]:
+        raise ValueError("experiment plan fixture hash does not match the scorer manifest")
+    manifest_sha = plan["scorer_contract"].get("manifest_sha256")
+    if manifest_sha != _sha256(scorer_manifest_path):
+        raise ValueError("experiment plan scorer-manifest SHA256 mismatch")
+    if plan["execution"]["freeze_gate"].get("required_hosted_jobs") != list(
+        REQUIRED_HOSTED_CI_JOBS
+    ):
+        raise ValueError("freeze gate required jobs do not match the M5D-B2 CI contract")
+
+    canonical_root = root / "evals/rag/v0.2/dev-evidence/canonical"
+    canonical_p4_results = (
+        any(path.is_dir() and "p4" in path.name.casefold() for path in canonical_root.iterdir())
+        if canonical_root.exists()
+        else False
+    )
+    if canonical_p4_results:
+        raise ValueError("canonical P4 result artifacts exist before the freeze")
+
+    selection_present = (root / "evals/rag/v0.2/selection.json").exists()
+    if selection_present:
+        raise ValueError("selection.json must remain absent during M5D-B2")
+
+    return {
+        "candidate_id": "P4_EVIDENCE_LINKED_SINGLE_PASS",
+        "split": "dev",
+        "case_count": 96,
+        "canonical_p4_results_present": canonical_p4_results,
+        "release_holdout_accessed": False,
+        "selection_json_present": selection_present,
+        "experiment_plan_sha256": _sha256(plan_path),
+        "scorer_manifest_sha256": _sha256(scorer_manifest_path),
+        "scorer_fixture_sha256": scorer["manifest"]["fixture_data_sha256"],
+    }
+
+
+def require_p4_inference_authorized(
+    *,
+    hosted_ci_run_id: int | None = None,
+    freeze_commit_sha: str | None,
+    hosted_ci_head_sha: str | None,
+    hosted_ci_conclusion: str | None,
+    job_conclusions: dict[str, str],
+) -> None:
+    """Require exact-head green hosted CI before a future canonical P4 request."""
+
+    if freeze_commit_sha is None or not re.fullmatch(r"[a-f0-9]{40}", freeze_commit_sha):
+        raise ValueError("a committed full 40-hex freeze commit SHA is required")
+    if (
+        isinstance(hosted_ci_run_id, bool)
+        or not isinstance(hosted_ci_run_id, int)
+        or hosted_ci_run_id <= 0
+    ):
+        raise ValueError("a positive hosted CI run ID is required")
+    if hosted_ci_head_sha != freeze_commit_sha:
+        raise ValueError("hosted CI must run on the exact freeze commit")
+    if hosted_ci_conclusion != "success":
+        raise ValueError("successful hosted CI on the freeze commit is required")
+    missing_or_failed = [
+        job for job in REQUIRED_HOSTED_CI_JOBS if job_conclusions.get(job) != "success"
+    ]
+    if missing_or_failed:
+        raise ValueError(
+            "required jobs must all succeed on the freeze commit: " + ", ".join(missing_or_failed)
+        )
+
+
+__all__ = [
+    "PLAN_PATH",
+    "REQUIRED_HOSTED_CI_JOBS",
+    "audit_m5d_b2_preregistration",
+    "require_p4_inference_authorized",
+]

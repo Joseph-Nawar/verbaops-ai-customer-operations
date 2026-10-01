@@ -1,0 +1,215 @@
+{
+  "schema_version": "m5d-b2-scorer-v2-fixtures-v1",
+  "provenance": {
+    "authored_from": [
+      "rag-v0.2 DEV expected-fact statements and benchmark-authored aliases",
+      "committed NovaCommerce source corpus excerpts at the listed evidence locators"
+    ],
+    "positive_paraphrases_manually_authored": true,
+    "candidate_outputs_consulted": [],
+    "p2_p3_answer_text_used": false,
+    "p4_outputs_available": false
+  },
+  "representative_facts": [
+    {
+      "case_id": "m5d-v02-returns-006",
+      "fact_id": "fact-006",
+      "category": "returns",
+      "statement": "Support provides return instructions and, when eligible, a prepaid label.",
+      "benchmark_aliases": [
+        "Support provides return instructions and, when eligible, a prepaid label."
+      ],
+      "positive_paraphrases": [
+        "Support gives the return steps and supplies a prepaid shipping label for eligible orders."
+      ],
+      "partial_patterns": [
+        "Support provides return instructions."
+      ],
+      "contradiction_patterns": [
+        "Support gives every return a prepaid label, regardless of eligibility."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Starting a return",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Use the order's return request flow or contact support with the order reference. Support provides return instructions and, when eligible, a prepaid label. Pack each item safely and keep the carrier receipt until the return is resolved."
+      },
+      "examples": [
+        {
+          "id": "returns-full-alias",
+          "text": "Support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "returns-valid-paraphrase",
+          "text": "Support gives the return steps and supplies a prepaid shipping label for eligible orders.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "returns-partial-compound",
+          "text": "Support provides return instructions.",
+          "expected_status": "partial",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-negated-assertion",
+          "text": "Support does not provide return instructions or prepaid labels for eligible returns.",
+          "expected_status": "negated",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-contradictory-unconditional-label",
+          "text": "Support gives every return a prepaid label, regardless of eligibility.",
+          "expected_status": "contradicted",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-refusal-repeats-fact-terms",
+          "text": "I cannot verify whether support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "refusal",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-quoted-mention",
+          "text": "The note says, \"Support provides return instructions and, when eligible, a prepaid label.\"",
+          "expected_status": "quoted",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-uncertain-assertion",
+          "text": "Perhaps support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "uncertain",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-unrelated-lexical-overlap",
+          "text": "The returns page mentions support instructions and shipping labels, but says nothing about which orders qualify.",
+          "expected_status": "unrelated_overlap",
+          "expected_recognized": false
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-shipping-002",
+      "fact_id": "fact-002",
+      "category": "shipping",
+      "statement": "Express delivery normally arrives in one to two business days after dispatch.",
+      "benchmark_aliases": [
+        "Express delivery normally arrives in one to two business days after dispatch."
+      ],
+      "positive_paraphrases": [
+        "An express parcel usually arrives one to two working days after it is dispatched."
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Delivery methods",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Express delivery normally arrives in one to two business days after dispatch."
+      },
+      "examples": [
+        {
+          "id": "shipping-valid-paraphrase",
+          "text": "An express parcel usually arrives one to two working days after it is dispatched.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "shipping-uncertain-repetition",
+          "text": "I am not sure whether express delivery normally arrives in one to two business days after dispatch.",
+          "expected_status": "uncertain",
+          "expected_recognized": false
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-warranty-001",
+      "fact_id": "fact-001",
+      "category": "warranty",
+      "statement": "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date.",
+      "benchmark_aliases": [
+        "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date."
+      ],
+      "positive_paraphrases": [
+        "NovaCommerce electronics have limited one-year coverage for material and workmanship defects starting on delivery."
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Warranty",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date."
+      },
+      "examples": [
+        {
+          "id": "warranty-full-alias",
+          "text": "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "warranty-valid-paraphrase",
+          "text": "NovaCommerce electronics have limited one-year coverage for material and workmanship defects starting on delivery.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-product-guides-012",
+      "fact_id": "fact-012",
+      "category": "product-guides",
+      "statement": "A higher wattage charger is not automatically faster or safer.",
+      "benchmark_aliases": [
+        "A higher wattage charger is not automatically faster or safer."
+      ],
+      "positive_paraphrases": [
+        "More watts alone do not make a charger faster or safer."
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [
+        "Higher-wattage chargers always charge faster and more safely."
+      ],
+      "supporting_locator": {
+        "document_slug": "accessories",
+        "document_version": "2026.1",
+        "section": "Chargers and cables",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/accessories.md",
+        "excerpt": "A higher wattage charger is not automatically faster or safer."
+      },
+      "examples": [
+        {
+          "id": "charger-negated-wording-is-asserted-fact",
+          "text": "More watts alone do not make a charger faster or safer.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "charger-contradiction",
+          "text": "Higher-wattage chargers always charge faster and more safely.",
+          "expected_status": "contradicted",
+          "expected_recognized": false
+        }
+      ]
+    }
+  ]
+}

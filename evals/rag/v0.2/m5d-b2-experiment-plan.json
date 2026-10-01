@@ -1,0 +1,217 @@
+{
+  "schema_version": "m5d-b2-experiment-plan-v1",
+  "status": "preregistration_only_no_results",
+  "benchmark_version": "rag-v0.2",
+  "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "candidate_ids": [
+    "P4_EVIDENCE_LINKED_SINGLE_PASS"
+  ],
+  "scorer_contract": {
+    "version": "rag-v0.2-scorer-v2",
+    "manifest_path": "evals/rag/v0.2/scorer-v2/manifest.json",
+    "manifest_sha256": "da4ab81dda5569b7f653fe64f6459f4fef1b038a017b1d004dc7089ade80079d",
+    "fixture_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
+    "fixture_sha256": "f7def3e10aaa15af50ad71ad30fd320ea8c705aab9eddc96a661c7eed24a361d",
+    "p4_outputs_used_for_construction": false,
+    "p2_p3_output_text_used_for_construction": false,
+    "spec_path": "evals/rag/v0.2/scorer-v2/spec.json",
+    "spec_sha256": "37b0fe459e07c09646afdef11d9eaf196555ef7191b13d11d39af53a810e207e"
+  },
+  "execution": {
+    "split": "dev",
+    "case_count": 96,
+    "canonical_run_count": 1,
+    "baseline_reruns": [],
+    "release_holdout_access_allowed": false,
+    "selection_artifact_allowed": false,
+    "selection_artifact_path": "evals/rag/v0.2/selection.json",
+    "provider_inference_in_this_freeze_change": false,
+    "p4_results_present_in_this_freeze_change": false,
+    "canonical_p4_inference_enabled_in_this_pr": false,
+    "freeze_gate": {
+      "required_before_any_p4_provider_request": true,
+      "freeze_commit_sha_must_be_full_40_hex": true,
+      "hosted_ci_head_sha_must_equal_freeze_commit_sha": true,
+      "hosted_ci_run_conclusion": "success",
+      "all_required_hosted_jobs_must_succeed": true,
+      "required_hosted_jobs": [
+        "quality",
+        "postgres-contract",
+        "postgres-concurrency",
+        "postgres-m3b",
+        "postgres-m3d",
+        "knowledge-contract",
+        "rag-contract",
+        "rag-evaluation-contract",
+        "m5d-evaluation-contract",
+        "commerce-acceptance",
+        "llm-gateway-contract",
+        "commerce-client-contract",
+        "agent-acceptance",
+        "web-quality",
+        "evaluation-contract",
+        "docker-build"
+      ]
+    }
+  },
+  "frozen_environment": {
+    "m5d_b_reference_application_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "retrieval_strategy": "hybrid_rrf",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "final_evidence_count": 5,
+    "model_candidate": "M0",
+    "model": "groq/openai/gpt-oss-120b",
+    "provider": "Groq",
+    "capability_alias": "agent-fast",
+    "tool_set_unchanged": true,
+    "tool_authorization_unchanged": true,
+    "model_tool_and_runtime_budgets_unchanged": true,
+    "public_application_path": true
+  },
+  "production_boundary": {
+    "production_default_prompt_or_finalizer_changed": false,
+    "production_model_provider_changed": false,
+    "production_retrieval_or_threshold_changed": false,
+    "production_tool_set_or_authorization_changed": false,
+    "p4_behavior_is_evaluation_candidate_only": true
+  },
+  "candidate": {
+    "id": "P4_EVIDENCE_LINKED_SINGLE_PASS",
+    "status": "preregistered_not_implemented",
+    "structured_final_answer_generations_per_case_answer": 1,
+    "candidate_specific_repair_generations": 0,
+    "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
+    "agent_graph_version": "text-agent-m5d-v1",
+    "grounding_finalizer_version": "evidence-linked-single-pass-v1",
+    "schema_path": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+    "claim_fields": [
+      "claim_text",
+      "evidence_handle",
+      "supporting_excerpt"
+    ],
+    "claim_linked_evidence_required": true,
+    "free_floating_global_citation_list": false,
+    "validation": {
+      "reject_malformed_or_extra_fields": true,
+      "handle_must_belong_to_supplied_selected_evidence": true,
+      "exactly_one_handle_per_claim": true,
+      "supporting_excerpt_must_be_nonempty": true,
+      "supporting_excerpt_must_be_an_exact_source_substring": true,
+      "only_validated_claim_records_are_rendered": true,
+      "if_no_valid_claims": "use the existing deterministic safe fallback"
+    },
+    "explicit_limitation": "Exact excerpt validation proves source provenance, not semantic entailment between the claim and excerpt."
+  },
+  "observability": {
+    "scope": "evaluation-only where practical",
+    "persist_credentials": false,
+    "persist_unrelated_private_data": false,
+    "required_sanitized_trace_fields": [
+      "raw_structured_model_response",
+      "parse_success",
+      "parse_failure_reason",
+      "proposed_claims",
+      "proposed_evidence_handle_per_claim",
+      "proposed_excerpt_per_claim",
+      "handle_validation_result_per_claim",
+      "excerpt_validation_result_per_claim",
+      "deterministic_rejection_reason_per_claim",
+      "rendered_final_claims",
+      "fallback_used",
+      "fallback_reason"
+    ],
+    "diagnostic_distinctions": [
+      "generation omission",
+      "malformed structured output",
+      "invalid evidence handle",
+      "excerpt mismatch",
+      "deterministic filtering",
+      "final scorer nonrecognition"
+    ]
+  },
+  "run_identity": {
+    "application_behavior_and_evaluation_harness_shas_are_separate": true,
+    "required_fields": [
+      "benchmark_version",
+      "split",
+      "dataset_sha256",
+      "knowledge_manifest_sha256",
+      "experiment_plan_sha256",
+      "scorer_version",
+      "scorer_manifest_sha256",
+      "scorer_fixture_sha256",
+      "application_under_test_sha",
+      "evaluation_harness_sha",
+      "freeze_commit_sha",
+      "hosted_ci_run_id",
+      "hosted_ci_head_sha",
+      "evidence_gate",
+      "evidence_gate_threshold",
+      "grounding_candidate",
+      "model_candidate",
+      "model_revision",
+      "retrieval_profile_version",
+      "agent_prompt_version",
+      "agent_graph_version",
+      "grounding_finalizer_version",
+      "run_id"
+    ]
+  },
+  "resume_identity": {
+    "canonical_json_sha256_fingerprint": true,
+    "checkpoint_must_match_every_run_identity_field": true,
+    "incompatible_identity_fails_closed": true,
+    "duplicate_case_ids_rejected": true,
+    "completed_cases_are_never_replayed": true,
+    "incomplete_run_is_not_scored": true,
+    "canonical_artifact_paths_are_relative_and_sha256_bound": true
+  },
+  "provider_call_budget": {
+    "public_case_requests": 96,
+    "maximum_model_calls_per_case": 4,
+    "maximum_model_calls_total": 384,
+    "384_is_a_hard_ceiling_not_a_promised_call_count": true,
+    "candidate_specific_repair_call": 0,
+    "automatic_retry_after_explicit_quota_failure": false,
+    "provider_substitution": false
+  },
+  "stop_rules": {
+    "explicit_provider_quota_failure": "stop immediately and preserve the checkpoint; do not retry in the same execution session",
+    "deterministic_evaluated_runtime_failure": "do not retry the failed case; mark candidate execution-ineligible and retain completed observations",
+    "transient_infrastructure_failure_without_observation": "preserve checkpoint and classify separately before any continuation",
+    "duplicate_completed_case_replay": false,
+    "score_incomplete_run": false
+  },
+  "quality_floors": {
+    "citation_precision_minimum": 0.95,
+    "citation_precision_requires_nonzero_denominator": true,
+    "labeled_groundedness_minimum": 0.9,
+    "labeled_groundedness_requires_nonzero_denominator": true,
+    "unsupported_recognized_fact_rate_maximum": 0.1,
+    "expected_fact_coverage_minimum": 0.7,
+    "zero_fabricated_or_non_supplied_evidence_handles": true,
+    "trust_invariant_replaces_no_quality_floor": true
+  },
+  "stage4_dev_regression": {
+    "run_only_if_p4_passes_every_rag_quality_floor": true,
+    "release_holdout_for_tuning": false
+  },
+  "m5d_c_entry_criteria": [
+    "P4 completes all 96 DEV cases canonically",
+    "P4 remains execution-eligible under frozen runtime constraints",
+    "P4 passes every frozen quality floor under scorer-v2 frozen before inference",
+    "P4 passes required Stage 4 DEV regression",
+    "application, harness, run, scorer, and artifact provenance is complete",
+    "candidate is frozen before any new release-holdout use"
+  ],
+  "limits": {
+    "llm_judge": false,
+    "release_holdout_used_for_design_or_execution": false,
+    "m5d_b_historical_results_rewritten": false,
+    "production_behavior_changed": false
+  }
+}

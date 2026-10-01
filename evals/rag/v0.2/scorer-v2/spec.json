@@ -1,0 +1,75 @@
+{
+  "schema_version": "m5d-b2-scorer-v2-spec-v1",
+  "scorer_version": "rag-v0.2-scorer-v2",
+  "scope": "Recognize only benchmark-labeled expected facts; do not judge arbitrary claims for truth.",
+  "input": "One final answer, one benchmark expected-fact unit, its aliases, and any pre-frozen fact-specific fixture patterns.",
+  "normalization": {
+    "unicode": "NFKC",
+    "case": "casefold",
+    "tokenization": "ASCII alphanumeric tokens joined by one space",
+    "phrase_match": "whole normalized token phrase; punctuation and case do not change a match"
+  },
+  "recognized_status": "asserted",
+  "status_rules": {
+    "asserted": "A complete alias or manually authored positive paraphrase is directly asserted in an unquoted sentence without a refusal, uncertainty, or negation cue immediately preceding it.",
+    "partial": "A fixture-authored partial pattern is present but no complete positive phrase matched.",
+    "negated": "A negative cue precedes a complete phrase, or negative wording overlaps the labeled fact without matching a complete positive phrase.",
+    "contradicted": "A preregistered fact-specific contradiction pattern is present.",
+    "refusal": "A refusal cue precedes or accompanies an otherwise matching phrase; the fact is mentioned but not asserted.",
+    "quoted": "A complete phrase appears only inside paired straight or curly quotation marks.",
+    "uncertain": "An uncertainty cue precedes an otherwise matching phrase, or overlaps the labeled fact without a complete positive assertion.",
+    "unrelated_overlap": "At least two non-stopword tokens overlap at 25 percent or more, with no complete or partial phrase and no recognized negation, refusal, or uncertainty cue.",
+    "not_recognized": "No complete positive phrase or diagnostic negative status matches."
+  },
+  "prefix_context": {
+    "normalized_token_window": 16,
+    "refusal_cues": [
+      "i cannot verify whether",
+      "i cannot confirm whether",
+      "i cannot confirm that",
+      "i can not verify whether",
+      "i can not confirm whether",
+      "i do not have enough company information to say that",
+      "i don t have enough company information to say that",
+      "the available evidence does not confirm",
+      "available evidence does not confirm",
+      "the evidence does not confirm",
+      "i cannot say whether",
+      "i can not say whether"
+    ],
+    "uncertainty_cues": [
+      "perhaps",
+      "maybe",
+      "possibly",
+      "it may be that",
+      "i am unsure whether",
+      "i am not sure whether",
+      "i m not sure whether"
+    ],
+    "negation_cues": [
+      "it is not true that",
+      "it is not the case that",
+      "the policy does not say that",
+      "the evidence does not support that",
+      "does not",
+      "do not",
+      "did not",
+      "is not",
+      "are not",
+      "was not",
+      "were not",
+      "never",
+      "no"
+    ]
+  },
+  "fact_coverage": "A labeled fact counts as recognized only for status asserted. Partial, refusal, quotation, uncertainty, negation, contradiction, lexical overlap, and no-match do not count.",
+  "fixture_policy": {
+    "positive_paraphrases_must_be_authored_from_benchmark_and_corpus": true,
+    "candidate_outputs_allowed": false,
+    "p2_p3_output_text_allowed": false,
+    "p4_outputs_available_during_construction": false,
+    "llm_judge": false,
+    "external_nlp_dependency": false
+  },
+  "limitation": "Phrase patterns do not establish semantic entailment and cannot detect every novel unsupported claim."
+}
