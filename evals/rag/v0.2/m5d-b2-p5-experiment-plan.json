@@ -1,0 +1,293 @@
+{
+  "schema_version": "m5d-b2-p5-experiment-plan-v1",
+  "status": "preregistration_only_no_results",
+  "benchmark_version": "rag-v0.2",
+  "candidate_ids": [
+    "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
+  ],
+  "hypothesis": "P4 was execution-ineligible because Groq rejects provider-level JSON response_format together with tool/function calling. P5 retains P4's evidence-linked extractive candidate and removes only the provider response_format parameter, relying on the unchanged P4 prompt plus the same local deterministic parser.",
+  "p4_historical_outcome": {
+    "run_id": "canonical-M0-P4-20261001T173102Z-31113cc8",
+    "classification": "P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY",
+    "completed_cases": 1,
+    "expected_cases": 96,
+    "scored": false,
+    "provider_failure": {
+      "public_http_status": 503,
+      "upstream_http_status": 400,
+      "type": "invalid_request_error",
+      "parameter": "response_format",
+      "message": "json mode cannot be combined with tool/function calling"
+    }
+  },
+  "execution": {
+    "split": "dev",
+    "case_count": 96,
+    "canonical_run_count": 1,
+    "baseline_reruns": [],
+    "release_holdout_access_allowed": false,
+    "selection_artifact_allowed": false,
+    "selection_artifact_path": "evals/rag/v0.2/selection.json",
+    "provider_inference_in_this_pr": false,
+    "p5_results_present_in_this_pr": false,
+    "canonical_p5_inference_enabled_in_this_pr": false
+  },
+  "frozen_environment": {
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "retrieval_strategy": "hybrid_rrf",
+    "final_evidence_count": 5,
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "model_candidate": "M0",
+    "model": "groq/openai/gpt-oss-120b",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "provider": "Groq",
+    "capability_alias": "agent-fast",
+    "commerce_tool_set_unchanged": true,
+    "tool_authorization_unchanged": true,
+    "customer_scoping_unchanged": true,
+    "model_tool_and_runtime_budgets_unchanged": true,
+    "public_application_path": true
+  },
+  "scorer_contract": {
+    "version": "rag-v0.2-scorer-v2",
+    "definition_commit_sha": "fa800f5bfee4ee903905d89bf600642e9ddb0d95",
+    "implementation_path": "src/verbaops/evaluation/rag_v02_scorer_impl.py",
+    "implementation_sha256": "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a",
+    "manifest_path": "evals/rag/v0.2/scorer-v2/manifest.json",
+    "manifest_sha256": "6a86c9d93f3ab9f53595d99138745311f1f4cad8e2673150be7446d1ecdd5bbb",
+    "fixture_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
+    "fixture_sha256": "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a",
+    "spec_path": "evals/rag/v0.2/scorer-v2/spec.json",
+    "spec_sha256": "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120",
+    "entrypoint": "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion",
+    "historical_p0_p1_p2_p3_scoring_changed": false
+  },
+  "local_output_contract": {
+    "schema_path": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+    "schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9",
+    "schema_sent_to_provider": false,
+    "schema_use": "local parser and validation contract only",
+    "response_shape": {
+      "claims": [
+        {
+          "claim_text": "string",
+          "evidence_handle": "string",
+          "supporting_excerpt": "string"
+        }
+      ]
+    },
+    "extra_fields_allowed": false
+  },
+  "knowledge_terminal_output_transport": "prompt_json_plain_content_no_response_format",
+  "knowledge_request": {
+    "activation": "selected knowledge evidence exists and no Commerce tool has executed in this turn",
+    "client_method": "LLMClient.generate",
+    "existing_messages": true,
+    "existing_tools": true,
+    "existing_tool_choice": true,
+    "response_format": null,
+    "provider_json_mode": false,
+    "provider_json_schema": false,
+    "schema_sent_to_provider": false,
+    "provider_response_format_attached": false,
+    "candidate_delta_from_p4": "omit only provider-level response_format from the P4 knowledge request"
+  },
+  "candidate": {
+    "id": "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS",
+    "status": "preregistered_not_implemented",
+    "agent_prompt_path": "src/verbaops/agent/prompts/system_p4_evidence_linked_v1.txt",
+    "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
+    "agent_prompt_sha256": "29d5512332a8e0463929c44a2c46d4ff0dc8f5c6e49523db57066856278cada6",
+    "reuse_p4_prompt_bytes_unchanged": true,
+    "agent_graph_version": "text-agent-m5d-v1",
+    "grounding_finalizer_version": "evidence-linked-extractive-single-pass-v1",
+    "candidate_specific_repair_generations": 0,
+    "extra_routing_or_conversion_generations": 0,
+    "evaluation_labels_or_expected_facts_exposed_to_model": false
+  },
+  "tool_path": {
+    "existing_tool_definitions_available_on_knowledge_request": true,
+    "valid_commerce_tool_call_uses_existing_validation_authorization_and_execution": true,
+    "successful_tool_call_marks_turn_tool_involved": true,
+    "after_tool_terminal_answer_path": "existing_plain_tool_result_answer_path",
+    "extractive_parser_applied_to_tool_terminal_answer": false,
+    "tool_set_authorization_customer_scope_and_budgets_changed": false,
+    "new_router": false
+  },
+  "terminal_knowledge_parser": {
+    "model": "existing typed P4Response contract",
+    "input": "ordinary terminal text content from the normal generate response",
+    "parse_states": [
+      "valid_json_valid_schema",
+      "blank_content",
+      "invalid_json",
+      "schema_invalid_json"
+    ],
+    "schema_source": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+    "strip_markdown_fences": false,
+    "json_cleanup_heuristics": false,
+    "malformed_output": "SAFE_GROUNDING_FALLBACK",
+    "additional_model_calls_on_parse_failure": 0,
+    "repair_generation": 0
+  },
+  "extractive_finalization": {
+    "handle_must_be_supplied_selected_evidence_handle": true,
+    "excerpt_must_be_nonempty_exact_case_sensitive_source_substring": true,
+    "claim_must_be_nonempty_exact_case_sensitive_excerpt_substring": true,
+    "invalid_claims_rejected_independently": true,
+    "render_each_valid_claim": "<claim_text> [[<evidence_handle>]]",
+    "join_valid_claims_with": "\\n",
+    "preserve_valid_claim_order_and_duplicates": true,
+    "reuse_existing_citation_finalizer": true,
+    "no_valid_claims": "SAFE_GROUNDING_FALLBACK",
+    "entailment_model": false
+  },
+  "observability": {
+    "scope": "evaluation-only sanitized canonical evidence",
+    "provider_response_format_attached_for_knowledge": false,
+    "required_sanitized_trace_fields": [
+      "knowledge_mode_active",
+      "knowledge_terminal_output_transport",
+      "provider_response_format_attached",
+      "tool_path_entered",
+      "extractive_mode_deactivated_after_tool",
+      "raw_terminal_content",
+      "json_parse_success",
+      "json_parse_failure_reason",
+      "schema_validation_result",
+      "proposed_claims",
+      "proposed_evidence_handle_per_claim",
+      "proposed_excerpt_per_claim",
+      "handle_validation_result_per_claim",
+      "excerpt_validation_result_per_claim",
+      "deterministic_rejection_reason_per_claim",
+      "rendered_final_claims",
+      "fallback_used",
+      "fallback_reason"
+    ],
+    "persist_credentials_headers_prompts_or_unrelated_private_data": false,
+    "artifact_candidate_label": "P5"
+  },
+  "run_identity": {
+    "application_behavior_and_evaluation_harness_shas_are_separate": true,
+    "p5_plan_sha_is_computed_from_committed_plan_bytes": true,
+    "required_fields": [
+      "benchmark_version",
+      "split",
+      "dataset_sha256",
+      "knowledge_manifest_sha256",
+      "p5_experiment_plan_sha256",
+      "scorer_version",
+      "scorer_definition_commit_sha",
+      "scorer_implementation_sha256",
+      "scorer_manifest_sha256",
+      "scorer_fixture_sha256",
+      "scorer_spec_sha256",
+      "local_output_schema_sha256",
+      "application_under_test_sha",
+      "evaluation_harness_sha",
+      "implementation_freeze_sha",
+      "hosted_ci_run_id",
+      "hosted_ci_head_sha",
+      "hosted_ci_conclusion",
+      "hosted_ci_job_conclusions_sha256",
+      "evidence_gate",
+      "evidence_gate_threshold",
+      "grounding_candidate",
+      "model_candidate",
+      "model_revision",
+      "provider",
+      "capability_alias",
+      "retrieval_profile_version",
+      "retrieval_strategy",
+      "final_evidence_count",
+      "agent_prompt_version",
+      "agent_prompt_sha256",
+      "agent_graph_version",
+      "grounding_finalizer_version",
+      "knowledge_terminal_output_transport",
+      "provider_response_format_attached",
+      "run_id"
+    ],
+    "canonical_run_id_format": "canonical-M0-P5-<UTC timestamp>-<8 lowercase hex chars>",
+    "canonical_run_namespace": "evals/rag/v0.2/dev-evidence/canonical/<run_id>",
+    "identity_sha256_fingerprint": true,
+    "resume_requires_exact_identity_and_no_completed_case_replay": true
+  },
+  "runtime_budgets": {
+    "public_case_requests": 96,
+    "max_model_calls_per_case": 4,
+    "max_model_calls_total": 384,
+    "384_is_hard_ceiling_not_promised_call_count": true,
+    "max_tool_rounds": 3,
+    "max_tool_calls": 6,
+    "max_validation_repairs": 1,
+    "graph_recursion_limit": 20,
+    "turn_deadline_seconds": 45,
+    "max_user_content_chars": 8000,
+    "max_visible_history": 20,
+    "candidate_specific_repair_generations": 0,
+    "budgets_must_match_existing_frozen_runtime": true
+  },
+  "quality_floors": {
+    "citation_precision_minimum": 0.95,
+    "citation_precision_requires_nonzero_denominator": true,
+    "labeled_groundedness_minimum": 0.9,
+    "labeled_groundedness_requires_nonzero_denominator": true,
+    "unsupported_recognized_fact_rate_maximum": 0.1,
+    "expected_fact_coverage_minimum": 0.7,
+    "zero_fabricated_or_non_supplied_evidence_handles": true,
+    "trust_invariant_is_additional_to_quality_floors": true
+  },
+  "provider_and_resume_stop_rules": {
+    "first_p5_provider_request": "canonical P5 public-application DEV request after implementation freeze and exact-head green hosted CI; no probe or smoke request",
+    "provider_protocol_incompatibility": "stop immediately, preserve evidence, mark P5 execution-ineligible, do not redesign during the run",
+    "explicit_provider_quota_failure": "stop immediately and preserve checkpoint; do not retry the failed request in the same execution session",
+    "transient_infrastructure_failure": "preserve checkpoint and classify before any same-run resume",
+    "deterministic_agent_runtime_failure": "do not retry failed case; retain completed observations; mark execution-ineligible",
+    "incomplete_run_scored": false,
+    "provider_or_model_substitution": false,
+    "automatic_retry_after_failure": false
+  },
+  "stage4_dev_regression": {
+    "execute_in_this_pr": false,
+    "eligible_only_if_p5_completes_and_passes_all_quality_floors_and_trust_invariant": true,
+    "commerce_authority_and_tool_behavior_unchanged": true,
+    "release_holdout_for_tuning": false
+  },
+  "m5d_c_entry_criteria": [
+    "P5 completes all 96 DEV cases canonically",
+    "P5 remains execution-eligible under frozen runtime constraints",
+    "P5 passes every unchanged quality floor and zero-fabricated-handle invariant",
+    "P5 passes the required Stage 4 DEV regression",
+    "application, harness, run, scorer, plan, CI, and artifact provenance is complete",
+    "candidate is frozen before any release-holdout use"
+  ],
+  "alternatives_rejected": {
+    "remove_tools_from_knowledge_requests": "Rejected: changes tool availability and routing instead of isolating the response_format incompatibility.",
+    "two_pass_generation": "Rejected: adds calls, cost, and latency and changes the single-pass hypothesis.",
+    "provider_or_model_switch": "Rejected: confounds the transport delta with a different model/provider.",
+    "json_repair_generation": "Rejected: adds adaptive repair behavior and another generation.",
+    "heuristic_json_repair": "Rejected: hides plain-prompt adherence failures instead of measuring the frozen deterministic parser contract."
+  },
+  "production_boundary": {
+    "production_defaults_changed": false,
+    "production_prompt_or_finalizer_changed": false,
+    "production_model_or_provider_changed": false,
+    "production_retrieval_or_threshold_changed": false,
+    "tool_set_or_authorization_changed": false,
+    "candidate_evaluation_only": true
+  },
+  "limits": {
+    "llm_judge": false,
+    "release_holdout_used_for_design_or_execution": false,
+    "historical_p0_p1_p2_p3_p4_results_rewritten": false,
+    "p4_closeout_or_identity_modified": false,
+    "p5_runtime_implemented_in_this_pr": false,
+    "provider_calls_in_this_pr": false,
+    "stage4_or_m5d_c_started": false
+  }
+}
