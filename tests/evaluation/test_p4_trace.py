@@ -130,6 +130,15 @@ def test_p4_trace_rejects_malformed_diagnostic_types(tmp_path) -> None:
         store.write(uuid4(), diagnostics)
 
 
+def test_p4_trace_rejects_validation_reason_that_disagrees_with_handle_state(tmp_path) -> None:
+    store = _store(tmp_path, "canonical-p4-validation-state")
+    diagnostics = _diagnostics()
+    diagnostics["claim_validation"][0]["rejection_reason"] = "claim_not_substring"
+
+    with pytest.raises(ValueError, match="malformed"):
+        store.write(uuid4(), diagnostics)
+
+
 def test_p4_trace_redacts_credential_shaped_values_before_persistence(tmp_path) -> None:
     store = _store(tmp_path, "canonical-p4-redaction")
     agent_run_id = uuid4()

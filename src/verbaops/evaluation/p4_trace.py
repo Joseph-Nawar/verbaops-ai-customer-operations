@@ -314,6 +314,21 @@ def _sanitize_diagnostics(
                 or item["rejection_reason"] not in rejection_reasons
             ):
                 raise ValueError("P4 response diagnostics are malformed")
+            expected_rejection = (
+                "invalid_handle"
+                if not item["handle_valid"]
+                else "empty_excerpt"
+                if not item["excerpt_nonempty"]
+                else "excerpt_mismatch"
+                if item["excerpt_matches_source"] is not True
+                else "empty_claim"
+                if not item["claim_nonempty"]
+                else "claim_not_substring"
+                if item["claim_matches_excerpt"] is not True
+                else None
+            )
+            if item["rejection_reason"] != expected_rejection:
+                raise ValueError("P4 response diagnostics are malformed")
             if (item["rejection_reason"] is None) != item["accepted"]:
                 raise ValueError("P4 response diagnostics are malformed")
             proposed_claim = proposed[index]

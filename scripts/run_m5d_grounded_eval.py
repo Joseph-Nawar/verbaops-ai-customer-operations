@@ -29,6 +29,7 @@ from verbaops.evaluation.rag_grounding import (
     M5dCaseExecutionError,
     run_grounded_evaluation,
     score_grounded_records,
+    score_p4_grounded_records,
 )
 from verbaops.evaluation.rag_v02 import (
     audit_rag_v02,
@@ -196,7 +197,11 @@ async def _run(args: argparse.Namespace) -> None:
         checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
     )
     records = [record_map[case.case_id] for case in cases if case.case_id in record_map]
-    report = score_grounded_records(cases, records, args.threshold)
+    report = (
+        score_p4_grounded_records(cases, records, args.threshold, repo_root=ROOT)
+        if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+        else score_grounded_records(cases, records, args.threshold)
+    )
     costs = [float(record["cost_usd"]) for record in records if record.get("cost_usd") is not None]
     report["total_cost_usd_over_costed_observations"] = sum(costs) if costs else None
     report["mean_cost_usd_over_costed_observations"] = sum(costs) / len(costs) if costs else None
