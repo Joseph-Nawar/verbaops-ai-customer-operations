@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -275,7 +276,7 @@ async def test_runtime_bounds_only_initial_persisted_visible_history() -> None:
 
 @pytest.mark.asyncio
 async def test_p4_runtime_writes_terminal_diagnostics_only_to_explicit_run_sidecar(
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
     class P4Graph:
         async def ainvoke(

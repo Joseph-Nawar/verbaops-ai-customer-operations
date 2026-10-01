@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from scripts.run_m5d_grounded_eval import _load_dev_cases_without_holdout
 
+from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.evaluation.m5d_run_identity import (
     build_agent_evaluation_profile,
     build_p4_run_identity,
@@ -22,7 +23,7 @@ def _head_sha(root: Path = ROOT) -> str:
     ).stdout.strip()
 
 
-def _profile(grounding: str = "P4_EVIDENCE_LINKED_SINGLE_PASS"):
+def _profile(grounding: str = "P4_EVIDENCE_LINKED_SINGLE_PASS") -> AgentEvaluationProfile:
     return build_agent_evaluation_profile(
         grounding,
         evidence_gate="G2_TOP_EVIDENCE_CROSS_ENCODER",

@@ -29,6 +29,7 @@ def test_unknown_prompt_version_remains_rejected() -> None:
     with pytest.raises(AgentProtocolError):
         load_system_prompt("p5")
 
+
 def test_system_prompt_is_included_in_built_wheel(tmp_path: Path) -> None:
     subprocess.run(
         ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],

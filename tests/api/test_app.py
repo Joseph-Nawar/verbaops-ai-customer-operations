@@ -1,5 +1,7 @@
 """Application factory and dependency-container tests."""
 
+from pathlib import Path
+
 import pytest
 from fastapi import FastAPI
 
@@ -28,7 +30,9 @@ def test_application_factory_returns_independent_instances() -> None:
     assert second.state.verbaops_dependencies.auth_provider is second_provider
 
 
-def test_p4_trace_sink_requires_explicit_candidate_and_canonical_run_identity(tmp_path) -> None:
+def test_p4_trace_sink_requires_explicit_candidate_and_canonical_run_identity(
+    tmp_path: Path,
+) -> None:
     settings = build_settings()
     provider = build_provider()
     profile = AgentEvaluationProfile(
@@ -52,7 +56,7 @@ def test_p4_trace_sink_requires_explicit_candidate_and_canonical_run_identity(tm
     assert app.state.verbaops_dependencies.p4_trace_run_id == run_id
 
 
-def test_non_p4_application_rejects_evaluation_trace_sink(tmp_path) -> None:
+def test_non_p4_application_rejects_evaluation_trace_sink(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="P4 trace"):
         create_app(
             settings=build_settings(),

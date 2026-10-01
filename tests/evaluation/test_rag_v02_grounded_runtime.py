@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID
@@ -112,7 +113,7 @@ async def test_p3_adapter_records_repair_trace_without_exposing_it_publicly(
 
 @pytest.mark.asyncio
 async def test_p4_adapter_binds_sidecar_payload_and_hash_to_agent_run(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     run_id = UUID("00000000-0000-0000-0000-000000000011")
     conversation_id = "00000000-0000-0000-0000-000000000012"

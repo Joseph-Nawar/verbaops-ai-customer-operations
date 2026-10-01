@@ -16,9 +16,7 @@ def load_system_prompt(version: str = "v2") -> str:
         }
         if version not in prompt_resources:
             raise AgentProtocolError()
-        prompt = files(__package__).joinpath(prompt_resources[version]).read_text(
-            encoding="utf-8"
-        )
+        prompt = files(__package__).joinpath(prompt_resources[version]).read_text(encoding="utf-8")
     except (FileNotFoundError, ModuleNotFoundError, OSError):
         raise AgentProtocolError() from None
     if not prompt.strip():

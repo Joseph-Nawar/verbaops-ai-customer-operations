@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -8,7 +10,7 @@ import pytest
 from verbaops.evaluation.p4_trace import P4TraceStore, verify_p4_trace_records
 
 
-def _diagnostics() -> dict[str, object]:
+def _diagnostics() -> dict[str, Any]:
     return {
         "p4_extractive_mode_active": True,
         "p4_extractive_mode_reason": "selected_evidence_no_tool_path",
@@ -47,13 +49,13 @@ def _diagnostics() -> dict[str, object]:
     }
 
 
-def _store(tmp_path, run_id: str | None = None) -> P4TraceStore:
+def _store(tmp_path: Path, run_id: str | None = None) -> P4TraceStore:
     canonical_run_id = run_id or tmp_path.name
     run_directory = tmp_path / canonical_run_id
     return P4TraceStore(run_directory, canonical_run_id)
 
 
-def test_p4_trace_is_atomically_stored_by_agent_run_id_and_hash_bound(tmp_path) -> None:
+def test_p4_trace_is_atomically_stored_by_agent_run_id_and_hash_bound(tmp_path: Path) -> None:
     run_id = "canonical-p4-test"
     store = _store(tmp_path, run_id)
     agent_run_id = uuid4()
@@ -71,7 +73,7 @@ def test_p4_trace_is_atomically_stored_by_agent_run_id_and_hash_bound(tmp_path) 
     assert not list(path.parent.glob("*.tmp"))
 
 
-def test_p4_trace_rejects_duplicate_agent_run_sidecars(tmp_path) -> None:
+def test_p4_trace_rejects_duplicate_agent_run_sidecars(tmp_path: Path) -> None:
     store = _store(tmp_path, "canonical-p4-duplicate")
     agent_run_id = uuid4()
     store.write(agent_run_id, _diagnostics())
@@ -80,7 +82,7 @@ def test_p4_trace_rejects_duplicate_agent_run_sidecars(tmp_path) -> None:
         store.write(agent_run_id, _diagnostics())
 
 
-def test_p4_trace_rejects_missing_malformed_and_mismatched_records(tmp_path) -> None:
+def test_p4_trace_rejects_missing_malformed_and_mismatched_records(tmp_path: Path) -> None:
     store = _store(tmp_path, "canonical-p4-invalid")
     missing_agent_run_id = uuid4()
     with pytest.raises(FileNotFoundError):
@@ -109,7 +111,7 @@ def test_p4_trace_rejects_missing_malformed_and_mismatched_records(tmp_path) -> 
         store.read(mismatched_agent_run_id)
 
 
-def test_p4_trace_rejects_path_traversal_and_unwhitelisted_data(tmp_path) -> None:
+def test_p4_trace_rejects_path_traversal_and_unwhitelisted_data(tmp_path: Path) -> None:
     store = _store(tmp_path, "canonical-p4-whitelist")
 
     with pytest.raises(ValueError):
@@ -121,7 +123,7 @@ def test_p4_trace_rejects_path_traversal_and_unwhitelisted_data(tmp_path) -> Non
         store.write(uuid4(), unsafe)
 
 
-def test_p4_trace_rejects_malformed_diagnostic_types(tmp_path) -> None:
+def test_p4_trace_rejects_malformed_diagnostic_types(tmp_path: Path) -> None:
     store = _store(tmp_path, "canonical-p4-types")
     diagnostics = _diagnostics()
     diagnostics["parse_success"] = "true"
@@ -130,7 +132,9 @@ def test_p4_trace_rejects_malformed_diagnostic_types(tmp_path) -> None:
         store.write(uuid4(), diagnostics)
 
 
-def test_p4_trace_rejects_validation_reason_that_disagrees_with_handle_state(tmp_path) -> None:
+def test_p4_trace_rejects_validation_reason_that_disagrees_with_handle_state(
+    tmp_path: Path,
+) -> None:
     store = _store(tmp_path, "canonical-p4-validation-state")
     diagnostics = _diagnostics()
     diagnostics["claim_validation"][0]["rejection_reason"] = "claim_not_substring"
@@ -139,7 +143,7 @@ def test_p4_trace_rejects_validation_reason_that_disagrees_with_handle_state(tmp
         store.write(uuid4(), diagnostics)
 
 
-def test_p4_trace_redacts_credential_shaped_values_before_persistence(tmp_path) -> None:
+def test_p4_trace_redacts_credential_shaped_values_before_persistence(tmp_path: Path) -> None:
     store = _store(tmp_path, "canonical-p4-redaction")
     agent_run_id = uuid4()
     diagnostics = _diagnostics()
@@ -153,7 +157,7 @@ def test_p4_trace_redacts_credential_shaped_values_before_persistence(tmp_path) 
     assert "[redacted]" in contents
 
 
-def test_p4_checkpoint_trace_references_are_hash_verified(tmp_path) -> None:
+def test_p4_checkpoint_trace_references_are_hash_verified(tmp_path: Path) -> None:
     run_id = "canonical-M0-P4-trace-verification"
     run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
     store = P4TraceStore(run_directory, run_id)
@@ -187,7 +191,7 @@ def test_p4_checkpoint_trace_references_are_hash_verified(tmp_path) -> None:
         verify_p4_trace_records(tmp_path, run_directory, run_id, [record])
 
 
-def test_p4_checkpoint_trace_verification_rejects_duplicate_agent_ids(tmp_path) -> None:
+def test_p4_checkpoint_trace_verification_rejects_duplicate_agent_ids(tmp_path: Path) -> None:
     run_id = "canonical-M0-P4-duplicate-agent"
     run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
     store = P4TraceStore(run_directory, run_id)
@@ -204,7 +208,9 @@ def test_p4_checkpoint_trace_verification_rejects_duplicate_agent_ids(tmp_path) 
         verify_p4_trace_records(tmp_path, run_directory, run_id, [record, record])
 
 
-def test_p4_checkpoint_trace_verification_rejects_unrecognized_sidecar_files(tmp_path) -> None:
+def test_p4_checkpoint_trace_verification_rejects_unrecognized_sidecar_files(
+    tmp_path: Path,
+) -> None:
     run_id = "canonical-M0-P4-orphan-temporary"
     run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
     store = P4TraceStore(run_directory, run_id)

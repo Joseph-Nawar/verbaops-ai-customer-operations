@@ -10,9 +10,7 @@ from pydantic import ValidationError
 from verbaops.agent.p4_models import P4Response
 from verbaops.llm.models import StructuredResponse
 
-FROZEN_SCHEMA_PATH = (
-    Path(__file__).parents[2] / "evals/rag/v0.2/scorer-v2/p4-output.schema.json"
-)
+FROZEN_SCHEMA_PATH = Path(__file__).parents[2] / "evals/rag/v0.2/scorer-v2/p4-output.schema.json"
 
 
 def _canonical_schema(value: Any, root: dict[str, Any]) -> Any:
@@ -39,9 +37,9 @@ def test_p4_response_requires_claims_and_all_three_claim_fields() -> None:
         "supporting_excerpt": "Returns are accepted within 30 days.",
     }
 
-    assert P4Response.model_validate({"claims": [claim]}).claims[0].claim_text == claim[
-        "claim_text"
-    ]
+    assert (
+        P4Response.model_validate({"claims": [claim]}).claims[0].claim_text == claim["claim_text"]
+    )
     assert P4Response.model_validate({"claims": []}).claims == []
     with pytest.raises(ValidationError):
         P4Response.model_validate({})
