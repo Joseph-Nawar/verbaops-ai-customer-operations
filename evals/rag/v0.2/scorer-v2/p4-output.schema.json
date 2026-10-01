@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://verbaops.invalid/evals/rag/v0.2/p4-output.schema.json",
+  "title": "P4 evidence-linked extractive answer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claims"],
+  "properties": {
+    "claims": {
+      "type": "array",
+      "description": "An empty list causes the existing deterministic safe fallback.",
+      "items": { "$ref": "#/$defs/claim" }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_text", "evidence_handle", "supporting_excerpt"],
+      "properties": {
+        "claim_text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One factual claim to render only when its literal text is a non-empty substring of supporting_excerpt."
+        },
+        "evidence_handle": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exactly one server-issued handle from the selected evidence supplied to this request."
+        },
+        "supporting_excerpt": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A non-empty exact substring copied from the evidence item referenced by evidence_handle; claim_text must be a literal substring of this value."
+        }
+      }
+    }
+  }
+}

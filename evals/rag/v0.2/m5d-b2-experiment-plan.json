@@ -1,0 +1,297 @@
+{
+  "schema_version": "m5d-b2-experiment-plan-v2",
+  "status": "preregistration_only_no_results",
+  "benchmark_version": "rag-v0.2",
+  "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "candidate_ids": [
+    "P4_EVIDENCE_LINKED_SINGLE_PASS"
+  ],
+  "scorer_contract": {
+    "version": "rag-v0.2-scorer-v2",
+    "definition_commit_sha": "fa800f5bfee4ee903905d89bf600642e9ddb0d95",
+    "manifest_path": "evals/rag/v0.2/scorer-v2/manifest.json",
+    "manifest_sha256": "6a86c9d93f3ab9f53595d99138745311f1f4cad8e2673150be7446d1ecdd5bbb",
+    "fixture_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
+    "fixture_sha256": "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a",
+    "p4_outputs_used_for_construction": false,
+    "p2_p3_output_text_used_for_construction": false,
+    "spec_path": "evals/rag/v0.2/scorer-v2/spec.json",
+    "spec_sha256": "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120",
+    "implementation_path": "src/verbaops/evaluation/rag_v02_scorer_impl.py",
+    "implementation_sha256": "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a",
+    "entrypoint": "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion"
+  },
+  "execution": {
+    "split": "dev",
+    "case_count": 96,
+    "canonical_run_count": 1,
+    "baseline_reruns": [],
+    "release_holdout_access_allowed": false,
+    "selection_artifact_allowed": false,
+    "selection_artifact_path": "evals/rag/v0.2/selection.json",
+    "provider_inference_in_this_freeze_change": false,
+    "p4_results_present_in_this_freeze_change": false,
+    "canonical_p4_inference_enabled_in_this_pr": false,
+    "freeze_gate": {
+      "required_before_any_p4_provider_request": true,
+      "freeze_commit_sha_must_be_full_40_hex": true,
+      "hosted_ci_head_sha_must_equal_freeze_commit_sha": true,
+      "hosted_ci_run_conclusion": "success",
+      "all_required_hosted_jobs_must_succeed": true,
+      "required_hosted_jobs": [
+        "quality",
+        "postgres-contract",
+        "postgres-concurrency",
+        "postgres-m3b",
+        "postgres-m3d",
+        "knowledge-contract",
+        "rag-contract",
+        "rag-evaluation-contract",
+        "m5d-evaluation-contract",
+        "commerce-acceptance",
+        "llm-gateway-contract",
+        "commerce-client-contract",
+        "agent-acceptance",
+        "web-quality",
+        "evaluation-contract",
+        "docker-build"
+      ]
+    }
+  },
+  "frozen_environment": {
+    "m5d_b_reference_application_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "retrieval_strategy": "hybrid_rrf",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "final_evidence_count": 5,
+    "model_candidate": "M0",
+    "model": "groq/openai/gpt-oss-120b",
+    "provider": "Groq",
+    "capability_alias": "agent-fast",
+    "tool_set_unchanged": true,
+    "tool_authorization_unchanged": true,
+    "model_tool_and_runtime_budgets_unchanged": true,
+    "public_application_path": true
+  },
+  "production_boundary": {
+    "production_default_prompt_or_finalizer_changed": false,
+    "production_model_provider_changed": false,
+    "production_retrieval_or_threshold_changed": false,
+    "production_tool_set_or_authorization_changed": false,
+    "p4_behavior_is_evaluation_candidate_only": true
+  },
+  "candidate": {
+    "id": "P4_EVIDENCE_LINKED_SINGLE_PASS",
+    "status": "preregistered_not_implemented",
+    "structured_terminal_knowledge_responses_per_turn": 1,
+    "candidate_specific_repair_generations": 0,
+    "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
+    "agent_graph_version": "text-agent-m5d-v1",
+    "grounding_finalizer_version": "evidence-linked-extractive-single-pass-v1",
+    "schema_path": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+    "claim_fields": [
+      "claim_text",
+      "evidence_handle",
+      "supporting_excerpt"
+    ],
+    "claim_linked_evidence_required": true,
+    "free_floating_global_citation_list": false,
+    "evaluation_labels_or_expected_facts_exposed_to_model": false,
+    "validation": {
+      "reject_malformed_or_extra_fields": true,
+      "handle_must_belong_to_supplied_selected_evidence": true,
+      "exactly_one_handle_per_claim": true,
+      "supporting_excerpt_must_be_nonempty": true,
+      "supporting_excerpt_must_be_an_exact_source_substring": true,
+      "claim_text_must_be_a_nonempty_exact_substring_of_supporting_excerpt": true,
+      "substring_matching": "literal_case_sensitive",
+      "only_validated_claim_records_are_rendered": true,
+      "if_no_valid_claims": "use the existing deterministic safe fallback"
+    },
+    "validation_chain": [
+      "valid structured schema",
+      "server-issued handle belongs to supplied selected evidence",
+      "nonempty supporting excerpt is a literal exact substring of that evidence source",
+      "nonempty claim text is a literal exact substring of the supporting excerpt"
+    ],
+    "explicit_limitation": "Extractive validation proves the rendered claim text occurs in the cited source excerpt and that the excerpt comes from supplied evidence; it does not establish every possible contextual interpretation of that source. Benchmark relevance and scorer metrics remain the quality evaluation.",
+    "schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9",
+    "p4_extractive_mode": {
+      "activation_predicate": {
+        "selected_knowledge_evidence_present": true,
+        "commerce_tool_call_executed_in_turn": false
+      },
+      "knowledge_terminal_answer": {
+        "response_schema": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+        "apply_extractive_validator": true
+      },
+      "no_selected_knowledge_evidence": {
+        "p4_extractive_mode_active": false,
+        "fabricate_evidence_handles": false,
+        "force_p4_claim_schema": false,
+        "preserve_existing_agent_prompt_and_tool_path": true
+      },
+      "commerce_tool_path": {
+        "tool_call_uses_existing_validation_authorization_and_execution": true,
+        "valid_tool_execution_marks_turn_tool_involved": true,
+        "p4_extractive_mode_deactivated_after_tool": true,
+        "terminal_answer_mode": "existing_plain_tool_result_answer_path",
+        "same_p4_system_prompt": true,
+        "p4_structured_schema_applied_to_terminal_answer": false,
+        "p4_extractive_validator_applied_to_terminal_answer": false,
+        "existing_tool_definitions_unchanged": true,
+        "existing_tool_authorization_unchanged": true,
+        "additional_routing_generations": 0,
+        "additional_tool_answer_to_json_conversion_generations": 0
+      },
+      "structured_response_emits_tool_calls": {
+        "follow_existing_bounded_tool_loop": true,
+        "post_tool_terminal_path": "existing_plain_tool_result_answer_path",
+        "second_final_answer_for_json_conversion": false
+      }
+    },
+    "prompt_path_distinction": {
+      "retrieved_policy_or_company_knowledge": "use the P4 evidence-linked extractive claims contract",
+      "live_commerce_facts": "use authoritative Commerce tool results and normal customer-facing answer behavior",
+      "benchmark_answer_keys_exposed": false
+    }
+  },
+  "observability": {
+    "scope": "evaluation-only where practical",
+    "persist_credentials": false,
+    "persist_unrelated_private_data": false,
+    "p4_extractive_mode_reason_values": [
+      "selected_evidence_knowledge_path",
+      "no_selected_knowledge_evidence",
+      "commerce_tool_call_emitted",
+      "deactivated_after_commerce_tool",
+      "terminal_tool_answer_bypassed_validator",
+      "terminal_knowledge_answer_validated",
+      "malformed_or_invalid_structured_knowledge_output",
+      "all_claims_rejected_safe_fallback"
+    ],
+    "required_sanitized_trace_fields": [
+      "raw_structured_model_response",
+      "parse_success",
+      "parse_failure_reason",
+      "proposed_claims",
+      "proposed_evidence_handle_per_claim",
+      "proposed_excerpt_per_claim",
+      "handle_validation_result_per_claim",
+      "excerpt_validation_result_per_claim",
+      "deterministic_rejection_reason_per_claim",
+      "rendered_final_claims",
+      "p4_extractive_mode_active",
+      "p4_extractive_mode_reason",
+      "tool_path_entered",
+      "p4_extractive_mode_deactivated_after_tool",
+      "fallback_used",
+      "fallback_reason"
+    ],
+    "diagnostic_distinctions": [
+      "generation omission",
+      "malformed structured output",
+      "invalid evidence handle",
+      "excerpt mismatch",
+      "deterministic filtering",
+      "final scorer nonrecognition",
+      "selected evidence: P4 structured knowledge path",
+      "no selected evidence: existing path",
+      "tool call emitted: existing tool path",
+      "terminal tool-derived answer: P4 validator not applied",
+      "terminal knowledge answer: P4 validator applied",
+      "malformed or invalid structured knowledge output",
+      "fallback after all knowledge claims are rejected"
+    ]
+  },
+  "run_identity": {
+    "application_behavior_and_evaluation_harness_shas_are_separate": true,
+    "required_fields": [
+      "benchmark_version",
+      "split",
+      "dataset_sha256",
+      "knowledge_manifest_sha256",
+      "experiment_plan_sha256",
+      "scorer_version",
+      "scorer_manifest_sha256",
+      "scorer_fixture_sha256",
+      "application_under_test_sha",
+      "evaluation_harness_sha",
+      "freeze_commit_sha",
+      "hosted_ci_run_id",
+      "hosted_ci_head_sha",
+      "evidence_gate",
+      "evidence_gate_threshold",
+      "grounding_candidate",
+      "model_candidate",
+      "model_revision",
+      "retrieval_profile_version",
+      "agent_prompt_version",
+      "agent_graph_version",
+      "grounding_finalizer_version",
+      "run_id",
+      "scorer_spec_sha256",
+      "scorer_implementation_sha256",
+      "scorer_definition_commit_sha",
+      "p4_schema_sha256"
+    ]
+  },
+  "resume_identity": {
+    "canonical_json_sha256_fingerprint": true,
+    "checkpoint_must_match_every_run_identity_field": true,
+    "incompatible_identity_fails_closed": true,
+    "duplicate_case_ids_rejected": true,
+    "completed_cases_are_never_replayed": true,
+    "incomplete_run_is_not_scored": true,
+    "canonical_artifact_paths_are_relative_and_sha256_bound": true
+  },
+  "provider_call_budget": {
+    "public_case_requests": 96,
+    "maximum_model_calls_per_case": 4,
+    "maximum_model_calls_total": 384,
+    "384_is_a_hard_ceiling_not_a_promised_call_count": true,
+    "candidate_specific_repair_call": 0,
+    "automatic_retry_after_explicit_quota_failure": false,
+    "provider_substitution": false
+  },
+  "stop_rules": {
+    "explicit_provider_quota_failure": "stop immediately and preserve the checkpoint; do not retry in the same execution session",
+    "deterministic_evaluated_runtime_failure": "do not retry the failed case; mark candidate execution-ineligible and retain completed observations",
+    "transient_infrastructure_failure_without_observation": "preserve checkpoint and classify separately before any continuation",
+    "duplicate_completed_case_replay": false,
+    "score_incomplete_run": false
+  },
+  "quality_floors": {
+    "citation_precision_minimum": 0.95,
+    "citation_precision_requires_nonzero_denominator": true,
+    "labeled_groundedness_minimum": 0.9,
+    "labeled_groundedness_requires_nonzero_denominator": true,
+    "unsupported_recognized_fact_rate_maximum": 0.1,
+    "expected_fact_coverage_minimum": 0.7,
+    "zero_fabricated_or_non_supplied_evidence_handles": true,
+    "trust_invariant_is_additional_to_quality_floors": true
+  },
+  "stage4_dev_regression": {
+    "run_only_if_p4_passes_every_rag_quality_floor": true,
+    "commerce_authority_preserved": true,
+    "scope_rule_reason": "Stage 4 DEV includes Commerce-tool tasks; authoritative Commerce facts must not be converted into fabricated knowledge citations.",
+    "release_holdout_for_tuning": false
+  },
+  "m5d_c_entry_criteria": [
+    "P4 completes all 96 DEV cases canonically",
+    "P4 remains execution-eligible under frozen runtime constraints",
+    "P4 passes every frozen quality floor under scorer-v2 frozen before inference",
+    "P4 passes required Stage 4 DEV regression",
+    "application, harness, run, scorer, and artifact provenance is complete",
+    "candidate is frozen before any new release-holdout use"
+  ],
+  "limits": {
+    "llm_judge": false,
+    "release_holdout_used_for_design_or_execution": false,
+    "m5d_b_historical_results_rewritten": false,
+    "production_behavior_changed": false
+  }
+}
