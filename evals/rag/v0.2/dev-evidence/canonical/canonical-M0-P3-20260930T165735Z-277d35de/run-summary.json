@@ -1,39 +1,27 @@
 {
   "artifacts": [
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/failure-diagnosis.json",
-      "sha256": "719d728f1bbd54fcc04eeb069d132286744aeba5bd4bacad5cb4940541cbd96e"
-    },
-    {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl",
-      "sha256": "aec4a78ae54646a276b844a8cfa24148362ab3ef71189f0b2c0b7859c397a59a"
+      "sha256": "98a2325a2d479d5934532a0cbc779bd2cf533d0be77b7ad7d5049faaeb2ee681"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl.identity.json",
       "sha256": "f8495ed605026ba4eae8910d9d0f17332dda0384ae689ebeaf30ea1988333f91"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/interruption.json",
-      "sha256": "dae3be577dd1884f3dfce3bad4519b2d55e5504dcc329302eb43f4bfdc0ef11c"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/metadata.json",
+      "sha256": "7f501485dfba60e7619eda29639071722c80f7cc6d18ef839aba9f90d1649626"
     },
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/metadata.json",
-      "sha256": "9f5eed972a56a3fed2071e2ca4f405feb716719874e27ef624abeab9084a11a9"
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/report.json",
+      "sha256": "7c01474f33065d2a5fdce663d53dbf2d87c73de82bf4b3d12ed7e063117a9244"
     }
   ],
-  "blocked_case_id": "m5d-v02-payments-004",
   "canonical": true,
-  "completed_cases": 39,
+  "completed_cases": 96,
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
   "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
-  "failure_classification": "PROVIDER_RATE_LIMIT_HTTP_429_CORRELATED",
-  "failure_diagnosis_artifact": {
-    "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/failure-diagnosis.json",
-    "sha256": "719d728f1bbd54fcc04eeb069d132286744aeba5bd4bacad5cb4940541cbd96e"
-  },
   "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-  "provider_rate_limit_proven": true,
-  "public_api_http_status": 503,
   "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
   "run_identity": {
     "agent_graph_version": "text-agent-m5d-v1",
@@ -54,8 +42,5 @@
     "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
     "split": "dev"
   },
-  "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf",
-  "run_status": "INTERRUPTED",
-  "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION",
-  "upstream_provider_http_status": 429
+  "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf"
 }

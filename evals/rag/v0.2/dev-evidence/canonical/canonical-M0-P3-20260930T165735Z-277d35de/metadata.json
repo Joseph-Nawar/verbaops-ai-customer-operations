@@ -1,35 +1,34 @@
 {
   "artifacts": [
     {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/failure-diagnosis.json",
-      "sha256": "719d728f1bbd54fcc04eeb069d132286744aeba5bd4bacad5cb4940541cbd96e"
-    },
-    {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl",
-      "sha256": "aec4a78ae54646a276b844a8cfa24148362ab3ef71189f0b2c0b7859c397a59a"
+      "sha256": "98a2325a2d479d5934532a0cbc779bd2cf533d0be77b7ad7d5049faaeb2ee681"
     },
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl.identity.json",
       "sha256": "f8495ed605026ba4eae8910d9d0f17332dda0384ae689ebeaf30ea1988333f91"
-    },
-    {
-      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/interruption.json",
-      "sha256": "dae3be577dd1884f3dfce3bad4519b2d55e5504dcc329302eb43f4bfdc0ef11c"
     }
   ],
-  "blocked_case_id": "m5d-v02-payments-004",
   "canonical": true,
-  "completed_case_count": 39,
+  "case_count": 96,
+  "cases_collected_before_throttle": 0,
+  "cases_without_evaluation_provenance": 0,
+  "completed_at_utc": "2026-10-01T07:22:15.220223+00:00",
+  "completed_case_count": 96,
+  "credentials_persisted": false,
+  "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+  "dataset_version": "rag-v0.2",
   "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
   "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
-  "failure_classification": "PROVIDER_RATE_LIMIT_HTTP_429_CORRELATED",
-  "failure_diagnosis_artifact": {
-    "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/failure-diagnosis.json",
-    "sha256": "719d728f1bbd54fcc04eeb069d132286744aeba5bd4bacad5cb4940541cbd96e"
-  },
-  "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
-  "provider_rate_limit_proven": true,
-  "public_api_http_status": 503,
+  "evaluation_worktree_dirty": false,
+  "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+  "grounding_candidate": "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+  "holdout_executed": false,
+  "inter_case_delay_seconds_for_new_cases": 20.0,
+  "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+  "model_candidate": "M0",
+  "new_case_count": 57,
+  "production_promoted": false,
   "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
   "run_identity": {
     "agent_graph_version": "text-agent-m5d-v1",
@@ -51,7 +50,7 @@
     "split": "dev"
   },
   "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf",
-  "run_status": "INTERRUPTED",
-  "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION",
-  "upstream_provider_http_status": 429
+  "selected_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+  "split": "dev",
+  "threshold": 0.2554669
 }

@@ -1,6 +1,6 @@
 # Stage 5 M5D-B DEV Results
 
-**Status: PARTIAL.** P0 and P2 completed all 96 DEV cases and were scored; both fail the frozen grounding quality floors. P1 is execution-ineligible after a deterministic frozen agent-budget failure at 16/96. P3 stopped at 39/96 after a Groq HTTP 429 was correlated with its public API 503. P3 is incomplete and unscored, so the grounding sweep has no selection and no final no-candidate conclusion. No production change was made.
+**Status: COMPLETE - no grounding candidate qualifies.** P0, P2, and P3 completed all 96 DEV cases and were scored; each fails at least one frozen grounding quality floor. P1 remains execution-ineligible after a deterministic frozen agent-budget failure at 16/96 and was not scored. The exact final decision is `NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE`. No production change was made.
 
 ## Canonical provenance
 
@@ -86,19 +86,45 @@ P2 resumed its existing 32/96 checkpoint after provenance correction and complet
 | Total / mean cost | **$0.0238044 / $0.0002479625** | n/a | 96 observations |
 | Retrieval evidence-gate accuracy | **78/96 = 81.25%** | n/a | Recorded |
 
-### P3_ONE_REPAIR_THEN_FAIL_CLOSED - provider-blocked at 39/96, not scored
+### P3_ONE_REPAIR_THEN_FAIL_CLOSED - complete, quality-ineligible
 
-P3 recorded 39 observations. `m5d-v02-payments-004` produced no observation; the public API returned HTTP 503. The application trace records `llm_unavailable`. In the same request window, LiteLLM logged Groq `RateLimitError` / `rate_limit_exceeded` and HTTP 429 for the configured M0 route. This is classified as a provider rate-limit interruption, not a deterministic application-behavior failure. No retry followed, no P3 report was generated, and no partial P3 metrics were calculated.
+P3 resumed the existing run from 39/96 and completed 57 new DEV cases, reaching 96/96 with the same run ID and identity. The previously provider-blocked case `m5d-v02-payments-004` completed during this continuation. The earlier public HTTP 503 correlated with Groq HTTP 429 remains in the historical interruption artifacts; no retry followed that surfaced failure. On October 1, the user confirmed the daily quota window had reset. The continuation used 20-second inter-case pacing and made no separate smoke or diagnostic requests. No provider rate limit, public 503, or deterministic application failure occurred during the continuation.
 
-The available logs contained no `retry-after` or `x-ratelimit-*` headers, so the quota dimension and reset are **unknown**. A gateway request ID was not persisted on the failed application model-call trace; the classification is based on the tightly correlated timestamp and matching provider/model route. Gateway-internal retry count remains unknown. Provider-backed execution stopped after this surfaced 429.
+| Metric | Result | Preregistered floor | Outcome |
+| --- | ---: | ---: | --- |
+| Citation precision | 50/79 = **63.29%** | >=95% | Fail |
+| Labeled groundedness | 1/1 = **100.00%** | >=90% | Pass; only one recognized labeled unit |
+| Unsupported recognized factual-unit rate | 0/1 = **0.00%** | <=10% | Pass; limited to recognized labeled units |
+| Expected-fact coverage | 1/72 = **1.39%** | >=70% | Fail |
+| Accepted-evidence citation compliance | 52/58 = **89.66%** | n/a | Recorded |
+| Safe fallback count / rate | 6/96 = **6.25%** | n/a | Recorded |
+| Repair attempts / successes / failures | **9 / 3 / 6** | n/a | Recorded |
+| Answer latency p50 / p95 | **1,321.8 / 3,602.73 ms** | n/a | Recorded |
+| Repair model latency p50 / p95 | **1,361.23 / 2,337.75 ms** | n/a | Recorded |
+| Cost metadata coverage | **96/96 (100%)** | n/a | Complete |
+| Total / mean cost | **$0.02634765 / $0.0002744547** | n/a | 96 observations |
+| Repair cost total / mean | **$0.00308235 / $0.0003424833** | n/a | 9 costed repair attempts |
+| Retrieval evidence-gate accuracy | **78/96 = 81.25%** | n/a | Recorded |
+| Model metadata coverage | **96/96** | n/a | `groq/openai/gpt-oss-120b` via `agent-fast`; provider metadata field was empty |
+
+P3 fails citation precision and expected-fact coverage, so it is quality-ineligible. Labeled groundedness counts benchmark-labeled factual units and does not detect every possible novel hallucinated claim; the 1/1 denominator is also small.
 
 ## Grounding decision
 
-P0 and P2 completed but failed the frozen quality floors. P1 is execution-ineligible because of the frozen application model-call budget. P3 is incomplete because of the correlated provider 429. Therefore no candidate is selected, and the sweep is **not complete enough to claim** `NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE`; P3 has no scored result. No incomplete candidate was scored.
+The final result is **`NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE`**. P0 and P2 completed but failed frozen quality floors; P1 is execution-ineligible at 16/96 and remains unscored; P3 completed but failed citation precision and expected-fact coverage. No candidate was selected, and incomplete P1 was not numerically evaluated against unavailable metrics.
+
+| Candidate | Execution status | Scoring / quality result |
+| --- | --- | --- |
+| P0_CURRENT | Complete, execution-eligible | `QUALITY_INELIGIBLE` |
+| P1_PROMPT_V3 | `EXECUTION_INELIGIBLE_AGENT_BUDGET_EXCEEDED`, 16/96 | `NOT_SCORED_INCOMPLETE_EXECUTION` |
+| P2_FAIL_CLOSED_CITATIONS | Complete, execution-eligible | `QUALITY_INELIGIBLE` |
+| P3_ONE_REPAIR_THEN_FAIL_CLOSED | Complete, execution-eligible | `QUALITY_INELIGIBLE` |
+
+The execution-eligibility interpretation was introduced after observing the deterministic P1 runtime failure; it was not preregistered as an additional quality metric. No frozen quality floor or tie rule changed. Stage 4 DEV regression was not run because no grounding candidate qualified.
 
 ## Model and provider
 
-M0 remained `groq/openai/gpt-oss-120b` through LiteLLM capability alias `agent-fast`. Across the recorded M5D-B execution, 185 benchmark cases completed and 188 public application case requests were made, including three requests that produced no observation. P2 added 64 completed cases; P3 added 39 completed cases and one provider-blocked request. Runner retries after surfaced failures were zero. No smoke or diagnostic request was made during these continuations. Provider-internal retry count and exact token consumption are unknown. New cases used 20-second inter-case pacing, excluded from answer-latency measurements. Credential scans of the new artifacts and gateway logs found no key.
+M0 remained `groq/openai/gpt-oss-120b` through LiteLLM capability alias `agent-fast`. On October 1, the P3 continuation completed 57 new cases (57 public application case requests) using 20-second inter-case pacing. There were zero surfaced provider 429/503 events, zero failed application requests, zero runner retries after a surfaced failure, and zero diagnostic or smoke requests. The previous September 30 session counters remain recorded separately in the machine-readable decision: 185 completed benchmark cases, 188 public application case requests, and three requests that produced no observation. Provider-internal retry counts and exact token consumption are unknown. Credential scans found no key in the new artifacts or logs.
 
 M1 (`Qwen/Qwen3-30B-A3B-Instruct-2507`) remains `M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK`; no model was downloaded or substituted, and there is no model comparison. Stage 4 DEV regression was not run because no completed grounding candidate qualified.
 
