@@ -1,8 +1,8 @@
 {
-  "schema_version": "m5d-b2-scorer-v2-spec-v1",
+  "schema_version": "m5d-b2-scorer-v2-spec-v2",
   "scorer_version": "rag-v0.2-scorer-v2",
   "scope": "Recognize only benchmark-labeled expected facts; do not judge arbitrary claims for truth.",
-  "input": "One final answer, one benchmark expected-fact unit, its aliases, and any pre-frozen fact-specific fixture patterns.",
+  "input": "One final answer, one benchmark expected-fact unit, its aliases, and its pre-frozen fact-specific positive paraphrases.",
   "normalization": {
     "unicode": "NFKC",
     "case": "casefold",
@@ -11,7 +11,7 @@
   },
   "recognized_status": "asserted",
   "status_rules": {
-    "asserted": "A complete alias or manually authored positive paraphrase is directly asserted in an unquoted sentence without a refusal, uncertainty, or negation cue immediately preceding it.",
+    "asserted": "A complete alias or manually authored positive paraphrase is directly asserted in an unquoted sentence without a refusal, uncertainty, or negation cue immediately preceding it. Negative wording that is part of the exact matched fact phrase does not itself make that fact a negated mention.",
     "partial": "A fixture-authored partial pattern is present but no complete positive phrase matched.",
     "negated": "A negative cue precedes a complete phrase, or negative wording overlaps the labeled fact without matching a complete positive phrase.",
     "contradicted": "A preregistered fact-specific contradiction pattern is present.",
@@ -64,7 +64,10 @@
   },
   "fact_coverage": "A labeled fact counts as recognized only for status asserted. Partial, refusal, quotation, uncertainty, negation, contradiction, lexical overlap, and no-match do not count.",
   "fixture_policy": {
+    "every_answerable_dev_fact_has_an_authored_positive_paraphrase": true,
     "positive_paraphrases_must_be_authored_from_benchmark_and_corpus": true,
+    "fixture_fact_keys_must_exactly_match_all_answerable_dev_fact_keys": true,
+    "candidate_outputs_consulted": [],
     "candidate_outputs_allowed": false,
     "p2_p3_output_text_allowed": false,
     "p4_outputs_available_during_construction": false,

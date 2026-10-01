@@ -1,99 +1,41 @@
 {
-  "schema_version": "m5d-b2-scorer-v2-fixtures-v1",
+  "schema_version": "m5d-b2-scorer-v2-fixtures-v2",
   "provenance": {
     "authored_from": [
       "rag-v0.2 DEV expected-fact statements and benchmark-authored aliases",
-      "committed NovaCommerce source corpus excerpts at the listed evidence locators"
+      "committed NovaCommerce source-corpus excerpts at each supporting locator"
     ],
-    "positive_paraphrases_manually_authored": true,
+    "paraphrases_independently_authored_from_fact_and_source": true,
     "candidate_outputs_consulted": [],
     "p2_p3_answer_text_used": false,
-    "p4_outputs_available": false
+    "p4_outputs_available": false,
+    "llm_judge_used": false,
+    "external_nlp_dependency_used": false
   },
-  "representative_facts": [
+  "facts": [
     {
-      "case_id": "m5d-v02-returns-006",
-      "fact_id": "fact-006",
-      "category": "returns",
-      "statement": "Support provides return instructions and, when eligible, a prepaid label.",
+      "case_id": "m5d-v02-shipping-001",
+      "fact_id": "fact-001",
+      "category": "shipping",
+      "statement": "Standard delivery normally arrives in three to five business days after dispatch.",
       "benchmark_aliases": [
-        "Support provides return instructions and, when eligible, a prepaid label."
-      ],
-      "positive_paraphrases": [
-        "Support gives the return steps and supplies a prepaid shipping label for eligible orders."
-      ],
-      "partial_patterns": [
-        "Support provides return instructions."
-      ],
-      "contradiction_patterns": [
-        "Support gives every return a prepaid label, regardless of eligibility."
+        "Standard delivery normally arrives in three to five business days after dispatch.",
+        "Standard parcels usually arrive three to five business days after dispatch."
       ],
       "supporting_locator": {
-        "document_slug": "returns-policy",
+        "document_slug": "shipping-policy",
         "document_version": "2026.1",
-        "section": "Starting a return",
-        "chunk_index": 2
+        "section": "Delivery methods",
+        "chunk_index": 1
       },
       "source_corpus": {
-        "path": "knowledge/novacommerce/en/returns-policy.md",
-        "excerpt": "Use the order's return request flow or contact support with the order reference. Support provides return instructions and, when eligible, a prepaid label. Pack each item safely and keep the carrier receipt until the return is resolved."
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Standard delivery normally arrives in three to five business days after dispatch."
       },
-      "examples": [
-        {
-          "id": "returns-full-alias",
-          "text": "Support provides return instructions and, when eligible, a prepaid label.",
-          "expected_status": "asserted",
-          "expected_recognized": true
-        },
-        {
-          "id": "returns-valid-paraphrase",
-          "text": "Support gives the return steps and supplies a prepaid shipping label for eligible orders.",
-          "expected_status": "asserted",
-          "expected_recognized": true
-        },
-        {
-          "id": "returns-partial-compound",
-          "text": "Support provides return instructions.",
-          "expected_status": "partial",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-negated-assertion",
-          "text": "Support does not provide return instructions or prepaid labels for eligible returns.",
-          "expected_status": "negated",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-contradictory-unconditional-label",
-          "text": "Support gives every return a prepaid label, regardless of eligibility.",
-          "expected_status": "contradicted",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-refusal-repeats-fact-terms",
-          "text": "I cannot verify whether support provides return instructions and, when eligible, a prepaid label.",
-          "expected_status": "refusal",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-quoted-mention",
-          "text": "The note says, \"Support provides return instructions and, when eligible, a prepaid label.\"",
-          "expected_status": "quoted",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-uncertain-assertion",
-          "text": "Perhaps support provides return instructions and, when eligible, a prepaid label.",
-          "expected_status": "uncertain",
-          "expected_recognized": false
-        },
-        {
-          "id": "returns-unrelated-lexical-overlap",
-          "text": "The returns page mentions support instructions and shipping labels, but says nothing about which orders qualify.",
-          "expected_status": "unrelated_overlap",
-          "expected_recognized": false
-        }
-      ]
+      "positive_paraphrases": [
+        "Standard delivery usually takes three to five business days from dispatch."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
     },
     {
       "case_id": "m5d-v02-shipping-002",
@@ -103,11 +45,6 @@
       "benchmark_aliases": [
         "Express delivery normally arrives in one to two business days after dispatch."
       ],
-      "positive_paraphrases": [
-        "An express parcel usually arrives one to two working days after it is dispatched."
-      ],
-      "partial_patterns": [],
-      "contradiction_patterns": [],
       "supporting_locator": {
         "document_slug": "shipping-policy",
         "document_version": "2026.1",
@@ -118,20 +55,608 @@
         "path": "knowledge/novacommerce/en/shipping-policy.md",
         "excerpt": "Express delivery normally arrives in one to two business days after dispatch."
       },
-      "examples": [
-        {
-          "id": "shipping-valid-paraphrase",
-          "text": "An express parcel usually arrives one to two working days after it is dispatched.",
-          "expected_status": "asserted",
-          "expected_recognized": true
-        },
-        {
-          "id": "shipping-uncertain-repetition",
-          "text": "I am not sure whether express delivery normally arrives in one to two business days after dispatch.",
-          "expected_status": "uncertain",
-          "expected_recognized": false
-        }
-      ]
+      "positive_paraphrases": [
+        "Express parcels generally arrive one to two business days after they are sent."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-003",
+      "fact_id": "fact-003",
+      "category": "shipping",
+      "statement": "Orders placed after the daily fulfillment cutoff are processed on the next business day.",
+      "benchmark_aliases": [
+        "Orders placed after the daily fulfillment cutoff are processed on the next business day."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Delivery methods",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Orders placed after the daily fulfillment cutoff are processed on the next business day."
+      },
+      "positive_paraphrases": [
+        "Orders submitted after the daily fulfillment cutoff are handled the following business day."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-004",
+      "fact_id": "fact-004",
+      "category": "shipping",
+      "statement": "Alaska, Hawaii, and remote locations may have different availability and estimates shown at checkout.",
+      "benchmark_aliases": [
+        "Alaska, Hawaii, and remote locations may have different availability and estimates shown at checkout."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Delivery methods",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Alaska, Hawaii, and remote locations may have different availability and estimates shown at checkout."
+      },
+      "positive_paraphrases": [
+        "Checkout may show different service options and arrival estimates for Alaska, Hawaii, and remote areas."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-005",
+      "fact_id": "fact-005",
+      "category": "shipping",
+      "statement": "NovaCommerce ships stocked products to addresses in the contiguous United States.",
+      "benchmark_aliases": [
+        "NovaCommerce ships stocked products to addresses in the contiguous United States."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Shipping Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "NovaCommerce ships stocked products to addresses in the contiguous United States."
+      },
+      "positive_paraphrases": [
+        "NovaCommerce sends stocked goods to addresses in the contiguous United States."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-006",
+      "fact_id": "fact-006",
+      "category": "shipping",
+      "statement": "The order confirmation shows the destination, delivery method, shipping charge, and estimated delivery window before payment is submitted.",
+      "benchmark_aliases": [
+        "The order confirmation shows the destination, delivery method, shipping charge, and estimated delivery window before payment is submitted."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Shipping Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "The order confirmation shows the destination, delivery method, shipping charge, and estimated delivery window before payment is submitted."
+      },
+      "positive_paraphrases": [
+        "Before payment, the order confirmation lists the destination, shipping method, delivery fee, and estimated arrival range."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-007",
+      "fact_id": "fact-007",
+      "category": "shipping",
+      "statement": "We send a tracking link when a carrier accepts the parcel.",
+      "benchmark_aliases": [
+        "We send a tracking link when a carrier accepts the parcel."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Tracking and delays",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "We send a tracking link when a carrier accepts the parcel."
+      },
+      "positive_paraphrases": [
+        "We provide a tracking link once the carrier takes possession of the parcel."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-008",
+      "fact_id": "fact-008",
+      "category": "shipping",
+      "statement": "Carrier scans can take one business day to appear.",
+      "benchmark_aliases": [
+        "Carrier scans can take one business day to appear."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Tracking and delays",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Carrier scans can take one business day to appear."
+      },
+      "positive_paraphrases": [
+        "A carrier scan may need one business day before it appears."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-009",
+      "fact_id": "fact-009",
+      "category": "shipping",
+      "statement": "Weather, carrier disruption, incorrect address details, and inventory splits can delay delivery.",
+      "benchmark_aliases": [
+        "Weather, carrier disruption, incorrect address details, and inventory splits can delay delivery."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Tracking and delays",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Weather, carrier disruption, incorrect address details, and inventory splits can delay delivery."
+      },
+      "positive_paraphrases": [
+        "Weather, carrier interruptions, address mistakes, or inventory splits can hold up delivery."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-shipping-010",
+      "fact_id": "fact-010",
+      "category": "shipping",
+      "statement": "Support can investigate a parcel after the carrier's stated delivery date has passed.",
+      "benchmark_aliases": [
+        "Support can investigate a parcel after the carrier's stated delivery date has passed."
+      ],
+      "supporting_locator": {
+        "document_slug": "shipping-policy",
+        "document_version": "2026.1",
+        "section": "Tracking and delays",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/shipping-policy.md",
+        "excerpt": "Support can investigate a parcel after the carrier's stated delivery date has passed."
+      },
+      "positive_paraphrases": [
+        "After the carrier delivery date passes, support can look into the parcel."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-001",
+      "fact_id": "fact-001",
+      "category": "returns",
+      "statement": "Most new, unused NovaCommerce products may be returned within 30 calendar days of delivery.",
+      "benchmark_aliases": [
+        "Most new, unused NovaCommerce products may be returned within 30 calendar days of delivery."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Returns Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Most new, unused NovaCommerce products may be returned within 30 calendar days of delivery."
+      },
+      "positive_paraphrases": [
+        "Most unused NovaCommerce products are eligible for return for 30 calendar days after they arrive."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-002",
+      "fact_id": "fact-002",
+      "category": "returns",
+      "statement": "Items must include the accessories, manuals, and packaging supplied with the order and must be in resalable condition.",
+      "benchmark_aliases": [
+        "Items must include the accessories, manuals, and packaging supplied with the order and must be in resalable condition."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Returns Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Items must include the accessories, manuals, and packaging supplied with the order and must be in resalable condition."
+      },
+      "positive_paraphrases": [
+        "Returned goods must remain resalable and include every accessory, manual, and package item supplied with the order."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-003",
+      "fact_id": "fact-003",
+      "category": "returns",
+      "statement": "Opened software activation codes, personalized products, gift cards, and products marked final sale are not returnable unless they arrive damaged or defective.",
+      "benchmark_aliases": [
+        "Opened software activation codes, personalized products, gift cards, and products marked final sale are not returnable unless they arrive damaged or defective."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Exclusions",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Opened software activation codes, personalized products, gift cards, and products marked final sale are not returnable unless they arrive damaged or defective."
+      },
+      "positive_paraphrases": [
+        "Opened software codes, customized goods, gift cards, and final-sale items are excluded unless they arrived damaged or defective."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-004",
+      "fact_id": "fact-004",
+      "category": "returns",
+      "statement": "Hygiene-sensitive products cannot be returned after opening unless required by law.",
+      "benchmark_aliases": [
+        "Hygiene-sensitive products cannot be returned after opening unless required by law."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Exclusions",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Hygiene-sensitive products cannot be returned after opening unless required by law."
+      },
+      "positive_paraphrases": [
+        "Opened hygiene-sensitive goods cannot be sent back except where the law requires it."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-005",
+      "fact_id": "fact-005",
+      "category": "returns",
+      "statement": "Use the order's return request flow or contact support with the order reference.",
+      "benchmark_aliases": [
+        "Use the order's return request flow or contact support with the order reference."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Starting a return",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Use the order's return request flow or contact support with the order reference."
+      },
+      "positive_paraphrases": [
+        "Start through the order return-request flow, or give support the order reference."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-006",
+      "fact_id": "fact-006",
+      "category": "returns",
+      "statement": "Support provides return instructions and, when eligible, a prepaid label.",
+      "benchmark_aliases": [
+        "Support provides return instructions and, when eligible, a prepaid label."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Starting a return",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Support provides return instructions and, when eligible, a prepaid label."
+      },
+      "positive_paraphrases": [
+        "For an eligible return, support gives the instructions and a prepaid label when applicable."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-007",
+      "fact_id": "fact-007",
+      "category": "returns",
+      "statement": "Pack each item safely and keep the carrier receipt until the return is resolved.",
+      "benchmark_aliases": [
+        "Pack each item safely and keep the carrier receipt until the return is resolved."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Starting a return",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "Pack each item safely and keep the carrier receipt until the return is resolved."
+      },
+      "positive_paraphrases": [
+        "Pack each product securely and hold on to the carrier receipt until the return is settled."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-008",
+      "fact_id": "fact-008",
+      "category": "returns",
+      "statement": "NovaCommerce inspects returned items after receipt.",
+      "benchmark_aliases": [
+        "NovaCommerce inspects returned items after receipt."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Inspection",
+        "chunk_index": 3
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "NovaCommerce inspects returned items after receipt."
+      },
+      "positive_paraphrases": [
+        "NovaCommerce checks each returned product after it arrives."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-009",
+      "fact_id": "fact-009",
+      "category": "returns",
+      "statement": "A return can be rejected or a deduction can apply when an item is used, incomplete, or damaged beyond normal inspection.",
+      "benchmark_aliases": [
+        "A return can be rejected or a deduction can apply when an item is used, incomplete, or damaged beyond normal inspection."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Inspection",
+        "chunk_index": 3
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "A return can be rejected or a deduction can apply when an item is used, incomplete, or damaged beyond normal inspection."
+      },
+      "positive_paraphrases": [
+        "If an item is used, missing parts, or damaged beyond ordinary inspection, the return may be refused or reduced by a deduction."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-returns-010",
+      "fact_id": "fact-010",
+      "category": "returns",
+      "statement": "The refund policy describes timing and payment method.",
+      "benchmark_aliases": [
+        "The refund policy describes timing and payment method."
+      ],
+      "supporting_locator": {
+        "document_slug": "returns-policy",
+        "document_version": "2026.1",
+        "section": "Inspection",
+        "chunk_index": 3
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/returns-policy.md",
+        "excerpt": "The refund policy describes timing and payment method."
+      },
+      "positive_paraphrases": [
+        "Refund timing and how the payment is returned are explained in the refund policy."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-001",
+      "fact_id": "fact-001",
+      "category": "refunds",
+      "statement": "After an eligible return is received and approved, NovaCommerce issues the refund to the original payment method.",
+      "benchmark_aliases": [
+        "After an eligible return is received and approved, NovaCommerce issues the refund to the original payment method."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Refund Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "After an eligible return is received and approved, NovaCommerce issues the refund to the original payment method."
+      },
+      "positive_paraphrases": [
+        "After NovaCommerce receives and approves an eligible return, it sends the refund to the original payment method."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-002",
+      "fact_id": "fact-002",
+      "category": "refunds",
+      "statement": "Inspection normally completes within five business days of receipt.",
+      "benchmark_aliases": [
+        "Inspection normally completes within five business days of receipt."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Refund Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "Inspection normally completes within five business days of receipt."
+      },
+      "positive_paraphrases": [
+        "Inspection is usually finished within five business days after the return arrives."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-003",
+      "fact_id": "fact-003",
+      "category": "refunds",
+      "statement": "Card issuers commonly display the credit within three to ten business days.",
+      "benchmark_aliases": [
+        "Card issuers commonly display the credit within three to ten business days."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Timing",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "Card issuers commonly display the credit within three to ten business days."
+      },
+      "positive_paraphrases": [
+        "Card providers generally show the credit three to ten business days later."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-004",
+      "fact_id": "fact-004",
+      "category": "refunds",
+      "statement": "The display time is controlled by the issuer, not NovaCommerce.",
+      "benchmark_aliases": [
+        "The display time is controlled by the issuer, not NovaCommerce."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Timing",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "The display time is controlled by the issuer, not NovaCommerce."
+      },
+      "positive_paraphrases": [
+        "The issuer controls when the credit appears, rather than NovaCommerce."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-005",
+      "fact_id": "fact-005",
+      "category": "refunds",
+      "statement": "Shipping charges are refundable only when the return is caused by our error, a defect, or a damaged delivery.",
+      "benchmark_aliases": [
+        "Shipping charges are refundable only when the return is caused by our error, a defect, or a damaged delivery."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Timing",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "Shipping charges are refundable only when the return is caused by our error, a defect, or a damaged delivery."
+      },
+      "positive_paraphrases": [
+        "Shipping fees are returned only when our error, a defect, or delivery damage caused the return."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-006",
+      "fact_id": "fact-006",
+      "category": "refunds",
+      "statement": "If a returned item is incomplete or shows use beyond normal inspection, support may offer a partial refund or return the item to the customer.",
+      "benchmark_aliases": [
+        "If a returned item is incomplete or shows use beyond normal inspection, support may offer a partial refund or return the item to the customer."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Partial refunds",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "If a returned item is incomplete or shows use beyond normal inspection, support may offer a partial refund or return the item to the customer."
+      },
+      "positive_paraphrases": [
+        "For an incomplete return or wear beyond normal inspection, support may partly refund the item or send it back."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-007",
+      "fact_id": "fact-007",
+      "category": "refunds",
+      "statement": "We explain any deduction before finalizing it.",
+      "benchmark_aliases": [
+        "We explain any deduction before finalizing it."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Partial refunds",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "We explain any deduction before finalizing it."
+      },
+      "positive_paraphrases": [
+        "We describe any deduction before making it final."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-refunds-008",
+      "fact_id": "fact-008",
+      "category": "refunds",
+      "statement": "An authorization that is cancelled can remain visible temporarily as a pending hold.",
+      "benchmark_aliases": [
+        "An authorization that is cancelled can remain visible temporarily as a pending hold."
+      ],
+      "supporting_locator": {
+        "document_slug": "refund-policy",
+        "document_version": "2026.1",
+        "section": "Failed payments and cancellations",
+        "chunk_index": 3
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/refund-policy.md",
+        "excerpt": "An authorization that is cancelled can remain visible temporarily as a pending hold."
+      },
+      "positive_paraphrases": [
+        "A cancelled authorization might still appear briefly as a pending hold."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
     },
     {
       "case_id": "m5d-v02-warranty-001",
@@ -141,11 +666,6 @@
       "benchmark_aliases": [
         "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date."
       ],
-      "positive_paraphrases": [
-        "NovaCommerce electronics have limited one-year coverage for material and workmanship defects starting on delivery."
-      ],
-      "partial_patterns": [],
-      "contradiction_patterns": [],
       "supporting_locator": {
         "document_slug": "warranty",
         "document_version": "2026.1",
@@ -156,20 +676,677 @@
         "path": "knowledge/novacommerce/en/warranty.md",
         "excerpt": "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date."
       },
-      "examples": [
-        {
-          "id": "warranty-full-alias",
-          "text": "NovaCommerce-branded electronics include a limited one-year warranty against defects in materials and workmanship from the delivery date.",
-          "expected_status": "asserted",
-          "expected_recognized": true
-        },
-        {
-          "id": "warranty-valid-paraphrase",
-          "text": "NovaCommerce electronics have limited one-year coverage for material and workmanship defects starting on delivery.",
-          "expected_status": "asserted",
-          "expected_recognized": true
-        }
-      ]
+      "positive_paraphrases": [
+        "NovaCommerce electronics have limited one-year coverage for material and workmanship defects starting on delivery."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-002",
+      "fact_id": "fact-002",
+      "category": "warranty",
+      "statement": "The manufacturer warranty applies when a product listing identifies a different coverage period.",
+      "benchmark_aliases": [
+        "The manufacturer warranty applies when a product listing identifies a different coverage period."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Warranty",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "The manufacturer warranty applies when a product listing identifies a different coverage period."
+      },
+      "positive_paraphrases": [
+        "A different coverage period shown in the listing is covered by the manufacturer warranty."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-003",
+      "fact_id": "fact-003",
+      "category": "warranty",
+      "statement": "Warranty service covers repair, replacement, or another remedy selected under the applicable warranty terms.",
+      "benchmark_aliases": [
+        "Warranty service covers repair, replacement, or another remedy selected under the applicable warranty terms."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Coverage",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "Warranty service covers repair, replacement, or another remedy selected under the applicable warranty terms."
+      },
+      "positive_paraphrases": [
+        "The applicable warranty terms determine whether service repairs, replaces, or provides another remedy."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-004",
+      "fact_id": "fact-004",
+      "category": "warranty",
+      "statement": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories.",
+      "benchmark_aliases": [
+        "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Coverage",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      },
+      "positive_paraphrases": [
+        "Warranty exclusions include accidents, liquid exposure, ordinary cosmetic wear, lost goods, unauthorized changes, and damage from unsupported accessories."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-005",
+      "fact_id": "fact-005",
+      "category": "warranty",
+      "statement": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories.",
+      "benchmark_aliases": [
+        "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Coverage",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      },
+      "positive_paraphrases": [
+        "The warranty excludes accidental or liquid damage, usual cosmetic wear, lost items, unauthorized modifications, and harm from unsupported accessories."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-006",
+      "fact_id": "fact-006",
+      "category": "warranty",
+      "statement": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories.",
+      "benchmark_aliases": [
+        "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Coverage",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "It does not cover accidental damage, liquid damage, normal cosmetic wear, lost items, unauthorized modification, or damage caused by unsupported accessories."
+      },
+      "positive_paraphrases": [
+        "Accidental damage, liquid damage, cosmetic wear, missing items, unauthorized changes, and damage from unsupported accessories are not covered."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-007",
+      "fact_id": "fact-007",
+      "category": "warranty",
+      "statement": "Contact support with the order reference, product model, and a description of the problem.",
+      "benchmark_aliases": [
+        "Contact support with the order reference, product model, and a description of the problem."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Service request",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "Contact support with the order reference, product model, and a description of the problem."
+      },
+      "positive_paraphrases": [
+        "When asking for service, give support your order reference, product model, and description of the issue."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-warranty-008",
+      "fact_id": "fact-008",
+      "category": "warranty",
+      "statement": "Do not include passwords, full payment-card numbers, or authentication tokens.",
+      "benchmark_aliases": [
+        "Do not include passwords, full payment-card numbers, or authentication tokens."
+      ],
+      "supporting_locator": {
+        "document_slug": "warranty",
+        "document_version": "2026.1",
+        "section": "Service request",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/warranty.md",
+        "excerpt": "Do not include passwords, full payment-card numbers, or authentication tokens."
+      },
+      "positive_paraphrases": [
+        "Avoid sharing passwords, complete payment-card numbers, or authentication tokens."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-001",
+      "fact_id": "fact-001",
+      "category": "payments",
+      "statement": "NovaCommerce accepts the payment methods displayed at checkout, which may include major credit and debit cards, approved digital wallets, and promotional credit.",
+      "benchmark_aliases": [
+        "NovaCommerce accepts the payment methods displayed at checkout, which may include major credit and debit cards, approved digital wallets, and promotional credit."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Payment Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "NovaCommerce accepts the payment methods displayed at checkout, which may include major credit and debit cards, approved digital wallets, and promotional credit."
+      },
+      "positive_paraphrases": [
+        "Checkout may offer major credit and debit cards, approved digital wallets, and promotional credit."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-002",
+      "fact_id": "fact-002",
+      "category": "payments",
+      "statement": "Availability can vary by country, cart, and risk review.",
+      "benchmark_aliases": [
+        "Availability can vary by country, cart, and risk review."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Payment Policy",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "Availability can vary by country, cart, and risk review."
+      },
+      "positive_paraphrases": [
+        "Which options are available depends on the country, cart, and risk review."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-003",
+      "fact_id": "fact-003",
+      "category": "payments",
+      "statement": "The payment provider may authorize a purchase before the order is dispatched.",
+      "benchmark_aliases": [
+        "The payment provider may authorize a purchase before the order is dispatched."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Authorization and capture",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "The payment provider may authorize a purchase before the order is dispatched."
+      },
+      "positive_paraphrases": [
+        "Before dispatch, the payment provider may place an authorization on the purchase."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-004",
+      "fact_id": "fact-004",
+      "category": "payments",
+      "statement": "We capture payment for the items fulfilled under the order.",
+      "benchmark_aliases": [
+        "We capture payment for the items fulfilled under the order."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Authorization and capture",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "We capture payment for the items fulfilled under the order."
+      },
+      "positive_paraphrases": [
+        "We charge for the order items once they have been fulfilled."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-005",
+      "fact_id": "fact-005",
+      "category": "payments",
+      "statement": "A pending authorization is not proof that a completed charge exists.",
+      "benchmark_aliases": [
+        "A pending authorization is not proof that a completed charge exists."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Authorization and capture",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "A pending authorization is not proof that a completed charge exists;"
+      },
+      "positive_paraphrases": [
+        "Seeing an authorization marked pending does not mean a completed card charge exists."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-payments-006",
+      "fact_id": "fact-006",
+      "category": "payments",
+      "statement": "For account protection, a payment may require an address or issuer verification step.",
+      "benchmark_aliases": [
+        "For account protection, a payment may require an address or issuer verification step."
+      ],
+      "supporting_locator": {
+        "document_slug": "payment-policy",
+        "document_version": "2026.1",
+        "section": "Security checks",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/payment-policy.md",
+        "excerpt": "For account protection, a payment may require an address or issuer verification step."
+      },
+      "positive_paraphrases": [
+        "An address check or issuer verification may be required to protect the account."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-privacy-001",
+      "fact_id": "fact-001",
+      "category": "privacy",
+      "statement": "NovaCommerce uses account, order, delivery, and support information to provide services, prevent fraud, process payments, and improve the customer experience.",
+      "benchmark_aliases": [
+        "NovaCommerce uses account, order, delivery, and support information to provide services, prevent fraud, process payments, and improve the customer experience."
+      ],
+      "supporting_locator": {
+        "document_slug": "privacy",
+        "document_version": "2026.1",
+        "section": "Privacy Notice",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/privacy.md",
+        "excerpt": "NovaCommerce uses account, order, delivery, and support information to provide services, prevent fraud, process payments, and improve the customer experience."
+      },
+      "positive_paraphrases": [
+        "Account, purchase, delivery, and support data helps provide services, stop fraud, take payments, and improve customer experience."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-privacy-002",
+      "fact_id": "fact-002",
+      "category": "privacy",
+      "statement": "We limit access to personnel and service providers who need the information for these purposes.",
+      "benchmark_aliases": [
+        "We limit access to personnel and service providers who need the information for these purposes."
+      ],
+      "supporting_locator": {
+        "document_slug": "privacy",
+        "document_version": "2026.1",
+        "section": "Privacy Notice",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/privacy.md",
+        "excerpt": "We limit access to personnel and service providers who need the information for these purposes."
+      },
+      "positive_paraphrases": [
+        "Access is limited to staff and service providers who need the information for these purposes."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-privacy-003",
+      "fact_id": "fact-003",
+      "category": "privacy",
+      "statement": "Customers may request access to or correction of personal information through support.",
+      "benchmark_aliases": [
+        "Customers may request access to or correction of personal information through support."
+      ],
+      "supporting_locator": {
+        "document_slug": "privacy",
+        "document_version": "2026.1",
+        "section": "Information choices",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/privacy.md",
+        "excerpt": "Customers may request access to or correction of personal information through support."
+      },
+      "positive_paraphrases": [
+        "Customers can ask support to view or correct their personal details."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-privacy-004",
+      "fact_id": "fact-004",
+      "category": "privacy",
+      "statement": "Marketing preferences can be changed using the unsubscribe control in a message or the account settings where available.",
+      "benchmark_aliases": [
+        "Marketing preferences can be changed using the unsubscribe control in a message or the account settings where available."
+      ],
+      "supporting_locator": {
+        "document_slug": "privacy",
+        "document_version": "2026.1",
+        "section": "Information choices",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/privacy.md",
+        "excerpt": "Marketing preferences can be changed using the unsubscribe control in a message or the account settings where available."
+      },
+      "positive_paraphrases": [
+        "Where available, change marketing choices through a message unsubscribe link or account settings."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-privacy-005",
+      "fact_id": "fact-005",
+      "category": "privacy",
+      "statement": "We retain records for operational, legal, tax, and fraud-prevention needs.",
+      "benchmark_aliases": [
+        "We retain records for operational, legal, tax, and fraud-prevention needs."
+      ],
+      "supporting_locator": {
+        "document_slug": "privacy",
+        "document_version": "2026.1",
+        "section": "Retention and protection",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/privacy.md",
+        "excerpt": "We retain records for operational, legal, tax, and fraud-prevention needs."
+      },
+      "positive_paraphrases": [
+        "We keep records for operations, legal and tax obligations, and fraud prevention."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-001",
+      "fact_id": "fact-001",
+      "category": "product-guides",
+      "statement": "Compare operating system, screen size, storage, battery capacity, camera features, cellular compatibility, and included accessories.",
+      "benchmark_aliases": [
+        "Compare operating system, screen size, storage, battery capacity, camera features, cellular compatibility, and included accessories."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Choosing a device",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "Compare operating system, screen size, storage, battery capacity, camera features, cellular compatibility, and included accessories."
+      },
+      "positive_paraphrases": [
+        "When comparing a phone or tablet, check its OS, display size, storage, battery, camera, cellular fit, and bundled accessories."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-002",
+      "fact_id": "fact-002",
+      "category": "product-guides",
+      "statement": "Confirm the model and storage option on the product page before ordering.",
+      "benchmark_aliases": [
+        "Confirm the model and storage option on the product page before ordering."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Choosing a device",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "Confirm the model and storage option on the product page before ordering."
+      },
+      "positive_paraphrases": [
+        "Verify the exact model and storage version on the product page before you buy."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-003",
+      "fact_id": "fact-003",
+      "category": "product-guides",
+      "statement": "Charge the device, connect it to a trusted network, install system updates, and use a unique account password.",
+      "benchmark_aliases": [
+        "Charge the device, connect it to a trusted network, install system updates, and use a unique account password."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Setup",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "Charge the device, connect it to a trusted network, install system updates, and use a unique account password."
+      },
+      "positive_paraphrases": [
+        "For setup, charge the device, join a trusted network, apply system updates, and choose a unique account password."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-004",
+      "fact_id": "fact-004",
+      "category": "product-guides",
+      "statement": "Transfer data through the manufacturer's supported migration flow and enable device locking and account recovery.",
+      "benchmark_aliases": [
+        "Transfer data through the manufacturer's supported migration flow and enable device locking and account recovery."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Setup",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "Transfer data through the manufacturer's supported migration flow and enable device locking and account recovery."
+      },
+      "positive_paraphrases": [
+        "Move your data with the manufacturer-supported migration process and turn on device lock and account recovery."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-005",
+      "fact_id": "fact-005",
+      "category": "product-guides",
+      "statement": "A USB-C connector does not guarantee identical charging speed or display support.",
+      "benchmark_aliases": [
+        "A USB-C connector does not guarantee identical charging speed or display support."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Compatibility",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "A USB-C connector does not guarantee identical charging speed or display support."
+      },
+      "positive_paraphrases": [
+        "A USB-C port by itself does not ensure matching charging speeds or display features."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-006",
+      "fact_id": "fact-006",
+      "category": "product-guides",
+      "statement": "Check the model-specific specifications before buying an accessory.",
+      "benchmark_aliases": [
+        "Check the model-specific specifications before buying an accessory."
+      ],
+      "supporting_locator": {
+        "document_slug": "phones-and-tablets",
+        "document_version": "2026.1",
+        "section": "Compatibility",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/phones-and-tablets.md",
+        "excerpt": "Check the model-specific specifications before buying an accessory."
+      },
+      "positive_paraphrases": [
+        "Look at model-specific specifications before purchasing an accessory."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-007",
+      "fact_id": "fact-007",
+      "category": "product-guides",
+      "statement": "For office work, prioritize keyboard comfort, memory, battery life, and warranty support.",
+      "benchmark_aliases": [
+        "For office work, prioritize keyboard comfort, memory, battery life, and warranty support."
+      ],
+      "supporting_locator": {
+        "document_slug": "laptops",
+        "document_version": "2026.1",
+        "section": "Choosing a laptop",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/laptops.md",
+        "excerpt": "For office work, prioritize keyboard comfort, memory, battery life, and warranty support."
+      },
+      "positive_paraphrases": [
+        "For office tasks, prioritize a comfortable keyboard, memory, battery runtime, and warranty assistance."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-008",
+      "fact_id": "fact-008",
+      "category": "product-guides",
+      "statement": "For creative or technical workloads, compare processor class, graphics capability, memory expandability, storage, display resolution, and thermal design.",
+      "benchmark_aliases": [
+        "For creative or technical workloads, compare processor class, graphics capability, memory expandability, storage, display resolution, and thermal design."
+      ],
+      "supporting_locator": {
+        "document_slug": "laptops",
+        "document_version": "2026.1",
+        "section": "Choosing a laptop",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/laptops.md",
+        "excerpt": "For creative or technical workloads, compare processor class, graphics capability, memory expandability, storage, display resolution, and thermal design."
+      },
+      "positive_paraphrases": [
+        "For creative or technical work, compare processor tier, graphics, expandable memory, storage, display resolution, and heat management."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-009",
+      "fact_id": "fact-009",
+      "category": "product-guides",
+      "statement": "Install system and security updates, use a padded sleeve during transport, and keep ventilation clear.",
+      "benchmark_aliases": [
+        "Install system and security updates, use a padded sleeve during transport, and keep ventilation clear."
+      ],
+      "supporting_locator": {
+        "document_slug": "laptops",
+        "document_version": "2026.1",
+        "section": "Setup and care",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/laptops.md",
+        "excerpt": "Install system and security updates, use a padded sleeve during transport, and keep ventilation clear."
+      },
+      "positive_paraphrases": [
+        "Keep software and security updates current, use a padded travel sleeve, and leave the vents unobstructed."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-010",
+      "fact_id": "fact-010",
+      "category": "product-guides",
+      "statement": "Back up important files before repair, reset, or return.",
+      "benchmark_aliases": [
+        "Back up important files before repair, reset, or return."
+      ],
+      "supporting_locator": {
+        "document_slug": "laptops",
+        "document_version": "2026.1",
+        "section": "Setup and care",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/laptops.md",
+        "excerpt": "Back up important files before repair, reset, or return."
+      },
+      "positive_paraphrases": [
+        "Save important data before a device repair, reset, or return."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-011",
+      "fact_id": "fact-011",
+      "category": "product-guides",
+      "statement": "Check connector type, power requirements, and operating-system support before selecting a dock, monitor, charger, or replacement adapter.",
+      "benchmark_aliases": [
+        "Check connector type, power requirements, and operating-system support before selecting a dock, monitor, charger, or replacement adapter."
+      ],
+      "supporting_locator": {
+        "document_slug": "laptops",
+        "document_version": "2026.1",
+        "section": "Accessories",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/laptops.md",
+        "excerpt": "Check connector type, power requirements, and operating-system support before selecting a dock, monitor, charger, or replacement adapter."
+      },
+      "positive_paraphrases": [
+        "Before choosing a dock, monitor, charger, or replacement adapter, check its connector, power needs, and OS compatibility."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
     },
     {
       "case_id": "m5d-v02-product-guides-012",
@@ -178,13 +1355,6 @@
       "statement": "A higher wattage charger is not automatically faster or safer.",
       "benchmark_aliases": [
         "A higher wattage charger is not automatically faster or safer."
-      ],
-      "positive_paraphrases": [
-        "More watts alone do not make a charger faster or safer."
-      ],
-      "partial_patterns": [],
-      "contradiction_patterns": [
-        "Higher-wattage chargers always charge faster and more safely."
       ],
       "supporting_locator": {
         "document_slug": "accessories",
@@ -196,16 +1366,455 @@
         "path": "knowledge/novacommerce/en/product-guides/accessories.md",
         "excerpt": "A higher wattage charger is not automatically faster or safer."
       },
+      "positive_paraphrases": [
+        "A higher wattage charger is not necessarily quicker or safer."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-product-guides-013",
+      "fact_id": "fact-013",
+      "category": "product-guides",
+      "statement": "Use certified cables in good condition and replace cables with exposed conductors.",
+      "benchmark_aliases": [
+        "Use certified cables in good condition and replace cables with exposed conductors."
+      ],
+      "supporting_locator": {
+        "document_slug": "accessories",
+        "document_version": "2026.1",
+        "section": "Chargers and cables",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/product-guides/accessories.md",
+        "excerpt": "Use certified cables in good condition and replace cables with exposed conductors."
+      },
+      "positive_paraphrases": [
+        "Use certified cables that are intact and replace any cable with exposed wires."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-001",
+      "fact_id": "fact-001",
+      "category": "faq",
+      "statement": "Use the order-status support flow or contact support with the order reference.",
+      "benchmark_aliases": [
+        "Use the order-status support flow or contact support with the order reference."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "How do I check an order?",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "Use the order-status support flow or contact support with the order reference."
+      },
+      "positive_paraphrases": [
+        "Check order progress in the order-status help flow or contact support using the order reference."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-002",
+      "fact_id": "fact-002",
+      "category": "faq",
+      "statement": "The live order record, not this FAQ, determines current status.",
+      "benchmark_aliases": [
+        "The live order record, not this FAQ, determines current status."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "How do I check an order?",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "The live order record, not this FAQ, determines current status."
+      },
+      "positive_paraphrases": [
+        "For live status, use the current order record instead of relying on this FAQ."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-003",
+      "fact_id": "fact-003",
+      "category": "faq",
+      "statement": "Contact support immediately.",
+      "benchmark_aliases": [
+        "Contact support immediately."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "Can I change an order?",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "Contact support immediately."
+      },
+      "positive_paraphrases": [
+        "Get in touch with support right away."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-004",
+      "fact_id": "fact-004",
+      "category": "faq",
+      "statement": "An order can be changed only before the relevant fulfillment step and availability is not guaranteed.",
+      "benchmark_aliases": [
+        "An order can be changed only before the relevant fulfillment step and availability is not guaranteed."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "Can I change an order?",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "An order can be changed only before the relevant fulfillment step and availability is not guaranteed."
+      },
+      "positive_paraphrases": [
+        "An order can be edited only before the relevant fulfillment step, and a requested change may not be available."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-005",
+      "fact_id": "fact-005",
+      "category": "faq",
+      "statement": "Items can ship separately when they are stocked at different locations or use different delivery methods.",
+      "benchmark_aliases": [
+        "Items can ship separately when they are stocked at different locations or use different delivery methods."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "Why did an order split?",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "Items can ship separately when they are stocked at different locations or use different delivery methods."
+      },
+      "positive_paraphrases": [
+        "Products stocked in different places or using different shipping methods may be sent in separate parcels."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-006",
+      "fact_id": "fact-006",
+      "category": "faq",
+      "statement": "Each parcel receives its own tracking information.",
+      "benchmark_aliases": [
+        "Each parcel receives its own tracking information."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-orders",
+        "document_version": "2026.1",
+        "section": "Why did an order split?",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/orders.md",
+        "excerpt": "Each parcel receives its own tracking information."
+      },
+      "positive_paraphrases": [
+        "Every parcel has its own tracking details."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-007",
+      "fact_id": "fact-007",
+      "category": "faq",
+      "statement": "The order confirmation and live shipment record provide the current estimate.",
+      "benchmark_aliases": [
+        "The order confirmation and live shipment record provide the current estimate."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-shipping",
+        "document_version": "2026.1",
+        "section": "When will my parcel arrive?",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/shipping.md",
+        "excerpt": "The order confirmation and live shipment record provide the current estimate."
+      },
+      "positive_paraphrases": [
+        "Check the order confirmation and live shipment record for the current delivery estimate."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-008",
+      "fact_id": "fact-008",
+      "category": "faq",
+      "statement": "Carrier scans can take one business day after handoff.",
+      "benchmark_aliases": [
+        "Carrier scans can take one business day after handoff."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-shipping",
+        "document_version": "2026.1",
+        "section": "Tracking has not updated",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/shipping.md",
+        "excerpt": "Carrier scans can take one business day after handoff."
+      },
+      "positive_paraphrases": [
+        "A carrier update can take one business day to appear after handoff."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-009",
+      "fact_id": "fact-009",
+      "category": "faq",
+      "statement": "Only locations and orders that explicitly offer pickup are eligible.",
+      "benchmark_aliases": [
+        "Only locations and orders that explicitly offer pickup are eligible."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-shipping",
+        "document_version": "2026.1",
+        "section": "Can I collect an order?",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/shipping.md",
+        "excerpt": "Only locations and orders that explicitly offer pickup are eligible."
+      },
+      "positive_paraphrases": [
+        "Pickup applies only to a location and order that explicitly offer it."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-010",
+      "fact_id": "fact-010",
+      "category": "faq",
+      "statement": "The available pickup slot must be selected during checkout.",
+      "benchmark_aliases": [
+        "The available pickup slot must be selected during checkout."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-shipping",
+        "document_version": "2026.1",
+        "section": "Can I collect an order?",
+        "chunk_index": 2
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/shipping.md",
+        "excerpt": "The available pickup slot must be selected during checkout."
+      },
+      "positive_paraphrases": [
+        "Choose an available pickup time during checkout."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-011",
+      "fact_id": "fact-011",
+      "category": "faq",
+      "statement": "Most new, unused products can be returned within 30 calendar days of delivery, subject to exclusions and inspection.",
+      "benchmark_aliases": [
+        "Most new, unused products can be returned within 30 calendar days of delivery, subject to exclusions and inspection."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-returns",
+        "document_version": "2026.1",
+        "section": "How long do I have to return an item?",
+        "chunk_index": 0
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/returns.md",
+        "excerpt": "Most new, unused products can be returned within 30 calendar days of delivery, subject to exclusions and inspection."
+      },
+      "positive_paraphrases": [
+        "Most unused, new products can be returned for 30 calendar days after delivery, subject to exclusions and inspection."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    },
+    {
+      "case_id": "m5d-v02-faq-012",
+      "fact_id": "fact-012",
+      "category": "faq",
+      "statement": "Eligible returns receive instructions and, where applicable, a prepaid label.",
+      "benchmark_aliases": [
+        "Eligible returns receive instructions and, where applicable, a prepaid label."
+      ],
+      "supporting_locator": {
+        "document_slug": "faq-returns",
+        "document_version": "2026.1",
+        "section": "Is a return label free?",
+        "chunk_index": 1
+      },
+      "source_corpus": {
+        "path": "knowledge/novacommerce/en/faq/returns.md",
+        "excerpt": "Eligible returns receive instructions and, where applicable, a prepaid label."
+      },
+      "positive_paraphrases": [
+        "Eligible customers receive return instructions and a prepaid label when one applies."
+      ],
+      "paraphrase_provenance": "Independently authored from this benchmark fact and its hash-bound supporting corpus excerpt; no candidate output consulted."
+    }
+  ],
+  "negative_matrix_provenance": {
+    "source": "Manually authored from the listed DEV fact and committed source excerpt only.",
+    "candidate_outputs_consulted": [],
+    "p2_p3_answer_text_used": false,
+    "p4_outputs_available": false
+  },
+  "semantic_regression_matrix": [
+    {
+      "case_id": "m5d-v02-returns-006",
+      "fact_id": "fact-006",
+      "feature_tags": [
+        "compound",
+        "conditional_eligibility"
+      ],
+      "partial_patterns": [
+        "Support provides return instructions."
+      ],
+      "contradiction_patterns": [],
       "examples": [
         {
-          "id": "charger-negated-wording-is-asserted-fact",
-          "text": "More watts alone do not make a charger faster or safer.",
+          "id": "returns-partial-compound",
+          "text": "Support provides return instructions.",
+          "expected_status": "partial",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-negated-complete-fact",
+          "text": "The policy does not say that Support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "negated",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-refusal-repeats-fact",
+          "text": "I cannot verify whether Support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "refusal",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-quoted-fact",
+          "text": "The policy says, \"Support provides return instructions and, when eligible, a prepaid label.\"",
+          "expected_status": "quoted",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-uncertain-fact",
+          "text": "Perhaps Support provides return instructions and, when eligible, a prepaid label.",
+          "expected_status": "uncertain",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-unrelated-overlap",
+          "text": "Support discusses return instruction eligibility and the prepaid shipping label.",
+          "expected_status": "unrelated_overlap",
+          "expected_recognized": false
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-returns-001",
+      "fact_id": "fact-001",
+      "feature_tags": [
+        "affirmative_fact",
+        "numeric_time_window"
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [
+        "All products may be returned for 60 calendar days after delivery."
+      ],
+      "examples": [
+        {
+          "id": "returns-complete-assertion",
+          "text": "Most new, unused NovaCommerce products may be returned within 30 calendar days of delivery.",
           "expected_status": "asserted",
           "expected_recognized": true
         },
         {
-          "id": "charger-contradiction",
-          "text": "Higher-wattage chargers always charge faster and more safely.",
+          "id": "returns-valid-authored-paraphrase",
+          "text": "Most unused NovaCommerce products are eligible for return for 30 calendar days after they arrive.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "returns-contradictory-time-window",
+          "text": "All products may be returned for 60 calendar days after delivery.",
+          "expected_status": "contradicted",
+          "expected_recognized": false
+        },
+        {
+          "id": "returns-uncertain-30-day-mention",
+          "text": "I am not sure whether Most new, unused NovaCommerce products may be returned within 30 calendar days of delivery.",
+          "expected_status": "uncertain",
+          "expected_recognized": false
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-payments-005",
+      "fact_id": "fact-005",
+      "feature_tags": [
+        "inherently_negative_fact"
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [],
+      "examples": [
+        {
+          "id": "pending-authorization-negative-form-is-asserted",
+          "text": "A pending authorization is not proof that a completed charge exists.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "pending-authorization-valid-paraphrase-is-asserted",
+          "text": "Seeing an authorization marked pending does not mean a completed card charge exists.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        }
+      ]
+    },
+    {
+      "case_id": "m5d-v02-product-guides-012",
+      "fact_id": "fact-012",
+      "feature_tags": [
+        "inherently_negative_fact"
+      ],
+      "partial_patterns": [],
+      "contradiction_patterns": [
+        "A higher wattage charger always charges faster and more safely."
+      ],
+      "examples": [
+        {
+          "id": "charger-negative-wording-is-asserted",
+          "text": "A higher wattage charger is not automatically faster or safer.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "charger-valid-negative-form-paraphrase-is-asserted",
+          "text": "A higher wattage charger is not necessarily quicker or safer.",
+          "expected_status": "asserted",
+          "expected_recognized": true
+        },
+        {
+          "id": "charger-contradictory-claim",
+          "text": "A higher wattage charger always charges faster and more safely.",
           "expected_status": "contradicted",
           "expected_recognized": false
         }
