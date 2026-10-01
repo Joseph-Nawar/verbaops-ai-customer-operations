@@ -278,6 +278,9 @@ def audit_scorer_v2(root: Path) -> dict[str, Any]:
 
     if manifest.get("scorer_version") != "rag-v0.2-scorer-v2":
         raise ScorerV2Error("scorer version does not match the M5D-B2 contract")
+    frozen_sha = manifest.get("scorer_frozen_at_commit_sha")
+    if not isinstance(frozen_sha, str) or not re.fullmatch(r"[a-f0-9]{40}", frozen_sha):
+        raise ScorerV2Error("scorer manifest must bind a committed definition SHA")
     if manifest.get("fixture_data_sha256") != _sha256(fixtures_path):
         raise ScorerV2Error("scorer fixture SHA256 mismatch")
     if manifest.get("scorer_spec_path") != spec_path.relative_to(root).as_posix():

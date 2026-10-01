@@ -10,7 +10,7 @@
   "scorer_contract": {
     "version": "rag-v0.2-scorer-v2",
     "manifest_path": "evals/rag/v0.2/scorer-v2/manifest.json",
-    "manifest_sha256": "da4ab81dda5569b7f653fe64f6459f4fef1b038a017b1d004dc7089ade80079d",
+    "manifest_sha256": "1a8064278a183f28d22b112e8118048e3ec6fedb72bd18df3000757d879fdf7e",
     "fixture_path": "evals/rag/v0.2/scorer-v2/fixtures.json",
     "fixture_sha256": "f7def3e10aaa15af50ad71ad30fd320ea8c705aab9eddc96a661c7eed24a361d",
     "p4_outputs_used_for_construction": false,
@@ -194,7 +194,7 @@
     "unsupported_recognized_fact_rate_maximum": 0.1,
     "expected_fact_coverage_minimum": 0.7,
     "zero_fabricated_or_non_supplied_evidence_handles": true,
-    "trust_invariant_replaces_no_quality_floor": true
+    "trust_invariant_is_additional_to_quality_floors": true
   },
   "stage4_dev_regression": {
     "run_only_if_p4_passes_every_rag_quality_floor": true,

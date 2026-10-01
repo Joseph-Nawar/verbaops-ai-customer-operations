@@ -4,7 +4,7 @@
   "source_benchmark_version": "rag-v0.2",
   "source_split": "dev",
   "frozen_on_date": "2026-10-01",
-  "scorer_frozen_at_commit_sha": "PENDING_LOCAL_FREEZE",
+  "scorer_frozen_at_commit_sha": "c8a55e63c20e209d7ee920c3020977d001b41a1b",
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
   "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
   "source_fact_ids": [

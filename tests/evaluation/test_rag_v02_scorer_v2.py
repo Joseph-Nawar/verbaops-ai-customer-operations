@@ -68,9 +68,7 @@ def test_scorer_v2_manifest_binds_only_dev_facts_and_fixture_bytes() -> None:
     assert manifest["fixture_provenance"]["candidate_outputs_consulted"] == []
     assert len(manifest["source_fact_ids"]) == 72
     assert len(set(manifest["source_fact_ids"])) == 72
-    assert manifest["scorer_frozen_at_commit_sha"] == "PENDING_LOCAL_FREEZE" or re.fullmatch(
-        r"[a-f0-9]{40}", manifest["scorer_frozen_at_commit_sha"]
-    )
+    assert re.fullmatch(r"[a-f0-9]{40}", manifest["scorer_frozen_at_commit_sha"])
 
 
 def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() -> None:
@@ -106,7 +104,7 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
         "unsupported_recognized_fact_rate_maximum": 0.1,
         "expected_fact_coverage_minimum": 0.7,
         "zero_fabricated_or_non_supplied_evidence_handles": True,
-        "trust_invariant_replaces_no_quality_floor": True,
+        "trust_invariant_is_additional_to_quality_floors": True,
     }
     assert "application_under_test_sha" in plan["run_identity"]["required_fields"]
     assert "evaluation_harness_sha" in plan["run_identity"]["required_fields"]
