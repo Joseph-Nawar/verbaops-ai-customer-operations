@@ -177,6 +177,61 @@ class P4TraceStore:
         return path
 
 
+def verify_p4_trace_records(
+    repo_root: Path,
+    run_directory: Path,
+    run_id: str,
+    records: Iterable[Mapping[str, Any]],
+) -> list[dict[str, str]]:
+    """Verify every observation is bound to its immutable agent trace sidecar."""
+
+    root = repo_root.resolve()
+    if run_directory.is_symlink():
+        raise ValueError("P4 trace run directory is invalid")
+    run_path = run_directory.resolve()
+    if run_path.name != run_id:
+        raise ValueError("P4 trace run directory is invalid")
+    canonical_root = (root / "evals/rag/v0.2/dev-evidence/canonical").resolve()
+    try:
+        run_path.relative_to(canonical_root)
+    except ValueError as error:
+        raise ValueError("P4 trace run directory escapes canonical evidence root") from error
+    store = P4TraceStore(run_path, run_id)
+    seen_agent_ids: set[str] = set()
+    references: list[dict[str, str]] = []
+    for record in records:
+        agent_run_id = record.get("agent_run_id")
+        if not isinstance(agent_run_id, str) or agent_run_id in seen_agent_ids:
+            raise ValueError("P4 observations have a missing or duplicate agent run ID")
+        seen_agent_ids.add(agent_run_id)
+        expected = record.get("p4_trace_artifact")
+        if not isinstance(expected, Mapping):
+            raise ValueError("P4 observation is missing its trace artifact reference")
+        artifact = store.read(UUID(agent_run_id))
+        if (
+            expected.get("path") != artifact.relative_path
+            or expected.get("sha256") != artifact.sha256
+        ):
+            raise ValueError("P4 observation trace artifact reference does not match sidecar bytes")
+        if record.get("p4_diagnostics") != artifact.payload["diagnostics"]:
+            raise ValueError("P4 observation diagnostics do not match its trace sidecar")
+        try:
+            repository_path = artifact.path.resolve().relative_to(root).as_posix()
+        except ValueError as error:
+            raise ValueError("P4 trace artifact escapes repository root") from error
+        references.append({"path": repository_path, "sha256": artifact.sha256})
+    sidecar_entries = list(store.trace_directory.iterdir())
+    expected_names = {f"{agent_run_id}.json" for agent_run_id in seen_agent_ids}
+    actual_sidecars = {
+        path.stem for path in sidecar_entries if path.suffix == ".json" and path.is_file()
+    }
+    if actual_sidecars != seen_agent_ids:
+        raise ValueError("P4 trace sidecars do not exactly match checkpoint observations")
+    if any(not path.is_file() or path.name not in expected_names for path in sidecar_entries):
+        raise ValueError("P4 trace directory contains unrecognized files")
+    return references
+
+
 def _normalize_agent_run_id(agent_run_id: UUID) -> str:
     try:
         normalized = str(UUID(str(agent_run_id)))
@@ -401,4 +456,4 @@ def _fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-__all__ = ["P4TraceArtifact", "P4TraceStore"]
+__all__ = ["P4TraceArtifact", "P4TraceStore", "verify_p4_trace_records"]

@@ -37,6 +37,20 @@ _IDENTITY_FIELDS = (
     "run_id",
 )
 _OPTIONAL_IDENTITY_FIELDS = ("evaluation_harness_sha",)
+_P4_IDENTITY_FIELDS = (
+    "scorer_version",
+    "scorer_manifest_sha256",
+    "scorer_fixture_sha256",
+    "scorer_spec_sha256",
+    "scorer_implementation_sha256",
+    "scorer_definition_commit_sha",
+    "p4_schema_sha256",
+    "application_under_test_sha",
+    "freeze_commit_sha",
+    "hosted_ci_run_id",
+    "hosted_ci_head_sha",
+    "grounding_finalizer_version",
+)
 _GENERATED_ROOTS = (
     PurePosixPath("evals/rag/v0.2/dev-evidence/canonical"),
     PurePosixPath("artifacts/m5d"),
@@ -90,6 +104,12 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
     for field in _OPTIONAL_IDENTITY_FIELDS:
         if field in identity:
             normalized[field] = identity[field]
+    is_p4 = normalized.get("grounding_candidate") == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+    if is_p4:
+        missing_p4 = [field for field in _P4_IDENTITY_FIELDS if field not in identity]
+        if missing_p4:
+            raise ValueError(f"P4 run identity is missing fields: {', '.join(missing_p4)}")
+        normalized.update({field: identity[field] for field in _P4_IDENTITY_FIELDS})
     for field in (
         "dataset_sha256",
         "knowledge_manifest_sha256",
@@ -106,6 +126,60 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
         value = normalized["evaluation_harness_sha"]
         if not isinstance(value, str) or _SHA1.fullmatch(value) is None:
             raise ValueError("M5D run identity has invalid evaluation_harness_sha")
+    if is_p4:
+        for field in (
+            "scorer_manifest_sha256",
+            "scorer_fixture_sha256",
+            "scorer_spec_sha256",
+            "scorer_implementation_sha256",
+            "p4_schema_sha256",
+        ):
+            value = normalized[field]
+            if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+                raise ValueError(f"P4 run identity has invalid {field}")
+        for field in (
+            "application_under_test_sha",
+            "freeze_commit_sha",
+            "hosted_ci_head_sha",
+            "scorer_definition_commit_sha",
+        ):
+            value = normalized[field]
+            if not isinstance(value, str) or _SHA1.fullmatch(value) is None:
+                raise ValueError(f"P4 run identity has invalid {field}")
+        ci_run_id = normalized["hosted_ci_run_id"]
+        if isinstance(ci_run_id, bool) or not isinstance(ci_run_id, int) or ci_run_id <= 0:
+            raise ValueError("P4 run identity has invalid hosted_ci_run_id")
+        if not isinstance(normalized.get("scorer_version"), str):
+            raise ValueError("P4 run identity has invalid scorer_version")
+        if not isinstance(normalized.get("grounding_finalizer_version"), str):
+            raise ValueError("P4 run identity has invalid grounding_finalizer_version")
+        if (
+            not isinstance(normalized.get("evaluation_harness_sha"), str)
+            or _SHA1.fullmatch(normalized["evaluation_harness_sha"]) is None
+        ):
+            raise ValueError("P4 run identity has invalid evaluation_harness_sha")
+        if not (
+            normalized["application_under_test_sha"]
+            == normalized["evaluated_git_sha"]
+            == normalized["freeze_commit_sha"]
+            == normalized["hosted_ci_head_sha"]
+        ):
+            raise ValueError("P4 application, evaluated, freeze, and hosted CI SHAs must match")
+        if (
+            normalized["benchmark_version"] != "rag-v0.2"
+            or normalized["split"] != "dev"
+            or normalized["evidence_gate"] != "G2_TOP_EVIDENCE_CROSS_ENCODER"
+            or normalized["evidence_gate_threshold"] != 0.2554669
+            or normalized["model_candidate"] != "M0"
+            or normalized["model_revision"] != "groq/openai/gpt-oss-120b"
+            or normalized["retrieval_profile_version"] != "knowledge-retrieval-v1.1"
+            or normalized["agent_prompt_version"] != "text-agent-system-p4-evidence-linked-v1"
+            or normalized["agent_graph_version"] != "text-agent-m5d-v1"
+            or normalized["grounding_finalizer_version"]
+            != "evidence-linked-extractive-single-pass-v1"
+            or normalized["scorer_version"] != "rag-v0.2-scorer-v2"
+        ):
+            raise ValueError("P4 run identity differs from its frozen candidate contract")
     threshold = normalized["evidence_gate_threshold"]
     if isinstance(threshold, str):
         if (
@@ -121,7 +195,7 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("M5D run identity has a non-finite evidence-gate threshold")
     if threshold is None:
         raise ValueError("M5D run identity requires an explicit threshold or calibration sweep")
-    for field in (*_IDENTITY_FIELDS, *_OPTIONAL_IDENTITY_FIELDS):
+    for field in (*_IDENTITY_FIELDS, *_OPTIONAL_IDENTITY_FIELDS, *_P4_IDENTITY_FIELDS):
         if field not in normalized:
             continue
         if field == "evidence_gate_threshold" and normalized[field] is None:
@@ -274,6 +348,127 @@ def build_agent_evaluation_profile(
         evidence_gate_threshold=evidence_gate_threshold,
         model_candidate=model_candidate,
     )
+
+
+def build_p4_run_identity(
+    repo_root: Path,
+    *,
+    profile: AgentEvaluationProfile,
+    run_id: str,
+    freeze_commit_sha: str,
+    hosted_ci_run_id: int,
+    hosted_ci_head_sha: str,
+) -> dict[str, Any]:
+    """Build the complete identity for the single frozen M5D-B2 P4 run."""
+
+    if profile.grounding_candidate is not GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+        raise ValueError("P4 identity requires the P4 evaluation profile")
+    if (
+        not isinstance(run_id, str)
+        or not run_id.startswith("canonical-M0-P4-")
+        or "/" in run_id
+        or "\\" in run_id
+    ):
+        raise ValueError("P4 identity requires a canonical M0 P4 run ID")
+    if not isinstance(freeze_commit_sha, str) or _SHA1.fullmatch(freeze_commit_sha) is None:
+        raise ValueError("P4 identity requires a full freeze commit SHA")
+    if hosted_ci_head_sha != freeze_commit_sha:
+        raise ValueError("hosted CI head must equal the P4 freeze commit SHA")
+    if (
+        isinstance(hosted_ci_run_id, bool)
+        or not isinstance(hosted_ci_run_id, int)
+        or hosted_ci_run_id <= 0
+    ):
+        raise ValueError("P4 identity requires a positive hosted CI run ID")
+    commit_exists = subprocess.run(
+        ["git", "cat-file", "-e", f"{freeze_commit_sha}^{{commit}}"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if commit_exists.returncode != 0:
+        raise ValueError("P4 freeze commit SHA is not present in the repository")
+
+    from verbaops.evaluation.m5d_b2_preregistration import (
+        PLAN_PATH,
+        audit_m5d_b2_preregistration,
+    )
+
+    audit_m5d_b2_preregistration(repo_root, allow_current_p4_run_id=run_id)
+    plan_path = repo_root / PLAN_PATH
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    scorer_manifest_path = repo_root / "evals/rag/v0.2/scorer-v2/manifest.json"
+    scorer_manifest = json.loads(scorer_manifest_path.read_text(encoding="utf-8"))
+    schema_path = repo_root / plan["candidate"]["schema_path"]
+    dataset_path = repo_root / "evals/rag/v0.2/questions.jsonl"
+    knowledge_manifest_path = repo_root / "knowledge/novacommerce/manifest.json"
+    harness_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if _SHA1.fullmatch(harness_sha) is None:
+        raise ValueError("P4 evaluation harness SHA is invalid")
+    model = plan["frozen_environment"]["model"]
+    if (
+        profile.evidence_gate is None
+        or profile.evidence_gate.value != plan["frozen_environment"]["evidence_gate"]
+        or profile.evidence_gate_threshold != plan["frozen_environment"]["evidence_gate_threshold"]
+        or profile.model_candidate != plan["frozen_environment"]["model_candidate"]
+        or profile.grounding_finalizer_version != plan["candidate"]["grounding_finalizer_version"]
+    ):
+        raise ValueError("P4 profile differs from the frozen gate, model, or finalizer contract")
+
+    identity = {
+        "benchmark_version": plan["benchmark_version"],
+        "split": plan["execution"]["split"],
+        "dataset_sha256": plan["dataset_sha256"],
+        "knowledge_manifest_sha256": scorer_manifest["knowledge_manifest_sha256"],
+        "experiment_plan_sha256": _sha256_path(plan_path),
+        "pre_experiment_sha": plan["frozen_environment"]["pre_experiment_sha"],
+        "evaluated_git_sha": freeze_commit_sha,
+        "evaluation_harness_sha": harness_sha,
+        "evidence_gate": profile.evidence_gate.value,
+        "evidence_gate_threshold": profile.evidence_gate_threshold,
+        "grounding_candidate": profile.grounding_candidate.value,
+        "model_candidate": profile.model_candidate,
+        "retrieval_profile_version": plan["frozen_environment"]["retrieval_profile_version"],
+        "agent_prompt_version": f"text-agent-system-{profile.prompt_version}",
+        "agent_graph_version": profile.graph_version,
+        "model_revision": model,
+        "run_id": run_id,
+        "scorer_version": scorer_manifest["scorer_version"],
+        "scorer_manifest_sha256": _sha256_path(scorer_manifest_path),
+        "scorer_fixture_sha256": scorer_manifest["fixture_data_sha256"],
+        "scorer_spec_sha256": scorer_manifest["scorer_spec_sha256"],
+        "scorer_implementation_sha256": scorer_manifest["scorer_implementation_sha256"],
+        "scorer_definition_commit_sha": scorer_manifest["scorer_frozen_at_commit_sha"],
+        "p4_schema_sha256": _sha256_path(schema_path),
+        "application_under_test_sha": freeze_commit_sha,
+        "freeze_commit_sha": freeze_commit_sha,
+        "hosted_ci_run_id": hosted_ci_run_id,
+        "hosted_ci_head_sha": hosted_ci_head_sha,
+        "grounding_finalizer_version": profile.grounding_finalizer_version,
+    }
+    # These bytes are hashed into the identity. Compare them to the values that
+    # the frozen plan and knowledge manifest commit, rather than trusting a
+    # potentially edited manifest value.
+    if _sha256_path(dataset_path) != identity["dataset_sha256"]:
+        raise ValueError("P4 dataset SHA256 differs from the frozen experiment plan")
+    if _sha256_path(knowledge_manifest_path) != identity["knowledge_manifest_sha256"]:
+        raise ValueError("P4 knowledge manifest SHA256 differs from the frozen contract")
+    required = set(plan["run_identity"]["required_fields"])
+    missing = sorted(required - identity.keys())
+    if missing:
+        raise ValueError(f"P4 identity is missing frozen fields: {', '.join(missing)}")
+    return _validated_identity(identity)
+
+
+def _sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def require_canonical_revisions(
@@ -613,6 +808,8 @@ def migrate_checkpoint_provenance(
 def require_canonical_run_directory(repo_root: Path, run_dir: Path, *, run_id: str) -> Path:
     """Require a fresh run namespace below the canonical evidence root."""
 
+    if run_dir.is_symlink():
+        raise ValueError("canonical M5D run directory may not be a symlink")
     canonical_root = (repo_root / "evals/rag/v0.2/dev-evidence/canonical").resolve()
     resolved_run_dir = run_dir.resolve()
     if not resolved_run_dir.is_relative_to(canonical_root):
@@ -743,6 +940,7 @@ __all__ = [
     "artifact_reference",
     "bind_checkpoint_identity",
     "build_agent_evaluation_profile",
+    "build_p4_run_identity",
     "load_checkpoint_records",
     "migrate_checkpoint_provenance",
     "require_canonical_revisions",

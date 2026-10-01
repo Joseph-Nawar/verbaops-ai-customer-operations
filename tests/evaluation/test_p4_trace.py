@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p4_trace import P4TraceStore, verify_p4_trace_records
 
 
 def _diagnostics() -> dict[str, object]:
@@ -151,3 +151,64 @@ def test_p4_trace_redacts_credential_shaped_values_before_persistence(tmp_path) 
 
     assert secret_marker not in contents
     assert "[redacted]" in contents
+
+
+def test_p4_checkpoint_trace_references_are_hash_verified(tmp_path) -> None:
+    run_id = "canonical-M0-P4-trace-verification"
+    run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
+    store = P4TraceStore(run_directory, run_id)
+    agent_run_id = uuid4()
+    store.write(agent_run_id, _diagnostics())
+    artifact = store.read(agent_run_id)
+    record = {
+        "agent_run_id": str(agent_run_id),
+        "p4_trace_artifact": {"path": artifact.relative_path, "sha256": artifact.sha256},
+        "p4_diagnostics": artifact.payload["diagnostics"],
+    }
+
+    refs = verify_p4_trace_records(tmp_path, run_directory, run_id, [record])
+
+    assert refs == [
+        {
+            "path": (
+                f"evals/rag/v0.2/dev-evidence/canonical/{run_id}/p4-traces/{agent_run_id}.json"
+            ),
+            "sha256": artifact.sha256,
+        }
+    ]
+    changed_record = {
+        **record,
+        "p4_trace_artifact": {"path": artifact.relative_path, "sha256": "0" * 64},
+    }
+    with pytest.raises(ValueError, match="does not match sidecar bytes"):
+        verify_p4_trace_records(tmp_path, run_directory, run_id, [changed_record])
+    store.write(uuid4(), _diagnostics())
+    with pytest.raises(ValueError, match="exactly match checkpoint observations"):
+        verify_p4_trace_records(tmp_path, run_directory, run_id, [record])
+
+
+def test_p4_checkpoint_trace_verification_rejects_duplicate_agent_ids(tmp_path) -> None:
+    run_id = "canonical-M0-P4-duplicate-agent"
+    run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
+    store = P4TraceStore(run_directory, run_id)
+    agent_run_id = uuid4()
+    store.write(agent_run_id, _diagnostics())
+    artifact = store.read(agent_run_id)
+    record = {
+        "agent_run_id": str(agent_run_id),
+        "p4_trace_artifact": {"path": artifact.relative_path, "sha256": artifact.sha256},
+        "p4_diagnostics": artifact.payload["diagnostics"],
+    }
+
+    with pytest.raises(ValueError, match="duplicate agent run ID"):
+        verify_p4_trace_records(tmp_path, run_directory, run_id, [record, record])
+
+
+def test_p4_checkpoint_trace_verification_rejects_unrecognized_sidecar_files(tmp_path) -> None:
+    run_id = "canonical-M0-P4-orphan-temporary"
+    run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
+    store = P4TraceStore(run_directory, run_id)
+    (store.trace_directory / ".abandoned.tmp").write_text("partial sidecar", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unrecognized files"):
+        verify_p4_trace_records(tmp_path, run_directory, run_id, [])

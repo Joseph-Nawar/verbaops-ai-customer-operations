@@ -29,13 +29,46 @@ REQUIRED_HOSTED_CI_JOBS = (
     "evaluation-contract",
     "docker-build",
 )
+REQUIRED_P4_IDENTITY_FIELDS = frozenset(
+    {
+        "benchmark_version",
+        "split",
+        "dataset_sha256",
+        "knowledge_manifest_sha256",
+        "experiment_plan_sha256",
+        "scorer_version",
+        "scorer_manifest_sha256",
+        "scorer_fixture_sha256",
+        "scorer_spec_sha256",
+        "scorer_implementation_sha256",
+        "scorer_definition_commit_sha",
+        "p4_schema_sha256",
+        "application_under_test_sha",
+        "evaluation_harness_sha",
+        "freeze_commit_sha",
+        "hosted_ci_run_id",
+        "hosted_ci_head_sha",
+        "evidence_gate",
+        "evidence_gate_threshold",
+        "grounding_candidate",
+        "model_candidate",
+        "model_revision",
+        "retrieval_profile_version",
+        "agent_prompt_version",
+        "agent_graph_version",
+        "grounding_finalizer_version",
+        "run_id",
+    }
+)
 
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
+def audit_m5d_b2_preregistration(
+    root: Path, *, allow_current_p4_run_id: str | None = None
+) -> dict[str, Any]:
     """Validate the frozen scorer/P4 plan without reading holdout question rows."""
 
     plan_path = root / PLAN_PATH
@@ -103,29 +136,35 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
     if scorer_contract.get("definition_commit_sha") != manifest["scorer_frozen_at_commit_sha"]:
         raise ValueError("experiment plan scorer-definition commit mismatch")
     required_identity_fields = set(plan["run_identity"].get("required_fields", []))
-    if (
-        not {
-            "scorer_spec_sha256",
-            "scorer_implementation_sha256",
-            "scorer_definition_commit_sha",
-            "p4_schema_sha256",
-        }
-        <= required_identity_fields
-    ):
-        raise ValueError("P4 run identity must bind all frozen scorer and schema versions")
+    if not required_identity_fields >= REQUIRED_P4_IDENTITY_FIELDS:
+        missing_identity_fields = sorted(REQUIRED_P4_IDENTITY_FIELDS - required_identity_fields)
+        raise ValueError(
+            "P4 run identity must bind every frozen provenance field: "
+            + ", ".join(missing_identity_fields)
+        )
     if plan["execution"]["freeze_gate"].get("required_hosted_jobs") != list(
         REQUIRED_HOSTED_CI_JOBS
     ):
         raise ValueError("freeze gate required jobs do not match the M5D-B2 CI contract")
 
     canonical_root = root / "evals/rag/v0.2/dev-evidence/canonical"
-    canonical_p4_results = (
-        any(path.is_dir() and "p4" in path.name.casefold() for path in canonical_root.iterdir())
+    p4_run_directories = (
+        [
+            path
+            for path in canonical_root.iterdir()
+            if path.is_dir() and "p4" in path.name.casefold()
+        ]
         if canonical_root.exists()
-        else False
+        else []
     )
-    if canonical_p4_results:
-        raise ValueError("canonical P4 result artifacts exist before the freeze")
+    canonical_p4_results = bool(p4_run_directories)
+    if p4_run_directories and (
+        not isinstance(allow_current_p4_run_id, str)
+        or not allow_current_p4_run_id
+        or Path(allow_current_p4_run_id).name != allow_current_p4_run_id
+        or [path.name for path in p4_run_directories] != [allow_current_p4_run_id]
+    ):
+        raise ValueError("canonical P4 result artifacts exist outside the authorized run")
 
     selection_present = (root / "evals/rag/v0.2/selection.json").exists()
     if selection_present:
@@ -147,6 +186,7 @@ def audit_m5d_b2_preregistration(root: Path) -> dict[str, Any]:
 def require_p4_inference_authorized(
     *,
     repo_root: Path,
+    run_id: str,
     hosted_ci_run_id: int | None = None,
     freeze_commit_sha: str | None,
     hosted_ci_head_sha: str | None,
@@ -157,7 +197,11 @@ def require_p4_inference_authorized(
 
     # Revalidate byte-bound scorer artifacts at the point of future inference
     # authorization, so later P4 commits cannot silently change scoring rules.
-    audit_m5d_b2_preregistration(repo_root)
+    if not isinstance(run_id, str) or not run_id.startswith("canonical-M0-P4-"):
+        raise ValueError("a canonical M0 P4 run ID is required")
+    # Generated observations in this exact run may exist during checkpoint
+    # resumption. Any other P4 result namespace remains an authorization error.
+    audit_m5d_b2_preregistration(repo_root, allow_current_p4_run_id=run_id)
     if freeze_commit_sha is None or not re.fullmatch(r"[a-f0-9]{40}", freeze_commit_sha):
         raise ValueError("a committed full 40-hex freeze commit SHA is required")
     if (
@@ -170,6 +214,13 @@ def require_p4_inference_authorized(
         raise ValueError("hosted CI must run on the exact freeze commit")
     if hosted_ci_conclusion != "success":
         raise ValueError("successful hosted CI on the freeze commit is required")
+    from verbaops.evaluation import m5d_run_identity
+
+    current_head = m5d_run_identity.require_committed_behavior(
+        repo_root, pre_experiment_sha=m5d_run_identity.PRE_EXPERIMENT_SHA
+    )
+    if current_head != freeze_commit_sha:
+        raise ValueError("working-tree HEAD must equal the exact P4 freeze commit")
     missing_or_failed = [
         job for job in REQUIRED_HOSTED_CI_JOBS if job_conclusions.get(job) != "success"
     ]
@@ -182,6 +233,7 @@ def require_p4_inference_authorized(
 __all__ = [
     "PLAN_PATH",
     "REQUIRED_HOSTED_CI_JOBS",
+    "REQUIRED_P4_IDENTITY_FIELDS",
     "audit_m5d_b2_preregistration",
     "require_p4_inference_authorized",
 ]

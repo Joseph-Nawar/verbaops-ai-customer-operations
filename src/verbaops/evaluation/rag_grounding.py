@@ -543,7 +543,11 @@ def _accumulate_p4_trace_counts(counts: dict[str, int], raw: Any) -> None:
     proposed = raw.get("proposed_claims")
     accepted = raw.get("accepted_claims")
     validations = raw.get("claim_validation")
-    if not all(isinstance(value, list) for value in (proposed, accepted, validations)):
+    if (
+        not isinstance(proposed, list)
+        or not isinstance(accepted, list)
+        or not isinstance(validations, list)
+    ):
         raise ValueError("P4 per-case claim diagnostics are malformed")
     if any(
         not isinstance(claim, Mapping)

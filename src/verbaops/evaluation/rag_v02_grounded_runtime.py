@@ -102,7 +102,7 @@ class PublicRagV02AgentAdapter:
             )
         costs = [call.cost_usd for call in trace.model_calls if call.cost_usd is not None]
         first_call = trace.model_calls[0] if trace.model_calls else None
-        result = {
+        result: dict[str, Any] = {
             "final_answer": str(assistant["content"]),
             "public_citations": [_citation_locator(row) for row in citation_rows],
             "selected_evidence": selected_evidence,
