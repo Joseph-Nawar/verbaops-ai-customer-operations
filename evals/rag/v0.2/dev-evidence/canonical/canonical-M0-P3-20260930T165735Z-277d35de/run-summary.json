@@ -1,0 +1,46 @@
+{
+  "artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl",
+      "sha256": "98a2325a2d479d5934532a0cbc779bd2cf533d0be77b7ad7d5049faaeb2ee681"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/grounded_cases.jsonl.identity.json",
+      "sha256": "f8495ed605026ba4eae8910d9d0f17332dda0384ae689ebeaf30ea1988333f91"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/metadata.json",
+      "sha256": "7f501485dfba60e7619eda29639071722c80f7cc6d18ef839aba9f90d1649626"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P3-20260930T165735Z-277d35de/report.json",
+      "sha256": "7c01474f33065d2a5fdce663d53dbf2d87c73de82bf4b3d12ed7e063117a9244"
+    }
+  ],
+  "canonical": true,
+  "completed_cases": 96,
+  "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+  "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+  "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
+  "run_identity": {
+    "agent_graph_version": "text-agent-m5d-v1",
+    "agent_prompt_version": "text-agent-system-v3",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P3-20260930T165735Z-277d35de",
+    "split": "dev"
+  },
+  "run_identity_sha256": "fd64df4648ec046709b2629f92ffee4219da65fa1d5a4cc6beadcb967fa503bf"
+}

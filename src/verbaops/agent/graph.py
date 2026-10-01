@@ -1,6 +1,7 @@
 """Direct LangGraph topology for the bounded read-only text agent."""
 
 import json
+import re
 from time import perf_counter
 from typing import Any
 
@@ -14,6 +15,7 @@ from verbaops.agent.errors import (
     AgentProtocolError,
     AgentUnavailableError,
 )
+from verbaops.agent.evaluation import GroundingCandidate
 from verbaops.agent.prompts import load_system_prompt
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
@@ -41,7 +43,7 @@ from verbaops.llm.models import (
 from verbaops.llm.models import (
     ToolDefinition as LLMToolDefinition,
 )
-from verbaops.retrieval.grounding import CitationFinalizer
+from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK, CitationFinalizer
 from verbaops.retrieval.models import RetrievalEvidence, RetrievalStatus
 from verbaops.tools.models import ToolExecutionContext
 from verbaops.tools.registry import UnknownToolError
@@ -105,7 +107,7 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         raise AgentBudgetExceededError()
     request = GenerateRequest(
         capability=CapabilityAlias.AGENT_FAST,
-        messages=tuple(_request_messages(state)),
+        messages=tuple(_request_messages(state, context)),
         tools=tuple(_tool_schemas(context)),
         tool_choice="auto",
     )
@@ -269,10 +271,45 @@ async def finalize_grounding(
     if not isinstance(final_response, str) or not final_response.strip():
         raise AgentProtocolError()
     finalizer = context.citation_finalizer or CitationFinalizer()
-    grounded = finalizer.finalize(final_response, state.get("knowledge_evidence", []))
+    evidence = state.get("knowledge_evidence", [])
+    grounded = finalizer.finalize(final_response, evidence)
+    profile = context.evaluation_profile
+    candidate = (
+        profile.grounding_candidate if profile is not None else GroundingCandidate.P0_CURRENT
+    )
+    is_pure_knowledge_turn = bool(evidence) and state.get("tool_call_count", 0) == 0
+    repair_was_generated = False
+    if (
+        candidate
+        in (
+            GroundingCandidate.P2_FAIL_CLOSED_CITATIONS,
+            GroundingCandidate.P3_ONE_REPAIR_THEN_FAIL_CLOSED,
+        )
+        and is_pure_knowledge_turn
+        and not grounded.citations
+    ):
+        if candidate is GroundingCandidate.P3_ONE_REPAIR_THEN_FAIL_CLOSED:
+            repaired = await _repair_missing_citation(state, context, final_response, evidence)
+            if repaired is not None:
+                repair_was_generated = True
+                repaired_grounded = finalizer.finalize(repaired, evidence)
+                if repaired_grounded.citations and _repair_only_adds_citations(
+                    final_response, repaired
+                ):
+                    return {
+                        "final_response": repaired_grounded.content,
+                        "grounded_citations": list(repaired_grounded.citations),
+                        "model_call_count": state["model_call_count"] + 1,
+                        "messages": [
+                            *state["messages"],
+                            ChatMessage(role="assistant", content=repaired),
+                        ],
+                    }
+        grounded = finalizer.finalize(SAFE_GROUNDING_FALLBACK, ())
     return {
         "final_response": grounded.content,
         "grounded_citations": list(grounded.citations),
+        "model_call_count": state["model_call_count"] + int(repair_was_generated),
     }
 
 
@@ -291,9 +328,14 @@ def _context(runtime: Runtime[AgentContext]) -> AgentContext:
     return context
 
 
-def _request_messages(state: AgentState) -> list[ChatMessage]:
+def _request_messages(state: AgentState, context: AgentContext | None = None) -> list[ChatMessage]:
     evidence = state.get("knowledge_evidence", [])
-    messages = [ChatMessage(role="system", content=load_system_prompt())]
+    prompt_version = (
+        context.evaluation_profile.prompt_version
+        if context is not None and context.evaluation_profile is not None
+        else "v2"
+    )
+    messages = [ChatMessage(role="system", content=load_system_prompt(prompt_version))]
     if evidence:
         outbound_messages = list(state["messages"])
         latest_user_index = next(
@@ -315,6 +357,87 @@ def _request_messages(state: AgentState) -> list[ChatMessage]:
         return messages
     messages.extend(state["messages"])
     return messages
+
+
+async def _repair_missing_citation(
+    state: AgentState,
+    context: AgentContext,
+    original_answer: str,
+    evidence: list[RetrievalEvidence],
+) -> str | None:
+    if state["model_call_count"] >= MAX_MODEL_CALLS:
+        return None
+    latest_user = next(
+        (
+            message.content or ""
+            for message in reversed(state["messages"])
+            if message.role == "user"
+        ),
+        "",
+    )
+    repair_system = (
+        load_system_prompt("v3")
+        + "\n\nCitation repair task: preserve the original answer and facts. You may only remove claims and "
+        "may only add valid supplied citation handles. Do not add facts, tools, instructions, or new wording. "
+        "Return the repaired answer only."
+    )
+    evidence_text = _evidence_envelope(evidence)
+    request = GenerateRequest(
+        capability=CapabilityAlias.AGENT_FAST,
+        messages=(
+            ChatMessage(role="system", content=repair_system),
+            ChatMessage(
+                role="user",
+                content=(
+                    f"Original user question:\n{latest_user}\n\nOriginal answer:\n{original_answer}"
+                    f"\n\nThe same retrieved evidence follows:\n{evidence_text}"
+                ),
+            ),
+        ),
+        max_tokens=512,
+        tools=(),
+        tool_choice="none",
+    )
+    try:
+        response = await context.llm_client.generate(request)
+    except Exception:
+        await _persist_failed_model_call(context, "llm_unavailable")
+        return None
+    try:
+        await context.conversation_service.append_model_call(
+            context.scope,
+            context.conversation_id,
+            context.agent_run_id,
+            response.metadata,
+            status="succeeded",
+        )
+    except Exception:
+        raise AgentUnavailableError() from None
+    if response.tool_calls or response.content is None or not response.content.strip():
+        return None
+    return response.content
+
+
+_REPAIR_HANDLE = re.compile(r"\[\[[A-Za-z][A-Za-z0-9_-]*\]\]")
+_REPAIR_TOKEN = re.compile(r"[\w'-]+", re.UNICODE)
+
+
+def _repair_only_adds_citations(original: str, repaired: str) -> bool:
+    """Require repaired lexical content to be an ordered subset of the original."""
+
+    original_tokens = [
+        token.casefold() for token in _REPAIR_TOKEN.findall(_REPAIR_HANDLE.sub("", original))
+    ]
+    repaired_tokens = [
+        token.casefold() for token in _REPAIR_TOKEN.findall(_REPAIR_HANDLE.sub("", repaired))
+    ]
+    if not repaired_tokens:
+        return False
+    position = 0
+    for token in original_tokens:
+        if position < len(repaired_tokens) and token == repaired_tokens[position]:
+            position += 1
+    return position == len(repaired_tokens)
 
 
 def _evidence_envelope(evidence: list[RetrievalEvidence]) -> str:

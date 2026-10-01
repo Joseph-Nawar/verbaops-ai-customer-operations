@@ -439,6 +439,133 @@ def test_experiment_plan_has_preregistered_candidate_ids_and_rules() -> None:
     }
 
 
+def test_m5d_b_plan_freezes_candidate_threshold_selection_and_quality_gates() -> None:
+    plan = validate_experiment_plan(V02 / "experiment-plan.json")
+
+    assert plan["schema_version"] == "m5d-experiment-plan-v1.1"
+    gate_selection = plan["evidence_gate_selection"]
+    assert gate_selection["within_gate_threshold_order"] == [
+        "require_at_least_90_percent_dev_no_answer_rejection",
+        "maximize_answerable_acceptance",
+        "maximize_no_answer_rejection",
+        "prefer_higher_threshold",
+    ]
+    assert gate_selection["minimum_dev_no_answer_rejection"] == 0.9
+    assert gate_selection["minimum_dev_no_answer_rejected_cases"] == 22
+    assert gate_selection["answerable_acceptance_target"] == 0.7
+    assert gate_selection["answerable_acceptance_tie_band"] == 0.02
+    assert gate_selection["tie_band_unit"] == "percentage_points"
+    assert gate_selection["across_gate_order"] == [
+        "eligible_no_answer_rejection_90_percent",
+        "maximize_answerable_acceptance",
+        "within_2_percentage_points_prefer_lower_total_p95_latency",
+        "then_prefer_fewer_inference_components",
+        "candidate_id_ascending",
+    ]
+    assert gate_selection["gate_candidate_complexity"] == {
+        "G0_CURRENT_RRF": 1,
+        "G1_DENSE_SIMILARITY": 2,
+        "G2_TOP_EVIDENCE_CROSS_ENCODER": 3,
+    }
+    assert gate_selection["latency_components_by_gate"] == {
+        "G0_CURRENT_RRF": ["hybrid_retrieval"],
+        "G1_DENSE_SIMILARITY": [
+            "hybrid_retrieval",
+            "e5_candidate_vector_fetch",
+            "e5_cosine_scoring",
+        ],
+        "G2_TOP_EVIDENCE_CROSS_ENCODER": [
+            "hybrid_retrieval",
+            "cross_encoder_scoring",
+        ],
+    }
+    assert plan["grounding_quality_gates"] == {
+        "citation_precision_minimum": 0.95,
+        "citation_precision_requires_nonzero_denominator": True,
+        "labeled_groundedness_minimum": 0.9,
+        "unsupported_recognized_fact_rate_maximum": 0.1,
+        "expected_fact_coverage_minimum": 0.7,
+        "no_qualifying_candidate_outcome": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
+    }
+    assert plan["grounding_selection_tie_breaks"] == [
+        "citation_precision_within_1_percentage_point",
+        "labeled_groundedness_within_1_percentage_point",
+        "minimize_unsupported_units_within_1_percentage_point",
+        "expected_fact_coverage_within_2_percentage_points",
+        "lower_answer_p95_latency",
+        "lower_mean_cost_among_cost_covered_observations",
+        "fewer_inference_components_P0_1_to_P3_4",
+        "candidate_id_ascending",
+    ]
+    assert plan["grounding_remediation_target"] == {
+        "answerable_acceptance_minimum": 0.7,
+        "mandatory_no_answer_rejection_minimum": 0.9,
+    }
+
+
+def test_m5d_b_plan_freezes_stage4_guard_and_m0_first_execution() -> None:
+    plan = validate_experiment_plan(V02 / "experiment-plan.json")
+
+    assert plan["model_execution_policy"] == {
+        "candidate_order": ["M0", "M1"],
+        "m0_must_run_first": True,
+        "m1_requires_separately_configured_local_openai_compatible_endpoint": True,
+        "m1_unavailable_outcome": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
+        "retain_m0_without_comparison_outcome": "INCUMBENT_RETAINED_NO_EXECUTABLE_CHALLENGER",
+        "no_model_substitution": True,
+    }
+    assert plan["stage4_dev_regression_guard"] == {
+        "split": "dev",
+        "case_count": 96,
+        "control": "same_environment_M0_P0",
+        "stage4_release_holdout_for_tuning": False,
+        "maximum_s4_violations": 0,
+        "maximum_unauthorized_actions": 0,
+        "maximum_absolute_regression": 0.02,
+        "maximum_unnecessary_tool_rate_increase": 0.02,
+        "compared_metrics": [
+            "tool_selection_quality",
+            "valid_tool_arguments",
+            "all_fields_correct",
+            "task_completion",
+            "unnecessary_tool_rate",
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda plan: plan.update(schema_version="m5d-experiment-plan-v1"),
+        lambda plan: plan["evidence_gate_selection"].update(
+            minimum_dev_no_answer_rejected_cases=21
+        ),
+        lambda plan: plan["evidence_gate_selection"].update(latency_components_by_gate={}),
+        lambda plan: plan["grounding_quality_gates"].update(citation_precision_minimum=0.94),
+        lambda plan: plan["grounding_selection_tie_breaks"].reverse(),
+        lambda plan: plan["model_execution_policy"].update(candidate_order=["M1", "M0"]),
+        lambda plan: plan["stage4_dev_regression_guard"].update(maximum_unauthorized_actions=1),
+    ],
+    ids=[
+        "schema-version",
+        "negative-eligibility-count",
+        "gate-latency-components",
+        "citation-quality-floor",
+        "grounding-selection-order",
+        "model-execution-order",
+        "stage4-security-guard",
+    ],
+)
+def test_m5d_b_plan_rejects_post_registration_rule_drift(mutate: object, tmp_path: Path) -> None:
+    plan = json.loads((V02 / "experiment-plan.json").read_text(encoding="utf-8"))
+    mutate(plan)  # type: ignore[operator]
+    path = tmp_path / "experiment-plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+
+    with pytest.raises(RagV02Error):
+        validate_experiment_plan(path)
+
+
 @pytest.mark.parametrize(
     "mutate",
     [

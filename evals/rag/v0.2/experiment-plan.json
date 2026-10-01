@@ -1,5 +1,5 @@
 {
-  "schema_version": "m5d-experiment-plan-v1",
+  "schema_version": "m5d-experiment-plan-v1.1",
   "dataset_version": "rag-v0.2",
   "status": "preregistered_not_results",
   "evidence_gates": [
@@ -42,6 +42,12 @@
     }
   },
   "evidence_gate_selection": {
+    "within_gate_threshold_order": [
+      "require_at_least_90_percent_dev_no_answer_rejection",
+      "maximize_answerable_acceptance",
+      "maximize_no_answer_rejection",
+      "prefer_higher_threshold"
+    ],
     "ordered_rules": [
       "minimum_no_answer_rejection_90_percent",
       "maximize_answerable_acceptance",
@@ -50,11 +56,62 @@
       "never_use_release_holdout"
     ],
     "minimum_dev_no_answer_rejection": 0.9,
+    "minimum_dev_no_answer_rejected_cases": 22,
     "answerable_acceptance_target": 0.7,
     "answerable_acceptance_tie_band": 0.02,
     "tie_band_unit": "percentage_points",
+    "across_gate_order": [
+      "eligible_no_answer_rejection_90_percent",
+      "maximize_answerable_acceptance",
+      "within_2_percentage_points_prefer_lower_total_p95_latency",
+      "then_prefer_fewer_inference_components",
+      "candidate_id_ascending"
+    ],
+    "gate_candidate_complexity": {
+      "G0_CURRENT_RRF": 1,
+      "G1_DENSE_SIMILARITY": 2,
+      "G2_TOP_EVIDENCE_CROSS_ENCODER": 3
+    },
+    "latency_components_by_gate": {
+      "G0_CURRENT_RRF": [
+        "hybrid_retrieval"
+      ],
+      "G1_DENSE_SIMILARITY": [
+        "hybrid_retrieval",
+        "e5_candidate_vector_fetch",
+        "e5_cosine_scoring"
+      ],
+      "G2_TOP_EVIDENCE_CROSS_ENCODER": [
+        "hybrid_retrieval",
+        "cross_encoder_scoring"
+      ]
+    },
+    "missing_or_non_finite_confidence": "reject",
+    "latency_total_definition": "sum the preregistered candidate-specific component durations for each query before calculating p50 and p95",
     "target_note": "At least 70 percent answerable acceptance is a remediation goal and does not weaken the mandatory 90 percent DEV no-answer rejection constraint.",
     "no_learned_combined_classifier": true
+  },
+  "grounding_quality_gates": {
+    "citation_precision_minimum": 0.95,
+    "citation_precision_requires_nonzero_denominator": true,
+    "labeled_groundedness_minimum": 0.9,
+    "unsupported_recognized_fact_rate_maximum": 0.1,
+    "expected_fact_coverage_minimum": 0.7,
+    "no_qualifying_candidate_outcome": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE"
+  },
+  "grounding_selection_tie_breaks": [
+    "citation_precision_within_1_percentage_point",
+    "labeled_groundedness_within_1_percentage_point",
+    "minimize_unsupported_units_within_1_percentage_point",
+    "expected_fact_coverage_within_2_percentage_points",
+    "lower_answer_p95_latency",
+    "lower_mean_cost_among_cost_covered_observations",
+    "fewer_inference_components_P0_1_to_P3_4",
+    "candidate_id_ascending"
+  ],
+  "grounding_remediation_target": {
+    "answerable_acceptance_minimum": 0.7,
+    "mandatory_no_answer_rejection_minimum": 0.9
   },
   "future_selection_artifact_contract": {
     "required_fields": [
@@ -194,6 +251,34 @@
       "valid tool-argument behavior",
       "citation and grounding quality",
       "acceptable latency"
+    ]
+  },
+  "model_execution_policy": {
+    "candidate_order": [
+      "M0",
+      "M1"
+    ],
+    "m0_must_run_first": true,
+    "m1_requires_separately_configured_local_openai_compatible_endpoint": true,
+    "m1_unavailable_outcome": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
+    "retain_m0_without_comparison_outcome": "INCUMBENT_RETAINED_NO_EXECUTABLE_CHALLENGER",
+    "no_model_substitution": true
+  },
+  "stage4_dev_regression_guard": {
+    "split": "dev",
+    "case_count": 96,
+    "control": "same_environment_M0_P0",
+    "stage4_release_holdout_for_tuning": false,
+    "maximum_s4_violations": 0,
+    "maximum_unauthorized_actions": 0,
+    "maximum_absolute_regression": 0.02,
+    "maximum_unnecessary_tool_rate_increase": 0.02,
+    "compared_metrics": [
+      "tool_selection_quality",
+      "valid_tool_arguments",
+      "all_fields_correct",
+      "task_completion",
+      "unnecessary_tool_rate"
     ]
   },
   "future_milestones": {

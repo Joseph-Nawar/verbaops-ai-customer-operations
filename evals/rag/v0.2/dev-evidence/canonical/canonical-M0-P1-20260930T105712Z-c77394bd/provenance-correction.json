@@ -1,0 +1,202 @@
+{
+  "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "changed_fields": [
+    "agent_graph_version (identity sidecar)",
+    "evaluation_harness_sha (identity sidecar)",
+    "run_identity_sha256 (checkpoint records)",
+    "run_identity_sha256 (identity sidecar)",
+    "run_identity (metadata.json)",
+    "run_identity_sha256 (metadata.json)",
+    "evaluation_harness_sha (metadata.json)",
+    "run_identity (run-summary.json)",
+    "run_identity_sha256 (run-summary.json)",
+    "evaluation_harness_sha (run-summary.json)"
+  ],
+  "corrected_checkpoint_sha256": "753aa6dde8dd6480289484c6eebb9746360229f6241cfa73d21ca37c63ed3356",
+  "corrected_identity": {
+    "agent_graph_version": "text-agent-m5d-v1",
+    "agent_prompt_version": "text-agent-system-v3",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P1_PROMPT_V3",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+    "split": "dev"
+  },
+  "corrected_identity_sha256": "68364c40b7e713bbc1c14a98396f07ab652ad85252275a82897371df45da4bc4",
+  "corrected_identity_sidecar_sha256": "97c8dd0d972622095570dc0cf22dd94890c85fc5014671a250a64dcfe487b06b",
+  "expected_graph_version": "text-agent-m5d-v1",
+  "expected_prompt_version": "text-agent-system-v3",
+  "harness_correction_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+  "non_provenance_observation_sha256_after": "584aa36aafd1848cafef3927b159d3d901b1d3d0dfa2cb5261ac63f568051664",
+  "non_provenance_observation_sha256_before": "584aa36aafd1848cafef3927b159d3d901b1d3d0dfa2cb5261ac63f568051664",
+  "observed_graph_versions": [
+    "text-agent-m5d-v1"
+  ],
+  "observed_prompt_versions": [
+    "text-agent-system-v3"
+  ],
+  "old_checkpoint_sha256": "49b358e0436245d17009b765cc4e9c763396069a01977c14c1575555da220b01",
+  "old_identity": {
+    "agent_graph_version": "text-agent-v2",
+    "agent_prompt_version": "text-agent-system-v3",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P1_PROMPT_V3",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+    "split": "dev"
+  },
+  "old_identity_sha256": "d79238b2a90b3b1cc1733c61f55632157a64268884d4ddb892deec0001ff182b",
+  "old_identity_sidecar_sha256": "78217c036e5d062f069ed5aa24a490bc00640c4aeea0b4cc543d64cf5d7ebf32",
+  "reason": "Corrected duplicated evaluation-harness version logic to match persisted AgentEvaluationProfile traces.",
+  "run_id": "canonical-M0-P1-20260930T105712Z-c77394bd",
+  "trace_evidence": [
+    {
+      "agent_run_id": "3d0482bd-988f-4a9d-9181-8495355e27fc",
+      "case_id": "m5d-v02-shipping-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "ce7722abc90de13237601c8d83f2dc36180b66eae429eed82185fa2f40ac9d26"
+    },
+    {
+      "agent_run_id": "fa6bd60c-71a3-437b-b916-827097bd9cef",
+      "case_id": "m5d-v02-shipping-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "879544d502fdafe5044ff1cc77ed966a7c0bb92122391daf691f0eb072935709"
+    },
+    {
+      "agent_run_id": "edd47954-6a5e-425a-a979-8b6d7be05490",
+      "case_id": "m5d-v02-shipping-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "8469eb2ee44f8ff197dcb175a2fbd388544f2c34849a193879f391e37bba0ca1"
+    },
+    {
+      "agent_run_id": "3b4012a8-3df5-46d2-b16a-6edfcf56a6f2",
+      "case_id": "m5d-v02-shipping-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "96baa4ea532fa93b71aae9e39a2245c679f51768dd4aa42325549651cb031f08"
+    },
+    {
+      "agent_run_id": "e9cd4d98-e941-4662-9224-2003487e4546",
+      "case_id": "m5d-v02-shipping-005",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "87e4ef8fc2c23b139157ea5321a9f097b3a2e33163791bf9688b79877e30449b"
+    },
+    {
+      "agent_run_id": "5351062d-6fbd-4237-ab06-c7c2e490141d",
+      "case_id": "m5d-v02-shipping-006",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "e7ac1980c1b49c8eb2ca518e762909cd0e98ae21158444011af267f69aac7c0f"
+    },
+    {
+      "agent_run_id": "bf2f2d56-1d72-44ac-8c49-9d826566415c",
+      "case_id": "m5d-v02-shipping-007",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "d3f684bc773d0dc37003ae51604604180d4a6bec5d1af75debdda9c2ad320780"
+    },
+    {
+      "agent_run_id": "c9b6371b-b20d-4c22-8fa3-9a9ae718a9f9",
+      "case_id": "m5d-v02-shipping-008",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "347280e3e9b913cbd35bfc8b591fdcb4fca1300041e5021feff03b6d0808fed4"
+    },
+    {
+      "agent_run_id": "38d4af3a-ea71-4be2-9f20-3c20c456f9be",
+      "case_id": "m5d-v02-shipping-009",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "fa12eb7365a91f13da286ea15acf56c7172ad005e4532ccc9e3bff40bae784b0"
+    },
+    {
+      "agent_run_id": "4fbc07bd-c615-4096-986c-722b536e62ad",
+      "case_id": "m5d-v02-shipping-010",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "fe16b8098aabd917e3cba26575ef03e82361d7647a843208af06226e7461affe"
+    },
+    {
+      "agent_run_id": "3a5e040e-ebdd-4130-9c31-4ac068809ca4",
+      "case_id": "m5d-v02-returns-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "cc75e4599f8a0ba49e6be33f1e61549ac3624f9d47d61afb57630392da47a400"
+    },
+    {
+      "agent_run_id": "57480b42-931c-4526-8396-1877bc59ffe1",
+      "case_id": "m5d-v02-returns-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "0e9a94a2ec88d917acb9a93068ec85f6638161763b241e42df39d69dc1ed6848"
+    },
+    {
+      "agent_run_id": "c182ab72-2da1-426e-ac0a-4a2e863ec524",
+      "case_id": "m5d-v02-returns-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "5b96514f48e85f36496448f8c2ad046514fb31cd6b9b1f8b9a0f25021d49d4f6"
+    },
+    {
+      "agent_run_id": "9b89c200-f415-4516-8555-65a845612286",
+      "case_id": "m5d-v02-returns-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "3e6d9196a16dcae272b611729c5d1a028e5e93e3425148bdd729d7c1ba31c666"
+    },
+    {
+      "agent_run_id": "9575de51-561d-4e20-bd8a-494e6c7787ee",
+      "case_id": "m5d-v02-returns-005",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "04394593ba3d6e8544cbe055481c799c7cb3c95100f74f16f835a4dc8e254536"
+    },
+    {
+      "agent_run_id": "eeb234da-1e68-404d-9cf2-7b4398158362",
+      "case_id": "m5d-v02-returns-006",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "1d824f41468ff6569ff4cc9af4611380236f1d70c2d9cda59025c9a3e078d257"
+    }
+  ],
+  "verified_trace_count": 16
+}

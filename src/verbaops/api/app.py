@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from verbaops import __version__
+from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.api.dependencies import ApplicationDependencies, RuntimeResourceUnavailableError
 from verbaops.api.errors import (
     PublicAPIError,
@@ -26,7 +27,12 @@ from verbaops.config.settings import Settings
 from verbaops.observability.logging import configure_logging
 
 
-def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
+def create_app(
+    *,
+    settings: Settings,
+    auth_provider: AuthProvider,
+    evaluation_profile: AgentEvaluationProfile | None = None,
+) -> FastAPI:
     """Create an independent VerbaOps AI FastAPI application instance."""
 
     configure_logging(settings)
@@ -39,6 +45,7 @@ def create_app(*, settings: Settings, auth_provider: AuthProvider) -> FastAPI:
     app.state.verbaops_dependencies = ApplicationDependencies(
         settings=settings,
         auth_provider=auth_provider,
+        evaluation_profile=evaluation_profile,
     )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(AuthenticationError, cast(Any, authentication_error_handler))

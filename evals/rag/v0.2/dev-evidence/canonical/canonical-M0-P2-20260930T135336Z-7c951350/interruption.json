@@ -1,0 +1,11 @@
+{
+  "blocked_case_id": "m5d-v02-warranty-005",
+  "completed_case_count": 32,
+  "error_type": "ReadTimeout",
+  "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
+  "holdout_executed": false,
+  "http_status_code": null,
+  "model_candidate": "M0",
+  "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
+  "run_identity_sha256": "79b499049690baecf8bffcc49c1af1a64de00161828a29bce50d1792c899c772"
+}

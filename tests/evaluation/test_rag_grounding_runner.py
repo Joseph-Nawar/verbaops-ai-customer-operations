@@ -1,3 +1,5 @@
+import asyncio
+import json
 from pathlib import Path
 from typing import Any, cast
 
@@ -6,10 +8,12 @@ import pytest
 from verbaops.evaluation.rag_corpus import load_rag_cases
 from verbaops.evaluation.rag_grounding import (
     GroundedExecutionAdapter,
+    M5dCaseExecutionError,
     run_grounded_evaluation,
     score_grounded_records,
 )
 from verbaops.evaluation.rag_models import RagCase, RelevanceJudgment
+from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK
 
 ROOT = Path(__file__).parents[2]
 
@@ -49,6 +53,27 @@ async def test_grounded_runner_resumes_completed_cases_and_sanitizes_credentials
 
 
 @pytest.mark.asyncio
+async def test_grounded_runner_redacts_configured_provider_secret_values(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    output = tmp_path / "grounded.jsonl"
+
+    class ProviderSecretAdapter:
+        async def execute(self, _case: Any) -> dict[str, object]:
+            return {"final_answer": "model echoed groq-secret-material"}
+
+    await run_grounded_evaluation(
+        (case,),
+        ProviderSecretAdapter(),
+        output,
+        secrets_to_hide=("groq-secret-material",),
+    )
+
+    saved = output.read_text(encoding="utf-8")
+    assert "groq-secret-material" not in saved
+    assert "[redacted]" in saved
+
+
+@pytest.mark.asyncio
 async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: Path) -> None:
     case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
     output = tmp_path / "grounded.jsonl"
@@ -56,7 +81,142 @@ async def test_grounded_runner_rejects_duplicate_checkpoint_case_ids(tmp_path: P
     output.write_text(line + line, encoding="utf-8")
 
     with pytest.raises(ValueError, match="duplicate grounded checkpoint"):
-        await run_grounded_evaluation((case,), cast(GroundedExecutionAdapter, object()), output)
+        await run_grounded_evaluation(
+            (case,), cast(GroundedExecutionAdapter[RagCase], object()), output
+        )
+
+
+@pytest.mark.asyncio
+async def test_grounded_runner_waits_between_new_requests_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[:3]
+    output = tmp_path / "grounded.jsonl"
+    output.write_text(
+        json.dumps({"case_id": cases[0].case_id, "status": "completed"}) + "\n",
+        encoding="utf-8",
+    )
+    events: list[tuple[str, str | float]] = []
+
+    class Adapter:
+        async def execute(self, case: RagCase) -> dict[str, object]:
+            events.append(("execute", case.case_id))
+            return {"final_answer": "answer"}
+
+    async def fake_sleep(delay_seconds: float) -> None:
+        events.append(("sleep", delay_seconds))
+
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+
+    await run_grounded_evaluation(
+        cases,
+        Adapter(),
+        output,
+        delay_seconds_between_cases=12.0,
+    )
+
+    assert events == [
+        ("execute", cases[1].case_id),
+        ("sleep", 12.0),
+        ("execute", cases[2].case_id),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_grounded_runner_records_evaluation_provenance_per_case(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            return {"final_answer": "answer"}
+
+    records = await run_grounded_evaluation(
+        (case,),
+        Adapter(),
+        tmp_path / "grounded.jsonl",
+        record_metadata={
+            "evaluated_git_sha": "44034e47119ec63c23f3abf4adcee20cac08ce4b",
+            "evaluation_worktree_dirty": False,
+        },
+    )
+
+    assert records[0]["evaluated_git_sha"] == "44034e47119ec63c23f3abf4adcee20cac08ce4b"
+    assert records[0]["evaluation_worktree_dirty"] is False
+
+
+@pytest.mark.asyncio
+async def test_grounded_runner_binds_resume_to_full_m5d_run_identity(tmp_path: Path) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    checkpoint = tmp_path / "grounded.jsonl"
+    identity = {
+        "benchmark_version": "rag-v0.2",
+        "split": "dev",
+        "dataset_sha256": "a" * 64,
+        "knowledge_manifest_sha256": "b" * 64,
+        "experiment_plan_sha256": "c" * 64,
+        "pre_experiment_sha": "d" * 40,
+        "evaluated_git_sha": "e" * 40,
+        "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+        "evidence_gate_threshold": 0.25,
+        "grounding_candidate": "P0_CURRENT",
+        "model_candidate": "M0",
+        "retrieval_profile_version": "knowledge-retrieval-v1.1",
+        "agent_prompt_version": "text-agent-system-v2",
+        "agent_graph_version": "text-agent-v2",
+        "model_revision": "groq/openai/gpt-oss-120b",
+        "run_id": "canonical-run-001",
+    }
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            return {"final_answer": "answer"}
+
+    await run_grounded_evaluation((case,), Adapter(), checkpoint, run_identity=identity)
+    changed = {**identity, "evidence_gate_threshold": 0.3}
+    with pytest.raises(ValueError, match="identity mismatch"):
+        await run_grounded_evaluation((case,), Adapter(), checkpoint, run_identity=changed)
+
+
+@pytest.mark.asyncio
+async def test_canonical_grounded_runner_reports_blocked_case_without_provider_payload(
+    tmp_path: Path,
+) -> None:
+    case = load_rag_cases(ROOT / "evals/rag/v0.1/questions.jsonl")[0]
+    identity = {
+        "benchmark_version": "rag-v0.2",
+        "split": "dev",
+        "dataset_sha256": "a" * 64,
+        "knowledge_manifest_sha256": "b" * 64,
+        "experiment_plan_sha256": "c" * 64,
+        "pre_experiment_sha": "d" * 40,
+        "evaluated_git_sha": "e" * 40,
+        "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+        "evidence_gate_threshold": 0.25,
+        "grounding_candidate": "P0_CURRENT",
+        "model_candidate": "M0",
+        "retrieval_profile_version": "knowledge-retrieval-v1.1",
+        "agent_prompt_version": "text-agent-system-v2",
+        "agent_graph_version": "text-agent-v2",
+        "model_revision": "groq/openai/gpt-oss-120b",
+        "run_id": "canonical-run-429",
+    }
+
+    class ProviderError(Exception):
+        response = type("Response", (), {"status_code": 429})()
+
+        def __str__(self) -> str:
+            return "private provider payload"
+
+    class Adapter:
+        async def execute(self, _case: RagCase) -> dict[str, object]:
+            raise ProviderError()
+
+    with pytest.raises(M5dCaseExecutionError, match=case.case_id) as captured:
+        await run_grounded_evaluation(
+            (case,), Adapter(), tmp_path / "grounded.jsonl", run_identity=identity
+        )
+    assert captured.value.status_code == 429
+    assert "private provider payload" not in str(captured.value)
 
 
 def test_grounded_scoring_uses_labeled_facts_and_retrieval_evidence_gate() -> None:
@@ -153,3 +313,64 @@ def test_grounded_citation_precision_has_explicit_zero_denominator() -> None:
         threshold=0.0,
     )
     assert result["citation_precision"] == {"numerator": 0, "denominator": 0, "value": None}
+
+
+def test_grounded_metrics_report_evidence_citation_compliance_and_fallbacks() -> None:
+    locator = "shipping-policy|2026.1|Delivery methods|1"
+    supported = _citation_case(
+        "case-supported",
+        answerable=True,
+        judgments=(
+            RelevanceJudgment(
+                document_slug="shipping-policy",
+                document_version="2026.1",
+                section="Delivery methods",
+                chunk_index=1,
+                relevance_grade=2,
+            ),
+        ),
+    )
+    refused = _citation_case("case-refused", answerable=False, judgments=())
+
+    result = score_grounded_records(
+        (supported, refused),
+        (
+            {
+                "case_id": supported.case_id,
+                "final_answer": "Supported answer.",
+                "public_citations": [locator],
+                "selected_evidence": [locator],
+                "top_confidence_score": 0.5,
+                "tool_call_count": 0,
+                "repair_attempted": False,
+                "repair_succeeded": False,
+            },
+            {
+                "case_id": refused.case_id,
+                "final_answer": SAFE_GROUNDING_FALLBACK,
+                "public_citations": [],
+                "selected_evidence": [],
+                "top_confidence_score": 0.1,
+                "tool_call_count": 0,
+                "repair_attempted": True,
+                "repair_succeeded": False,
+                "repair_failed_reason": "no_acceptable_repaired_answer",
+                "repair_model_latency_ms": 40.0,
+                "repair_cost_usd": 0.01,
+            },
+        ),
+        threshold=0.4,
+    )
+
+    assert result["accepted_evidence_citation_compliance"] == {
+        "numerator": 1,
+        "denominator": 1,
+        "value": 1.0,
+    }
+    assert result["safe_fallback_count"] == 1
+    assert result["safe_fallback_rate"] == 0.5
+    assert result["repair_attempts"] == 1
+    assert result["repair_successes"] == 0
+    assert result["repair_failures"] == 1
+    assert result["repair_model_latency_p50_ms"] == 40.0
+    assert result["repair_cost_total_usd"] == 0.01

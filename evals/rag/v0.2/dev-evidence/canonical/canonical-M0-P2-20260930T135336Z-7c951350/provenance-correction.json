@@ -1,0 +1,331 @@
+{
+  "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+  "changed_fields": [
+    "agent_prompt_version (identity sidecar)",
+    "agent_graph_version (identity sidecar)",
+    "evaluation_harness_sha (identity sidecar)",
+    "run_identity_sha256 (checkpoint records)",
+    "run_identity_sha256 (identity sidecar)",
+    "run_identity (metadata.json)",
+    "run_identity_sha256 (metadata.json)",
+    "evaluation_harness_sha (metadata.json)",
+    "run_identity (run-summary.json)",
+    "run_identity_sha256 (run-summary.json)",
+    "evaluation_harness_sha (run-summary.json)"
+  ],
+  "corrected_checkpoint_sha256": "1ba5d34aaafae7379ddef64eefe91f1905710845ea3a0a444f7109132da5313b",
+  "corrected_identity": {
+    "agent_graph_version": "text-agent-m5d-v1",
+    "agent_prompt_version": "text-agent-system-v3",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
+    "split": "dev"
+  },
+  "corrected_identity_sha256": "47c71abfc793ea6ebaa54a44e2354b6f3908e1902b86a32f3c2f888917397c16",
+  "corrected_identity_sidecar_sha256": "6b6740a3e339be95107bd92d2aa54225656c491d76792a332634157bb478e24e",
+  "expected_graph_version": "text-agent-m5d-v1",
+  "expected_prompt_version": "text-agent-system-v3",
+  "harness_correction_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
+  "non_provenance_observation_sha256_after": "7f754b676af6a1790e1c25d6c9375688e5352ed8ec77d39cdc137803dc9f057a",
+  "non_provenance_observation_sha256_before": "7f754b676af6a1790e1c25d6c9375688e5352ed8ec77d39cdc137803dc9f057a",
+  "observed_graph_versions": [
+    "text-agent-m5d-v1"
+  ],
+  "observed_prompt_versions": [
+    "text-agent-system-v3"
+  ],
+  "old_checkpoint_sha256": "0aa48db5d50113aeea4e64fef3cf70ea9e7da315e141ace283c8f5dc1fc7c767",
+  "old_identity": {
+    "agent_graph_version": "text-agent-v2",
+    "agent_prompt_version": "text-agent-system-v2",
+    "benchmark_version": "rag-v0.2",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "b9835dd0e7bb974480769d328f19d903cb9466828a0ac810200cc10b36251ba8",
+    "grounding_candidate": "P2_FAIL_CLOSED_CITATIONS",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
+    "split": "dev"
+  },
+  "old_identity_sha256": "79b499049690baecf8bffcc49c1af1a64de00161828a29bce50d1792c899c772",
+  "old_identity_sidecar_sha256": "e3248a854c7e8b7c07c9738bde95103955eeca91518c2004aa98c45352e7d823",
+  "reason": "Corrected duplicated evaluation-harness version logic to match persisted AgentEvaluationProfile traces.",
+  "run_id": "canonical-M0-P2-20260930T135336Z-7c951350",
+  "trace_evidence": [
+    {
+      "agent_run_id": "1e6e989c-5d82-48da-bb23-1afa67e4e78b",
+      "case_id": "m5d-v02-shipping-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "ce7722abc90de13237601c8d83f2dc36180b66eae429eed82185fa2f40ac9d26"
+    },
+    {
+      "agent_run_id": "f0627bc0-a322-4541-94c2-e82aece69f51",
+      "case_id": "m5d-v02-shipping-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "879544d502fdafe5044ff1cc77ed966a7c0bb92122391daf691f0eb072935709"
+    },
+    {
+      "agent_run_id": "c08811ea-8a90-4877-a115-7932d4df8696",
+      "case_id": "m5d-v02-shipping-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "8469eb2ee44f8ff197dcb175a2fbd388544f2c34849a193879f391e37bba0ca1"
+    },
+    {
+      "agent_run_id": "80fa3c07-077b-4fbd-9a5c-7421c148d6b8",
+      "case_id": "m5d-v02-shipping-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "96baa4ea532fa93b71aae9e39a2245c679f51768dd4aa42325549651cb031f08"
+    },
+    {
+      "agent_run_id": "8f3c803d-4525-4ccd-872c-3f4a7a3e955c",
+      "case_id": "m5d-v02-shipping-005",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "87e4ef8fc2c23b139157ea5321a9f097b3a2e33163791bf9688b79877e30449b"
+    },
+    {
+      "agent_run_id": "a45801ea-34e8-4bda-b326-53c5f772f452",
+      "case_id": "m5d-v02-shipping-006",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "e7ac1980c1b49c8eb2ca518e762909cd0e98ae21158444011af267f69aac7c0f"
+    },
+    {
+      "agent_run_id": "823ff414-6c12-4161-88bc-c07e42bf30cb",
+      "case_id": "m5d-v02-shipping-007",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "d3f684bc773d0dc37003ae51604604180d4a6bec5d1af75debdda9c2ad320780"
+    },
+    {
+      "agent_run_id": "9eb6aff6-934f-479d-849a-30eb1490cf97",
+      "case_id": "m5d-v02-shipping-008",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "347280e3e9b913cbd35bfc8b591fdcb4fca1300041e5021feff03b6d0808fed4"
+    },
+    {
+      "agent_run_id": "982a3a8e-4600-4534-bac9-3e807dd0db68",
+      "case_id": "m5d-v02-shipping-009",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "fa12eb7365a91f13da286ea15acf56c7172ad005e4532ccc9e3bff40bae784b0"
+    },
+    {
+      "agent_run_id": "ddf62636-6b39-4f9d-bc0a-9a74b0556cd2",
+      "case_id": "m5d-v02-shipping-010",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "fe16b8098aabd917e3cba26575ef03e82361d7647a843208af06226e7461affe"
+    },
+    {
+      "agent_run_id": "eb829849-c1a8-443d-a1a0-29a092f30516",
+      "case_id": "m5d-v02-returns-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "cc75e4599f8a0ba49e6be33f1e61549ac3624f9d47d61afb57630392da47a400"
+    },
+    {
+      "agent_run_id": "f318af2d-007d-4acc-9ec2-93b716ba5296",
+      "case_id": "m5d-v02-returns-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "0e9a94a2ec88d917acb9a93068ec85f6638161763b241e42df39d69dc1ed6848"
+    },
+    {
+      "agent_run_id": "4cf39fc9-c153-4fd4-9e81-a61fe47a29e8",
+      "case_id": "m5d-v02-returns-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "5b96514f48e85f36496448f8c2ad046514fb31cd6b9b1f8b9a0f25021d49d4f6"
+    },
+    {
+      "agent_run_id": "60b8f586-b513-44e8-b4b3-e470eb0b66c7",
+      "case_id": "m5d-v02-returns-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "3e6d9196a16dcae272b611729c5d1a028e5e93e3425148bdd729d7c1ba31c666"
+    },
+    {
+      "agent_run_id": "c1f83e43-e492-4b30-8e67-780d989d57d8",
+      "case_id": "m5d-v02-returns-005",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "04394593ba3d6e8544cbe055481c799c7cb3c95100f74f16f835a4dc8e254536"
+    },
+    {
+      "agent_run_id": "0a14445a-a933-4572-b41c-24cd02093bdc",
+      "case_id": "m5d-v02-returns-006",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "1d824f41468ff6569ff4cc9af4611380236f1d70c2d9cda59025c9a3e078d257"
+    },
+    {
+      "agent_run_id": "8b0bb7fd-fbdd-4bfc-8d8c-db1c199c5552",
+      "case_id": "m5d-v02-returns-007",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "c30c3d9c5ecd12b1b54d1260a02319d28a0236722e094f8a261e0abfa14177a9"
+    },
+    {
+      "agent_run_id": "558f03d3-9b11-4846-b278-3783caf59568",
+      "case_id": "m5d-v02-returns-008",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "9ae82f2e427b12f359f37f3bf03313be18f4ba2a1473e4e2eea0d4bd5f0ad840"
+    },
+    {
+      "agent_run_id": "838494cf-a33c-4b61-8e14-c7e9aba4de28",
+      "case_id": "m5d-v02-returns-009",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "543007c40c3dca90d251ca164a05f312322b337106c184f1349cab94249eedf1"
+    },
+    {
+      "agent_run_id": "857a7b0b-fa6e-4908-8327-06c2828fe714",
+      "case_id": "m5d-v02-returns-010",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "6c11bd99c79a1e307d8be8795667dcf63a4b5a4f425c0a93ef7fc8483a2fd257"
+    },
+    {
+      "agent_run_id": "b897fcc6-c3bd-437c-94b5-8298708eb53d",
+      "case_id": "m5d-v02-refunds-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "b352409159df6f470e3694f5642bacd2f5149a693fd9d132939e46c263b237e0"
+    },
+    {
+      "agent_run_id": "47f8b673-834c-4873-b6bb-4c76a129b0af",
+      "case_id": "m5d-v02-refunds-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "cc81768f7dc31f557c7dd7e4ab799b9adb34a91cb081f5998203d43ca754a285"
+    },
+    {
+      "agent_run_id": "0fb0c5cd-b198-431c-8a8f-5e56539c4780",
+      "case_id": "m5d-v02-refunds-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "453a65c2b373344ce606af96b71e0c7ccfe3587a38f8aea3e23d2eb848cf0c4a"
+    },
+    {
+      "agent_run_id": "c048923d-7a59-48e7-b9ba-faf1112589a7",
+      "case_id": "m5d-v02-refunds-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "f1c578dcde0dc784831618ce7b54e0b05fa8ef0fe68c567e32495a677924933c"
+    },
+    {
+      "agent_run_id": "6617fa1d-c020-43d2-8ca1-799b0ee7f9e5",
+      "case_id": "m5d-v02-refunds-005",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "0be5ac1edfbd44c827a7cfafef616c32cee96356c2522efd92c9cc7e9e49e3d9"
+    },
+    {
+      "agent_run_id": "d246450e-ed86-48cb-929c-e5c03ac75e69",
+      "case_id": "m5d-v02-refunds-006",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "71bbd3d7ccfed71b6c158aabc866534c40e8ec734ff4d92f335bdc03e9ba97a6"
+    },
+    {
+      "agent_run_id": "c77e19df-cbd5-45b8-8434-943ae429a23b",
+      "case_id": "m5d-v02-refunds-007",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "fc059d5ae3a13344927f2b49b4d0088c3be3fa6cb55a2f629dcc5112db9b832b"
+    },
+    {
+      "agent_run_id": "ee1d382a-cbcd-4021-b48a-32a2cb65b13f",
+      "case_id": "m5d-v02-refunds-008",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "facc0a6e41f531bb5f646dd79f8e9b95e42fb40704e3d3db61372c40a33e49f0"
+    },
+    {
+      "agent_run_id": "319ddf32-07fb-4c6f-aa39-8feed0093a1d",
+      "case_id": "m5d-v02-warranty-001",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "dd9632f4c572120e0f018451de633673159dd4c0a3abb3572c1fdf1cd62d19f6"
+    },
+    {
+      "agent_run_id": "8f9343dc-c427-45af-9908-04733cb93a58",
+      "case_id": "m5d-v02-warranty-002",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "939b5ef818084280c692b865c0b9b4d51c95b8cc0ec72e2769e712245f8c2d3c"
+    },
+    {
+      "agent_run_id": "f8f22f00-6279-4b6b-8c8f-788bf2685309",
+      "case_id": "m5d-v02-warranty-003",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "6b1e0e818dfc2d3aa2db6943d6bc3f53d832d23fd9b4d15ab546ac709cef68e7"
+    },
+    {
+      "agent_run_id": "bbd8c5fa-e7f8-43c0-a62d-038e7d668349",
+      "case_id": "m5d-v02-warranty-004",
+      "graph_version": "text-agent-m5d-v1",
+      "prompt_version": "text-agent-system-v3",
+      "status": "completed",
+      "user_message_sha256": "1c8f1f2a5b1e1f969d98f1ba4f02976ead784ba52fa3bcb5f1da8eb2bd5ff735"
+    }
+  ],
+  "verified_trace_count": 32
+}

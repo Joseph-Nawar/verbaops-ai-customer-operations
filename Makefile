@@ -72,7 +72,7 @@ rag-evaluation-contract:
 
 m5d-evaluation-contract:
 	$(UV) run python scripts/check_rag_v02_corpus.py --split dev
-	$(UV) run pytest tests/evaluation/test_rag_v02_contract.py -q
+	$(UV) run pytest tests/evaluation/test_rag_v02_contract.py tests/evaluation/test_m5d_run_identity.py -q
 
 rag-eval-corpus-check:
 	$(UV) run python scripts/check_rag_eval_corpus.py

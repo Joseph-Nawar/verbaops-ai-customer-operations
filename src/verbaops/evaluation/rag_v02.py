@@ -377,6 +377,97 @@ def _validate_plan_shape(plan: Any) -> dict[str, Any]:
         or plan["evidence_gate_selection"].get("no_learned_combined_classifier") is not True
     ):
         raise RagV02Error("experiment plan evidence-gate guardrails changed")
+    expected_gate_selection = {
+        "within_gate_threshold_order": [
+            "require_at_least_90_percent_dev_no_answer_rejection",
+            "maximize_answerable_acceptance",
+            "maximize_no_answer_rejection",
+            "prefer_higher_threshold",
+        ],
+        "minimum_dev_no_answer_rejected_cases": 22,
+        "across_gate_order": [
+            "eligible_no_answer_rejection_90_percent",
+            "maximize_answerable_acceptance",
+            "within_2_percentage_points_prefer_lower_total_p95_latency",
+            "then_prefer_fewer_inference_components",
+            "candidate_id_ascending",
+        ],
+        "gate_candidate_complexity": {
+            "G0_CURRENT_RRF": 1,
+            "G1_DENSE_SIMILARITY": 2,
+            "G2_TOP_EVIDENCE_CROSS_ENCODER": 3,
+        },
+        "latency_components_by_gate": {
+            "G0_CURRENT_RRF": ["hybrid_retrieval"],
+            "G1_DENSE_SIMILARITY": [
+                "hybrid_retrieval",
+                "e5_candidate_vector_fetch",
+                "e5_cosine_scoring",
+            ],
+            "G2_TOP_EVIDENCE_CROSS_ENCODER": [
+                "hybrid_retrieval",
+                "cross_encoder_scoring",
+            ],
+        },
+        "missing_or_non_finite_confidence": "reject",
+        "latency_total_definition": "sum the preregistered candidate-specific component durations for each query before calculating p50 and p95",
+    }
+    gate_selection = plan["evidence_gate_selection"]
+    if any(gate_selection.get(key) != value for key, value in expected_gate_selection.items()):
+        raise RagV02Error("experiment plan evidence-gate calibration rules changed")
+    expected_grounding_gates = {
+        "citation_precision_minimum": 0.95,
+        "citation_precision_requires_nonzero_denominator": True,
+        "labeled_groundedness_minimum": 0.9,
+        "unsupported_recognized_fact_rate_maximum": 0.1,
+        "expected_fact_coverage_minimum": 0.7,
+        "no_qualifying_candidate_outcome": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
+    }
+    if plan.get("grounding_quality_gates") != expected_grounding_gates:
+        raise RagV02Error("experiment plan grounding quality gates changed")
+    if plan.get("grounding_selection_tie_breaks") != [
+        "citation_precision_within_1_percentage_point",
+        "labeled_groundedness_within_1_percentage_point",
+        "minimize_unsupported_units_within_1_percentage_point",
+        "expected_fact_coverage_within_2_percentage_points",
+        "lower_answer_p95_latency",
+        "lower_mean_cost_among_cost_covered_observations",
+        "fewer_inference_components_P0_1_to_P3_4",
+        "candidate_id_ascending",
+    ]:
+        raise RagV02Error("experiment plan grounding selection order changed")
+    if plan.get("grounding_remediation_target") != {
+        "answerable_acceptance_minimum": 0.7,
+        "mandatory_no_answer_rejection_minimum": 0.9,
+    }:
+        raise RagV02Error("experiment plan grounding remediation targets changed")
+    if plan.get("model_execution_policy") != {
+        "candidate_order": ["M0", "M1"],
+        "m0_must_run_first": True,
+        "m1_requires_separately_configured_local_openai_compatible_endpoint": True,
+        "m1_unavailable_outcome": "M1_NOT_EXECUTED_LOCAL_RESOURCE_BLOCK",
+        "retain_m0_without_comparison_outcome": "INCUMBENT_RETAINED_NO_EXECUTABLE_CHALLENGER",
+        "no_model_substitution": True,
+    }:
+        raise RagV02Error("experiment plan model execution order or fallback changed")
+    if plan.get("stage4_dev_regression_guard") != {
+        "split": "dev",
+        "case_count": 96,
+        "control": "same_environment_M0_P0",
+        "stage4_release_holdout_for_tuning": False,
+        "maximum_s4_violations": 0,
+        "maximum_unauthorized_actions": 0,
+        "maximum_absolute_regression": 0.02,
+        "maximum_unnecessary_tool_rate_increase": 0.02,
+        "compared_metrics": [
+            "tool_selection_quality",
+            "valid_tool_arguments",
+            "all_fields_correct",
+            "task_completion",
+            "unnecessary_tool_rate",
+        ],
+    }:
+        raise RagV02Error("experiment plan Stage 4 DEV regression guard changed")
     priorities = [
         "trust_security_invariants",
         "citation_precision",
@@ -392,9 +483,17 @@ def _validate_plan_shape(plan: Any) -> dict[str, Any]:
         or plan.get("status") != "preregistered_not_results"
     ):
         raise RagV02Error("experiment plan must be a preregistration for rag-v0.2")
-    if plan.get("schema_version") != "m5d-experiment-plan-v1":
+    if plan.get("schema_version") != "m5d-experiment-plan-v1.1":
         raise RagV02Error("experiment plan schema version is unsupported")
-    for key in ("evidence_gate_selection", "model_selection_guard", "evaluator"):
+    for key in (
+        "evidence_gate_selection",
+        "grounding_quality_gates",
+        "grounding_remediation_target",
+        "model_execution_policy",
+        "stage4_dev_regression_guard",
+        "model_selection_guard",
+        "evaluator",
+    ):
         if not isinstance(plan.get(key), dict):
             raise RagV02Error(f"experiment plan {key} must be an object")
     gates = {item["id"]: item for item in plan["evidence_gates"]}

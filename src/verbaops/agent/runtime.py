@@ -13,6 +13,7 @@ from verbaops.agent.errors import (
     AgentProtocolError,
     AgentUnavailableError,
 )
+from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.agent.graph import build_agent_graph
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
@@ -64,6 +65,7 @@ class AgentRuntime:
         graph: Any | None = None,
         retrieval_service: RetrievalService | None = None,
         citation_finalizer: CitationFinalizer | None = None,
+        evaluation_profile: AgentEvaluationProfile | None = None,
         deadline_seconds: float = 45.0,
     ) -> None:
         self._conversation_service = conversation_service
@@ -73,6 +75,7 @@ class AgentRuntime:
         self._graph = graph or build_agent_graph()
         self._retrieval_service = retrieval_service
         self._citation_finalizer = citation_finalizer
+        self._evaluation_profile = evaluation_profile
         self._deadline_seconds = deadline_seconds
 
     async def run_turn(
@@ -90,8 +93,16 @@ class AgentRuntime:
                 scope,
                 conversation_id,
                 content,
-                graph_version=GRAPH_VERSION,
-                prompt_version=PROMPT_VERSION,
+                graph_version=(
+                    self._evaluation_profile.graph_version
+                    if self._evaluation_profile is not None
+                    else GRAPH_VERSION
+                ),
+                prompt_version=(
+                    f"text-agent-system-{self._evaluation_profile.prompt_version}"
+                    if self._evaluation_profile is not None
+                    else PROMPT_VERSION
+                ),
                 tool_schema_version=TOOL_SCHEMA_VERSION,
             )
         except ConversationBusyError:
@@ -110,6 +121,7 @@ class AgentRuntime:
                 conversation_service=self._conversation_service,
                 retrieval_service=self._retrieval_service,
                 citation_finalizer=self._citation_finalizer,
+                evaluation_profile=self._evaluation_profile,
             )
             final_state = await asyncio.wait_for(
                 self._graph.ainvoke(
