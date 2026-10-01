@@ -103,7 +103,7 @@ async def _run(args: argparse.Namespace) -> None:
     plan_path = ROOT / "evals/rag/v0.2/m5d-b2-experiment-plan.json"
     knowledge_manifest_path = ROOT / "knowledge/novacommerce/manifest.json"
     if is_p4:
-        audit_m5d_b2_preregistration(ROOT, allow_current_p4_run_id=args.run_id)
+        audit_m5d_b2_preregistration(ROOT)
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
         dataset_sha = sha256_file(dataset_path)
         knowledge_manifest_sha = sha256_file(knowledge_manifest_path)

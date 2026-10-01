@@ -2,7 +2,7 @@
   "agent_fast_changed": false,
   "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
   "benchmark_version": "rag-v0.2",
-  "canonical_evidence_status": "PARTIAL",
+  "canonical_evidence_status": "COMPLETE",
   "canonical_run_ids": [
     "canonical-gate-20260929T123626Z-45586c67",
     "canonical-M0-P0-20260929T124811Z-0d27c8d7",
@@ -896,7 +896,7 @@
   "status": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
   "summary_artifact": {
     "path": "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json",
-    "sha256": "65f562062ddd201eb38da2421f1e2e93a64366d834805f6d2d0d92c5269b6dea"
+    "sha256": "5bece14148dd10c2ab7416b829759bd9f2e509aa3f65a7bf3ba080ed23f3ed1e"
   },
   "summary_artifacts": [
     {

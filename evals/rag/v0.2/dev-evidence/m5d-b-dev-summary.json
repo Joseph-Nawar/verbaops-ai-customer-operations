@@ -2,7 +2,7 @@
   "agent_fast_changed": false,
   "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
   "benchmark_version": "rag-v0.2",
-  "canonical_evidence_status": "PARTIAL",
+  "canonical_evidence_status": "COMPLETE",
   "canonical_run_ids": [
     "canonical-gate-20260929T123626Z-45586c67",
     "canonical-M0-P0-20260929T124811Z-0d27c8d7",

@@ -395,7 +395,7 @@ def build_p4_run_identity(
         audit_m5d_b2_preregistration,
     )
 
-    audit_m5d_b2_preregistration(repo_root, allow_current_p4_run_id=run_id)
+    audit_m5d_b2_preregistration(repo_root)
     plan_path = repo_root / PLAN_PATH
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     scorer_manifest_path = repo_root / "evals/rag/v0.2/scorer-v2/manifest.json"
