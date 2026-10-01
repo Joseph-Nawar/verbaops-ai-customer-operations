@@ -35,6 +35,27 @@ def _context(llm: ScriptedLLMClient, candidate: GroundingCandidate) -> Any:
     )
 
 
+def test_p4_profile_pins_its_prompt_graph_and_finalizer_versions() -> None:
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+    )
+
+    assert profile.prompt_version == "p4-evidence-linked-v1"
+    assert profile.graph_version == "text-agent-m5d-v1"
+    assert profile.grounding_finalizer_version == "evidence-linked-extractive-single-pass-v1"
+
+
+def test_p4_profile_does_not_change_production_or_historical_prompt_versions() -> None:
+    assert AgentEvaluationProfile().prompt_version == "v2"
+    assert AgentEvaluationProfile().graph_version == "text-agent-m5d-v1"
+    assert (
+        AgentEvaluationProfile(
+            grounding_candidate=GroundingCandidate.P2_FAIL_CLOSED_CITATIONS
+        ).prompt_version
+        == "v3"
+    )
+
+
 @pytest.mark.asyncio
 async def test_p1_uses_v3_prompt_and_keeps_exact_commerce_tools() -> None:
     llm = ScriptedLLMClient([response("I cannot verify that.")])
