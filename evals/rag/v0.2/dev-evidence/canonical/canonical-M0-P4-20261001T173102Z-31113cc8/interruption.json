@@ -1,0 +1,11 @@
+{
+  "blocked_case_id": "m5d-v02-shipping-002",
+  "completed_case_count": 1,
+  "error_type": "HTTPStatusError",
+  "grounding_candidate": "P4_EVIDENCE_LINKED_SINGLE_PASS",
+  "holdout_executed": false,
+  "http_status_code": 503,
+  "model_candidate": "M0",
+  "run_id": "canonical-M0-P4-20261001T173102Z-31113cc8",
+  "run_identity_sha256": "4a041a8f5966715dce3461064f4e964f5efb55162c06e283128cb5ecb0031647"
+}

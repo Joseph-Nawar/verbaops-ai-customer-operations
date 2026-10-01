@@ -2,13 +2,14 @@
   "agent_fast_changed": false,
   "application_under_test_sha": "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
   "benchmark_version": "rag-v0.2",
-  "canonical_evidence_status": "COMPLETE",
+  "canonical_evidence_status": "PARTIAL",
   "canonical_run_ids": [
     "canonical-gate-20260929T123626Z-45586c67",
     "canonical-M0-P0-20260929T124811Z-0d27c8d7",
     "canonical-M0-P1-20260930T105712Z-c77394bd",
     "canonical-M0-P2-20260930T135336Z-7c951350",
-    "canonical-M0-P3-20260930T165735Z-277d35de"
+    "canonical-M0-P3-20260930T165735Z-277d35de",
+    "canonical-M0-P4-20261001T173102Z-31113cc8"
   ],
   "canonical_runs": [
     {
@@ -514,6 +515,62 @@
       "scoring_status": "SCORED_QUALITY_GATE_FAILED",
       "status": "COMPLETE_SCORED_QUALITY_GATE_FAILED",
       "total_cases": 96
+    },
+    {
+      "run_id": "canonical-M0-P4-20261001T173102Z-31113cc8",
+      "run_type": "GROUNDING_CANDIDATE",
+      "candidate": "P4_EVIDENCE_LINKED_SINGLE_PASS",
+      "status": "P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY",
+      "execution_eligibility": "INELIGIBLE",
+      "completed_cases": 1,
+      "total_cases": 96,
+      "blocked_case_id": "m5d-v02-shipping-002",
+      "evaluated_git_sha": "77d04cd54143bd13b851ee2cbbe1f57766371fd0",
+      "application_under_test_sha": "77d04cd54143bd13b851ee2cbbe1f57766371fd0",
+      "evaluation_harness_sha": "77d04cd54143bd13b851ee2cbbe1f57766371fd0",
+      "run_identity_sha256": "4a041a8f5966715dce3461064f4e964f5efb55162c06e283128cb5ecb0031647",
+      "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION",
+      "scoreable": false,
+      "failure_class": "DETERMINISTIC_PROVIDER_PROTOCOL_INCOMPATIBILITY",
+      "public_api_http_status": 503,
+      "upstream_provider_http_status": 400,
+      "upstream_error_type": "invalid_request_error",
+      "upstream_error_parameter": "response_format",
+      "runner_retry_after_failure": false,
+      "provider_internal_request_or_retry_count": "UNKNOWN",
+      "artifacts": [
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/grounded_cases.jsonl",
+          "sha256": "0b650e8aecb34725f2a6786ee39aaab94530cd7f37f3dfa70da7343ca16a36f3"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/grounded_cases.jsonl.identity.json",
+          "sha256": "bd2afde30e1e138664ee0d5e8fd652e5a7af1522f2f6655a3f351232dfa67d67"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/interruption.json",
+          "sha256": "bdafb48e92d2b85e0dac20f0d3e498d22ba96d9b71b21a0dc8c71c9a3c7d3135"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/metadata.json",
+          "sha256": "ea5990fda84930e5f01e249d50d7c0b77db4d066df57226dd343ced186056fd0"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/run-summary.json",
+          "sha256": "2ce75645a87b982a48e004b6c649772bee48618c693859647ba24f56409cf5ff"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-traces/9f857402-47b7-4a96-b27e-1f6f81d698b1.json",
+          "sha256": "35317a96470c4ed4f22d5aa6fc36f597720dfb1f5199865f1b9293329f23e00c"
+        },
+        {
+          "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-closeout.json",
+          "sha256": "9c6b9b0a3b51a79a84c6feae94708ea4ac9b8a14293fc7c1ddb1c8acf37adf72"
+        }
+      ],
+      "public_api_case_requests": 2,
+      "trace_sidecar_count": 1,
+      "report_generated": false
     }
   ],
   "case_count": 96,
@@ -526,10 +583,12 @@
   "credentials_committed_or_logged": false,
   "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
   "evaluated_git_shas": [
-    "7f82c565e7f9fc085f2d81c2c04a9861444837a1"
+    "7f82c565e7f9fc085f2d81c2c04a9861444837a1",
+    "77d04cd54143bd13b851ee2cbbe1f57766371fd0"
   ],
   "evaluation_harness_shas": [
-    "86c81196e7ed4c967eec62bfc2cab9484820529c"
+    "86c81196e7ed4c967eec62bfc2cab9484820529c",
+    "77d04cd54143bd13b851ee2cbbe1f57766371fd0"
   ],
   "execution_block": {
     "additional_provider_requests_after_latest_failure": 0,
@@ -573,7 +632,8 @@
     "P0_CURRENT": "QUALITY_INELIGIBLE",
     "P1_PROMPT_V3": "EXECUTION_INELIGIBLE_AGENT_BUDGET_EXCEEDED",
     "P2_FAIL_CLOSED_CITATIONS": "QUALITY_INELIGIBLE",
-    "P3_ONE_REPAIR_THEN_FAIL_CLOSED": "QUALITY_INELIGIBLE"
+    "P3_ONE_REPAIR_THEN_FAIL_CLOSED": "QUALITY_INELIGIBLE",
+    "P4_EVIDENCE_LINKED_SINGLE_PASS": "P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY"
   },
   "grounding_selection_status": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
   "historical_noncanonical_evidence_excluded": true,
@@ -836,7 +896,7 @@
   "status": "NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE",
   "summary_artifact": {
     "path": "evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json",
-    "sha256": "4208723dbcaaaf32f4bc74bb6097c3f8909c7e32d971758b96a256e81db2acec"
+    "sha256": "65f562062ddd201eb38da2421f1e2e93a64366d834805f6d2d0d92c5269b6dea"
   },
   "summary_artifacts": [
     {
@@ -970,6 +1030,60 @@
     {
       "path": "evals/rag/v0.2/dev-evidence/canonical/provider-smoke.json",
       "sha256": "9a304b00cc4883a237fcc84aea592e936942c5dad414eaa534a4c2519b1683aa"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/grounded_cases.jsonl",
+      "sha256": "0b650e8aecb34725f2a6786ee39aaab94530cd7f37f3dfa70da7343ca16a36f3"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/grounded_cases.jsonl.identity.json",
+      "sha256": "bd2afde30e1e138664ee0d5e8fd652e5a7af1522f2f6655a3f351232dfa67d67"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/interruption.json",
+      "sha256": "bdafb48e92d2b85e0dac20f0d3e498d22ba96d9b71b21a0dc8c71c9a3c7d3135"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/metadata.json",
+      "sha256": "ea5990fda84930e5f01e249d50d7c0b77db4d066df57226dd343ced186056fd0"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/run-summary.json",
+      "sha256": "2ce75645a87b982a48e004b6c649772bee48618c693859647ba24f56409cf5ff"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-traces/9f857402-47b7-4a96-b27e-1f6f81d698b1.json",
+      "sha256": "35317a96470c4ed4f22d5aa6fc36f597720dfb1f5199865f1b9293329f23e00c"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-closeout.json",
+      "sha256": "9c6b9b0a3b51a79a84c6feae94708ea4ac9b8a14293fc7c1ddb1c8acf37adf72"
     }
-  ]
+  ],
+  "p4_execution_closeout": {
+    "classification": "P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY",
+    "run_id": "canonical-M0-P4-20261001T173102Z-31113cc8",
+    "run_identity_sha256": "4a041a8f5966715dce3461064f4e964f5efb55162c06e283128cb5ecb0031647",
+    "completed_cases": 1,
+    "total_cases": 96,
+    "blocked_case_id": "m5d-v02-shipping-002",
+    "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION",
+    "public_api_http_status": 503,
+    "upstream_provider_http_status": 400,
+    "upstream_error_type": "invalid_request_error",
+    "upstream_error_parameter": "response_format",
+    "upstream_error_message": "json mode cannot be combined with tool/function calling",
+    "retry_after_failure": false,
+    "provider_internal_request_or_retry_count": "UNKNOWN",
+    "quality_metrics": "NOT_COMPUTED",
+    "stage4_dev_status": "NOT_RUN_P4_EXECUTION_INELIGIBLE",
+    "m5d_c_eligible": false,
+    "closeout_artifact": {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-closeout.json",
+      "sha256": "9c6b9b0a3b51a79a84c6feae94708ea4ac9b8a14293fc7c1ddb1c8acf37adf72"
+    },
+    "public_api_case_requests": 2,
+    "trace_sidecar_count": 1,
+    "report_generated": false
+  }
 }
