@@ -404,7 +404,7 @@
     "evaluation_harness_sha": "86c81196e7ed4c967eec62bfc2cab9484820529c",
     "forensics_tool_sha256": {
       "scripts/analyze_m5d_b2_forensics.py": "20a124908e0e73e08e91d82cc07f50efe4889c382d2dfbb0ea6a891aaaad32f2",
-      "src/verbaops/evaluation/m5d_b2_forensics.py": "8f12207ce420ac6b6892473c083b91416df944a3dc40964c1c40a427735cbad6"
+      "src/verbaops/evaluation/m5d_b2_forensics.py": "0a387571eaa9efbf748fe03f0524842640d0d8feb58a8d805f5bc49fd10c239b"
     },
     "input_artifacts": [
       {

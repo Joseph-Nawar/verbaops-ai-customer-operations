@@ -360,7 +360,7 @@ def summarize_taxonomy(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "support_selected_accepted": sum(
                 out["support_in_accepted_evidence"] for out in accepted
             ),
-            "accepted_fact_omitted_from_final": sum(
+            "accepted_not_recognized_by_frozen_evaluator": sum(
                 not out["expected_fact_recognized"] for out in accepted
             ),
             "recognized_without_expected_support_citation": sum(

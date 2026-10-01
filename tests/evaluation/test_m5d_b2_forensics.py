@@ -53,6 +53,21 @@ def test_case_taxonomy_uses_all_answerable_dev_facts_and_frozen_gate() -> None:
     )
 
 
+def test_accepted_nonrecognition_is_not_labeled_as_fact_omission() -> None:
+    rows = build_case_taxonomy(ROOT)
+    summary = summarize_taxonomy(rows)
+
+    expected_nonrecognition = {
+        "P0_CURRENT": 52,
+        "P2_FAIL_CLOSED_CITATIONS": 56,
+        "P3_ONE_REPAIR_THEN_FAIL_CLOSED": 55,
+    }
+    for candidate, count in expected_nonrecognition.items():
+        aggregate = summary["candidates"][candidate]
+        assert aggregate["accepted_not_recognized_by_frozen_evaluator"] == count
+        assert not any("omitted" in key or "omission" in key for key in aggregate)
+
+
 def test_committed_citation_counts_match_frozen_candidate_reports() -> None:
     rows = build_case_taxonomy(ROOT)
     summary = summarize_taxonomy(rows)

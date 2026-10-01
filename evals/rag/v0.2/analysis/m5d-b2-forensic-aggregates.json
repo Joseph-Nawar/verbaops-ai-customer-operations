@@ -2,8 +2,8 @@
   "answerable_cases": 72,
   "candidates": {
     "P0_CURRENT": {
-      "accepted_fact_omitted_from_final": 52,
       "accepted_fallbacks": 0,
+      "accepted_not_recognized_by_frozen_evaluator": 52,
       "citation_precision_answerable_only": {
         "denominator": 18,
         "numerator": 12,
@@ -46,8 +46,8 @@
       "tool_using_answerable_cases": 1
     },
     "P2_FAIL_CLOSED_CITATIONS": {
-      "accepted_fact_omitted_from_final": 56,
       "accepted_fallbacks": 8,
+      "accepted_not_recognized_by_frozen_evaluator": 56,
       "citation_precision_answerable_only": {
         "denominator": 70,
         "numerator": 48,
@@ -128,8 +128,8 @@
       "tool_using_answerable_cases": 6
     },
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED": {
-      "accepted_fact_omitted_from_final": 55,
       "accepted_fallbacks": 6,
+      "accepted_not_recognized_by_frozen_evaluator": 55,
       "citation_precision_answerable_only": {
         "denominator": 76,
         "numerator": 50,
