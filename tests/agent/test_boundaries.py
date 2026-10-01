@@ -48,6 +48,7 @@ def test_agent_state_contains_only_the_bounded_mutable_fields() -> None:
         "model_call_count",
         "tool_round_count",
         "tool_call_count",
+        "tool_path_entered",
         "validation_repair_count",
         "final_response",
         "failure",
@@ -55,6 +56,7 @@ def test_agent_state_contains_only_the_bounded_mutable_fields() -> None:
         "knowledge_evidence",
         "retrieval_invocation_id",
         "grounded_citations",
+        "p4_diagnostics",
     }
 
 

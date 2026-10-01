@@ -55,7 +55,7 @@ def evidence(key: str = "K1") -> RetrievalEvidence:
     )
 
 
-def response(content: str) -> GenerateResponse:
+def response(content: str | None) -> GenerateResponse:
     return GenerateResponse(
         content=content,
         metadata=ResponseMetadata(capability_alias=CapabilityAlias.AGENT_FAST),
@@ -85,6 +85,7 @@ def state(content: str) -> dict[str, object]:
         "model_call_count": 0,
         "tool_round_count": 0,
         "tool_call_count": 0,
+        "tool_path_entered": False,
         "validation_repair_count": 0,
         "final_response": None,
         "failure": None,

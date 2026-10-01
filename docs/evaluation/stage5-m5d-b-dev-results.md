@@ -1,6 +1,6 @@
 # Stage 5 M5D-B DEV Results
 
-**Status: COMPLETE - no grounding candidate qualifies.** P0, P2, and P3 completed all 96 DEV cases and were scored; each fails at least one frozen grounding quality floor. P1 remains execution-ineligible after a deterministic frozen agent-budget failure at 16/96 and was not scored. The exact final decision is `NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE`. No production change was made.
+**Status: NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE.** P0, P2, and P3 completed all 96 DEV cases and were scored; each fails at least one frozen grounding quality floor. P1 is execution-ineligible after a deterministic frozen agent-budget failure at 16/96. The later P4 candidate is execution-ineligible after a deterministic Groq response-format/tool-calling protocol incompatibility at 1/96 and was not scored. No production change was made.
 
 ## Canonical provenance
 
@@ -119,8 +119,17 @@ The final result is **`NO_GROUNDING_CANDIDATE_MEETS_M5D_QUALITY_GATE`**. P0 and 
 | P1_PROMPT_V3 | `EXECUTION_INELIGIBLE_AGENT_BUDGET_EXCEEDED`, 16/96 | `NOT_SCORED_INCOMPLETE_EXECUTION` |
 | P2_FAIL_CLOSED_CITATIONS | Complete, execution-eligible | `QUALITY_INELIGIBLE` |
 | P3_ONE_REPAIR_THEN_FAIL_CLOSED | Complete, execution-eligible | `QUALITY_INELIGIBLE` |
+| P4_EVIDENCE_LINKED_SINGLE_PASS | `P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY`, 1/96 | `NOT_SCORED_INCOMPLETE_EXECUTION` |
 
-The execution-eligibility interpretation was introduced after observing the deterministic P1 runtime failure; it was not preregistered as an additional quality metric. No frozen quality floor or tie rule changed. Stage 4 DEV regression was not run because no grounding candidate qualified.
+The execution-eligibility interpretation was introduced after observing the deterministic P1 runtime failure; it was not preregistered as an additional quality metric. No frozen quality floor or tie rule changed. Stage 4 DEV regression was not run because no grounding candidate qualified. P4 is not eligible for Stage 4 DEV or M5D-C.
+
+## P4 canonical execution closeout
+
+The provider-free implementation freeze was `77d04cd54143bd13b851ee2cbbe1f57766371fd0` (application-under-test and evaluation-harness SHA), with hosted CI run `36897816684` successful on that exact head. The single canonical run was `canonical-M0-P4-20261001T173102Z-31113cc8` (identity SHA256 `4a041a8f5966715dce3461064f4e964f5efb55162c06e283128cb5ecb0031647`) using the frozen G2 gate and threshold `0.2554669`.
+
+The run made two public API case requests and retained one observation, `m5d-v02-shipping-001` of 96. It stopped on `m5d-v02-shipping-002`: the public API returned HTTP 503 and the captured LiteLLM/Groq error was HTTP 400, `invalid_request_error`, parameter `response_format`, with message `json mode cannot be combined with tool/function calling`. This is a deterministic provider/protocol incompatibility, not a grounding quality failure or rate-limit event. No retry was made. Provider-internal request/retry count is unknown. The one recorded case did not enter P4 extractive mode and is retained as canonical execution evidence, not representative quality evidence.
+
+P4 is `P4_EXECUTION_INELIGIBLE_GROQ_RESPONSE_FORMAT_TOOL_CALLING_INCOMPATIBILITY`, incomplete and unscored. No partial quality metrics were calculated; this run provides no conclusion about whether P4 would pass any of the four grounding floors. No `report.json` was generated. The sanitized machine-readable closeout is [p4-closeout.json](../../evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P4-20261001T173102Z-31113cc8/p4-closeout.json). The P4 plan SHA256 is `2645e6430f7b936ecda089589213b2cb9828fdc4b23c526d885ff9c353617eee`; this is the separately frozen P4 plan and does not replace the historical P0-P3 plan provenance above.
 
 ## Model and provider
 

@@ -13,7 +13,7 @@ from verbaops.agent.errors import (
     AgentProtocolError,
     AgentUnavailableError,
 )
-from verbaops.agent.evaluation import AgentEvaluationProfile
+from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
@@ -32,6 +32,7 @@ from verbaops.conversations.domain import (
 )
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
+from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.llm.client import LLMClient
 from verbaops.llm.models import ChatMessage
 from verbaops.retrieval.grounding import CitationFinalizer
@@ -66,8 +67,16 @@ class AgentRuntime:
         retrieval_service: RetrievalService | None = None,
         citation_finalizer: CitationFinalizer | None = None,
         evaluation_profile: AgentEvaluationProfile | None = None,
+        p4_trace_store: P4TraceStore | None = None,
         deadline_seconds: float = 45.0,
     ) -> None:
+        is_p4 = bool(
+            evaluation_profile is not None
+            and evaluation_profile.grounding_candidate
+            is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        )
+        if is_p4 != (p4_trace_store is not None):
+            raise ValueError("P4 runtime requires an explicitly configured P4 trace store")
         self._conversation_service = conversation_service
         self._llm_client = llm_client
         self._commerce_client = commerce_client
@@ -76,6 +85,7 @@ class AgentRuntime:
         self._retrieval_service = retrieval_service
         self._citation_finalizer = citation_finalizer
         self._evaluation_profile = evaluation_profile
+        self._p4_trace_store = p4_trace_store
         self._deadline_seconds = deadline_seconds
 
     async def run_turn(
@@ -134,6 +144,11 @@ class AgentRuntime:
             final_response = final_state.get("final_response")
             if not isinstance(final_response, str) or not final_response.strip():
                 raise AgentProtocolError()
+            if self._p4_trace_store is not None:
+                diagnostics = final_state.get("p4_diagnostics")
+                if not isinstance(diagnostics, dict):
+                    raise AgentProtocolError()
+                self._p4_trace_store.write(turn_start.agent_run.id, diagnostics)
             retrieval_invocation_id = final_state.get("retrieval_invocation_id")
             grounded_citations = final_state.get("grounded_citations", [])
             if retrieval_invocation_id is not None or grounded_citations:
@@ -212,6 +227,7 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "model_call_count": 0,
         "tool_round_count": 0,
         "tool_call_count": 0,
+        "tool_path_entered": False,
         "validation_repair_count": 0,
         "final_response": None,
         "failure": None,

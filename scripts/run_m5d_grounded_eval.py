@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -13,22 +14,29 @@ from typing import Any
 import httpx
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from verbaops.evaluation.m5d_b2_preregistration import (
+    audit_m5d_b2_preregistration,
+    require_p4_inference_authorized,
+)
 from verbaops.evaluation.m5d_run_identity import (
     CANONICAL_APPLICATION_SHA,
     PRE_EXPERIMENT_SHA,
     artifact_reference,
     bind_checkpoint_identity,
     build_agent_evaluation_profile,
+    build_p4_run_identity,
     load_checkpoint_records,
     require_canonical_revisions,
     require_canonical_run_directory,
     run_identity_sha256,
     verify_artifact_references,
 )
+from verbaops.evaluation.p4_trace import verify_p4_trace_records
 from verbaops.evaluation.rag_grounding import (
     M5dCaseExecutionError,
     run_grounded_evaluation,
     score_grounded_records,
+    score_p4_grounded_records,
 )
 from verbaops.evaluation.rag_v02 import (
     audit_rag_v02,
@@ -46,19 +54,71 @@ GROUNDING_CANDIDATES = {
     "P1_PROMPT_V3",
     "P2_FAIL_CLOSED_CITATIONS",
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
+    "P4_EVIDENCE_LINKED_SINGLE_PASS",
 }
+
+
+def _load_dev_cases_without_holdout(dataset_path: Path) -> tuple[Any, ...]:
+    """Parse only DEV JSONL rows for the P4 canonical execution path."""
+
+    from verbaops.evaluation.rag_v02 import RagV02Case
+
+    cases: list[Any] = []
+    try:
+        with dataset_path.open(encoding="utf-8") as dataset:
+            for line_number, line in enumerate(dataset, 1):
+                if not re.search(r'"split"\s*:\s*"dev"', line):
+                    continue
+                try:
+                    cases.append(RagV02Case.model_validate_json(line))
+                except ValueError as error:
+                    raise ValueError(f"rag-v0.2 DEV line {line_number} is invalid") from error
+                if len(cases) == 96:
+                    break
+    except OSError as error:
+        raise ValueError("rag-v0.2 DEV dataset is unavailable") from error
+    return tuple(cases)
+
+
+def _load_ci_jobs(path: Path | None) -> dict[str, str]:
+    if path is None:
+        raise ValueError("P4 requires the exact hosted CI job-conclusions JSON")
+    try:
+        jobs = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("P4 hosted CI job-conclusions JSON is invalid") from error
+    if not isinstance(jobs, dict) or any(
+        not isinstance(name, str) or not isinstance(result, str) for name, result in jobs.items()
+    ):
+        raise ValueError("P4 hosted CI job-conclusions JSON must map job names to conclusions")
+    return jobs
 
 
 async def _run(args: argparse.Namespace) -> None:
     guard_rag_v02_split(args.split)
     if args.split != "dev":
         raise ValueError("M5D grounded runner executes only --split dev")
-    audit = audit_rag_v02(ROOT)
-    cases = tuple(
-        case
-        for case in load_rag_v02_cases(ROOT / "evals/rag/v0.2/questions.jsonl")
-        if case.split == "dev"
-    )
+    is_p4 = args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+    dataset_path = ROOT / "evals/rag/v0.2/questions.jsonl"
+    plan_path = ROOT / "evals/rag/v0.2/m5d-b2-experiment-plan.json"
+    knowledge_manifest_path = ROOT / "knowledge/novacommerce/manifest.json"
+    if is_p4:
+        audit_m5d_b2_preregistration(ROOT)
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        dataset_sha = sha256_file(dataset_path)
+        knowledge_manifest_sha = sha256_file(knowledge_manifest_path)
+        if dataset_sha != plan["dataset_sha256"]:
+            raise ValueError("P4 dataset SHA256 differs from the frozen experiment plan")
+        if knowledge_manifest_sha != plan["knowledge_manifest_sha256"]:
+            raise ValueError("P4 knowledge manifest SHA256 differs from the frozen experiment plan")
+        cases = _load_dev_cases_without_holdout(dataset_path)
+        dataset_version = plan["benchmark_version"]
+    else:
+        audit = audit_rag_v02(ROOT)
+        cases = tuple(case for case in load_rag_v02_cases(dataset_path) if case.split == "dev")
+        dataset_sha = audit.dataset_sha256
+        knowledge_manifest_sha = audit.knowledge_manifest_sha256
+        dataset_version = audit.dataset_version
     if len(cases) != 96:
         raise ValueError("rag-v0.2 DEV must contain exactly 96 cases")
     if not args.database_url or not args.token:
@@ -67,6 +127,8 @@ async def _run(args: argparse.Namespace) -> None:
         raise ValueError("grounding candidate is not preregistered")
     if args.model_candidate != "M0":
         raise ValueError("only M0 is executable in this local M5D run")
+    if is_p4 and (args.gate != "G2_TOP_EVIDENCE_CROSS_ENCODER" or args.threshold != 0.2554669):
+        raise ValueError("P4 requires the frozen G2 gate and threshold")
     gate = EvidenceGate(args.gate)
     gate_report = json.loads(args.gate_report.read_text(encoding="utf-8"))
     selected_gate = gate_report.get("selected_gate")
@@ -84,24 +146,31 @@ async def _run(args: argparse.Namespace) -> None:
     if gate_report.get("holdout_executed") is not False:
         raise ValueError("gate report does not attest DEV-only execution")
 
-    evaluated_git_sha, evaluation_harness_sha = require_canonical_revisions(
-        ROOT,
-        application_sha=CANONICAL_APPLICATION_SHA,
-    )
     gate_identity = gate_report.get("run_identity")
     if (
         not isinstance(gate_identity, dict)
-        or gate_report.get("evaluated_git_sha") != evaluated_git_sha
         or gate_report.get("pre_experiment_sha") != PRE_EXPERIMENT_SHA
-        or gate_identity.get("run_id") != gate_report.get("run_id")
     ):
         raise ValueError("gate report is not bound to the committed canonical implementation")
+    if gate_identity.get("run_id") != gate_report.get("run_id"):
+        raise ValueError("gate report run identity does not match its run ID")
+    if is_p4:
+        if gate_report.get("evaluated_git_sha") != CANONICAL_APPLICATION_SHA:
+            raise ValueError("selected G2 report is not bound to the frozen M5D-B application")
+    else:
+        evaluated_git_sha, evaluation_harness_sha = require_canonical_revisions(
+            ROOT,
+            application_sha=CANONICAL_APPLICATION_SHA,
+        )
+        if gate_report.get("evaluated_git_sha") != evaluated_git_sha:
+            raise ValueError("gate report is not bound to the committed canonical implementation")
     if gate_report.get("run_identity_sha256") != run_identity_sha256(gate_identity):
         raise ValueError("gate report run identity checksum is invalid")
     gate_artifacts = gate_report.get("artifacts")
     if not isinstance(gate_artifacts, list):
         raise ValueError("gate report is missing hash-bound artifacts")
     verify_artifact_references(ROOT, gate_artifacts)
+    gate_input_refs = [artifact_reference(ROOT, args.gate_report), *gate_artifacts] if is_p4 else []
     require_canonical_run_directory(ROOT, args.run_dir, run_id=args.run_id)
     profile = build_agent_evaluation_profile(
         args.grounding,
@@ -109,30 +178,59 @@ async def _run(args: argparse.Namespace) -> None:
         evidence_gate_threshold=args.threshold,
         model_candidate=args.model_candidate,
     )
-    run_identity = {
-        "benchmark_version": audit.dataset_version,
-        "split": "dev",
-        "dataset_sha256": audit.dataset_sha256,
-        "knowledge_manifest_sha256": audit.knowledge_manifest_sha256,
-        "experiment_plan_sha256": sha256_file(ROOT / "evals/rag/v0.2/experiment-plan.json"),
-        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
-        "evaluated_git_sha": evaluated_git_sha,
-        "evaluation_harness_sha": evaluation_harness_sha,
-        "evidence_gate": gate.value,
-        "evidence_gate_threshold": args.threshold,
-        "grounding_candidate": args.grounding,
-        "model_candidate": args.model_candidate,
-        "retrieval_profile_version": PRODUCTION_RETRIEVAL_PROFILE.version,
-        "agent_prompt_version": f"text-agent-system-{profile.prompt_version}",
-        "agent_graph_version": profile.graph_version,
-        "model_revision": "groq/openai/gpt-oss-120b"
-        if args.model_candidate == "M0"
-        else "M1-local",
-        "run_id": args.run_id,
-    }
+    if is_p4:
+        job_conclusions = _load_ci_jobs(args.hosted_ci_jobs)
+        require_p4_inference_authorized(
+            repo_root=ROOT,
+            run_id=args.run_id,
+            freeze_commit_sha=args.freeze_commit_sha,
+            hosted_ci_run_id=args.hosted_ci_run_id,
+            hosted_ci_head_sha=args.hosted_ci_head_sha,
+            hosted_ci_conclusion=args.hosted_ci_conclusion,
+            job_conclusions=job_conclusions,
+        )
+        run_identity = build_p4_run_identity(
+            ROOT,
+            profile=profile,
+            run_id=args.run_id,
+            freeze_commit_sha=args.freeze_commit_sha,
+            hosted_ci_run_id=args.hosted_ci_run_id,
+            hosted_ci_head_sha=args.hosted_ci_head_sha,
+        )
+        evaluated_git_sha = str(run_identity["evaluated_git_sha"])
+        evaluation_harness_sha = str(run_identity["evaluation_harness_sha"])
+        experiment_plan_sha = str(run_identity["experiment_plan_sha256"])
+    else:
+        experiment_plan_sha = sha256_file(ROOT / "evals/rag/v0.2/experiment-plan.json")
+        run_identity = {
+            "benchmark_version": dataset_version,
+            "split": "dev",
+            "dataset_sha256": dataset_sha,
+            "knowledge_manifest_sha256": knowledge_manifest_sha,
+            "experiment_plan_sha256": experiment_plan_sha,
+            "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+            "evaluated_git_sha": evaluated_git_sha,
+            "evaluation_harness_sha": evaluation_harness_sha,
+            "evidence_gate": gate.value,
+            "evidence_gate_threshold": args.threshold,
+            "grounding_candidate": args.grounding,
+            "model_candidate": args.model_candidate,
+            "retrieval_profile_version": PRODUCTION_RETRIEVAL_PROFILE.version,
+            "agent_prompt_version": f"text-agent-system-{profile.prompt_version}",
+            "agent_graph_version": profile.graph_version,
+            "model_revision": "groq/openai/gpt-oss-120b"
+            if args.model_candidate == "M0"
+            else "M1-local",
+            "run_id": args.run_id,
+        }
     args.run_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = args.run_dir / "grounded_cases.jsonl"
     identity_digest = bind_checkpoint_identity(checkpoint, run_identity)
+    if is_p4:
+        existing_records = load_checkpoint_records(
+            checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
+        )
+        verify_p4_trace_records(ROOT, args.run_dir, args.run_id, existing_records.values())
     engine = create_async_engine(args.database_url, pool_pre_ping=True, echo=False)
     sessions = async_sessionmaker(engine, expire_on_commit=False)
     secrets_to_hide = tuple(
@@ -162,6 +260,12 @@ async def _run(args: argparse.Namespace) -> None:
                 sessions,
                 grounding_candidate=args.grounding,
                 gate_threshold=args.threshold,
+                p4_trace_run_directory=(
+                    args.run_dir if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS" else None
+                ),
+                p4_trace_run_id=(
+                    args.run_id if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS" else None
+                ),
             )
             new_records = await run_grounded_evaluation(
                 cases,
@@ -177,6 +281,14 @@ async def _run(args: argparse.Namespace) -> None:
     finally:
         await engine.dispose()
     if blocked_error is not None:
+        p4_trace_refs: list[dict[str, str]] = []
+        if is_p4:
+            interrupted_records = load_checkpoint_records(
+                checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
+            )
+            p4_trace_refs = verify_p4_trace_records(
+                ROOT, args.run_dir, args.run_id, interrupted_records.values()
+            )
         _write_interrupted_summary(
             args,
             cases=cases,
@@ -184,13 +296,22 @@ async def _run(args: argparse.Namespace) -> None:
             identity_digest=identity_digest,
             evaluated_git_sha=evaluated_git_sha,
             error=blocked_error,
+            p4_trace_refs=p4_trace_refs,
+            gate_input_refs=gate_input_refs if is_p4 else None,
         )
         raise blocked_error
     record_map = load_checkpoint_records(
         checkpoint, run_identity, expected_case_ids={case.case_id for case in cases}
     )
     records = [record_map[case.case_id] for case in cases if case.case_id in record_map]
-    report = score_grounded_records(cases, records, args.threshold)
+    p4_trace_refs = (
+        verify_p4_trace_records(ROOT, args.run_dir, args.run_id, records) if is_p4 else []
+    )
+    report = (
+        score_p4_grounded_records(cases, records, args.threshold, repo_root=ROOT)
+        if args.grounding == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+        else score_grounded_records(cases, records, args.threshold)
+    )
     costs = [float(record["cost_usd"]) for record in records if record.get("cost_usd") is not None]
     report["total_cost_usd_over_costed_observations"] = sum(costs) if costs else None
     report["mean_cost_usd_over_costed_observations"] = sum(costs) / len(costs) if costs else None
@@ -201,12 +322,12 @@ async def _run(args: argparse.Namespace) -> None:
         "canonical": True,
         "run_identity": run_identity,
         "run_identity_sha256": identity_digest,
-        "dataset_version": audit.dataset_version,
+        "dataset_version": dataset_version,
         "split": "dev",
         "case_count": len(cases),
-        "dataset_sha256": audit.dataset_sha256,
-        "knowledge_manifest_sha256": audit.knowledge_manifest_sha256,
-        "experiment_plan_sha256": sha256_file(ROOT / "evals/rag/v0.2/experiment-plan.json"),
+        "dataset_sha256": dataset_sha,
+        "knowledge_manifest_sha256": knowledge_manifest_sha,
+        "experiment_plan_sha256": experiment_plan_sha,
         "selected_gate": gate.value,
         "threshold": args.threshold,
         "grounding_candidate": args.grounding,
@@ -236,6 +357,9 @@ async def _run(args: argparse.Namespace) -> None:
     correction_path = args.run_dir / "provenance-correction.json"
     if correction_path.is_file():
         metadata["artifacts"].append(artifact_reference(ROOT, correction_path))
+    metadata["artifacts"].extend(p4_trace_refs)
+    if is_p4:
+        metadata["input_gate_artifacts"] = gate_input_refs
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -260,6 +384,9 @@ async def _run(args: argparse.Namespace) -> None:
     }
     if correction_path.is_file():
         summary["artifacts"].append(artifact_reference(ROOT, correction_path))
+    summary["artifacts"].extend(p4_trace_refs)
+    if is_p4:
+        summary["input_gate_artifacts"] = gate_input_refs
     (args.run_dir / "run-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -302,6 +429,8 @@ def _write_interrupted_summary(
     identity_digest: str,
     evaluated_git_sha: str,
     error: M5dCaseExecutionError,
+    p4_trace_refs: list[dict[str, str]] | None = None,
+    gate_input_refs: list[dict[str, str]] | None = None,
 ) -> None:
     checkpoint = args.run_dir / "grounded_cases.jsonl"
     identity_path = checkpoint.with_name(f"{checkpoint.name}.identity.json")
@@ -344,6 +473,9 @@ def _write_interrupted_summary(
     correction_path = args.run_dir / "provenance-correction.json"
     if correction_path.is_file():
         metadata["artifacts"].append(artifact_reference(ROOT, correction_path))
+    metadata["artifacts"].extend(p4_trace_refs or [])
+    if gate_input_refs is not None:
+        metadata["input_gate_artifacts"] = gate_input_refs
     metadata_path.write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -367,6 +499,9 @@ def _write_interrupted_summary(
     }
     if correction_path.is_file():
         summary["artifacts"].append(artifact_reference(ROOT, correction_path))
+    summary["artifacts"].extend(p4_trace_refs or [])
+    if gate_input_refs is not None:
+        summary["input_gate_artifacts"] = gate_input_refs
     (args.run_dir / "run-summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -387,6 +522,11 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, required=True)
     parser.add_argument("--grounding", choices=sorted(GROUNDING_CANDIDATES), required=True)
     parser.add_argument("--model-candidate", choices=("M0", "M1"), default="M0")
+    parser.add_argument("--freeze-commit-sha")
+    parser.add_argument("--hosted-ci-run-id", type=int)
+    parser.add_argument("--hosted-ci-head-sha")
+    parser.add_argument("--hosted-ci-conclusion")
+    parser.add_argument("--hosted-ci-jobs", type=Path)
     parser.add_argument("--inter-case-delay-seconds", type=float, default=0.0)
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     args = parser.parse_args()

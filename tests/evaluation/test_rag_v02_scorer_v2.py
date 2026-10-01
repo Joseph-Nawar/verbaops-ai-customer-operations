@@ -266,7 +266,7 @@ def test_tampered_p4_schema_is_rejected(tmp_path: Path) -> None:
         freeze.audit_m5d_b2_preregistration(copied_root)
 
 
-def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() -> None:
+def test_frozen_p4_contract_remains_valid_after_canonical_closeout() -> None:
     freeze = _module(FREEZE_MODULE)
     audit = freeze.audit_m5d_b2_preregistration(ROOT)
     plan = json.loads(
@@ -276,7 +276,7 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
     assert audit["candidate_id"] == "P4_EVIDENCE_LINKED_SINGLE_PASS"
     assert audit["split"] == "dev"
     assert audit["case_count"] == 96
-    assert audit["canonical_p4_results_present"] is False
+    assert audit["canonical_p4_results_present"] is True
     assert audit["release_holdout_accessed"] is False
     assert audit["selection_json_present"] is False
     assert plan["frozen_environment"]["evidence_gate"] == "G2_TOP_EVIDENCE_CROSS_ENCODER"
@@ -425,18 +425,29 @@ def test_p4_schema_and_plan_freeze_the_literal_extractive_chain_without_answer_k
     ]
 
 
-def test_future_p4_inference_requires_green_ci_on_exact_freeze_commit() -> None:
+def test_future_p4_inference_requires_green_ci_on_exact_freeze_commit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     freeze = _module(FREEZE_MODULE)
+    copied_root = _copy_audit_repo(tmp_path / "repo")
     commit_sha = "a" * 40
     jobs = dict.fromkeys(freeze.REQUIRED_HOSTED_CI_JOBS, "success")
     authorization = {
-        "repo_root": ROOT,
+        "repo_root": copied_root,
+        "run_id": "canonical-M0-P4-authorization-test",
         "freeze_commit_sha": commit_sha,
         "hosted_ci_run_id": 123,
         "hosted_ci_head_sha": commit_sha,
         "hosted_ci_conclusion": "success",
         "job_conclusions": jobs,
     }
+    from verbaops.evaluation import m5d_run_identity
+
+    monkeypatch.setattr(
+        m5d_run_identity,
+        "require_committed_behavior",
+        lambda *_args, **_kwargs: commit_sha,
+    )
 
     with pytest.raises(ValueError, match="hosted CI run ID"):
         freeze.require_p4_inference_authorized(**{**authorization, "hosted_ci_run_id": None})
@@ -473,6 +484,7 @@ def test_future_inference_authorization_reaudits_scorer_implementation(
     with pytest.raises(scorer.ScorerV2Error, match="scorer implementation SHA256 mismatch"):
         freeze.require_p4_inference_authorized(
             repo_root=copied_root,
+            run_id="canonical-M0-P4-scorer-audit-test",
             freeze_commit_sha=commit_sha,
             hosted_ci_run_id=123,
             hosted_ci_head_sha=commit_sha,

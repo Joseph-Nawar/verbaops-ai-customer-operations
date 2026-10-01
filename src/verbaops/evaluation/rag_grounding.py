@@ -15,11 +15,14 @@ from verbaops.evaluation.m5d_run_identity import (
     bind_checkpoint_identity,
     load_checkpoint_records,
 )
+from verbaops.evaluation.p4_trace import frozen_p4_observability_contract
 from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_score
 from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
 from verbaops.evaluation.rag_runner import score_meets_threshold
 from verbaops.evaluation.rag_v02 import RagV02Case, recognize_labeled_fact_assertion
+from verbaops.evaluation.rag_v02_scorer_impl import classify_labeled_fact_assertion
+from verbaops.evaluation.rag_v02_scorer_v2 import audit_scorer_v2
 from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK
 
 GroundedCase = TypeVar("GroundedCase", RagCase, RagV02Case, contravariant=True)
@@ -32,6 +35,7 @@ class GroundedExecutionAdapter(Protocol[GroundedCase]):
 _SENSITIVE_KEY_MARKERS = ("api_key", "access_token", "authorization", "credential", "password")
 _BEARER_PATTERN = re.compile(r"(?i)(bearer\s+)[^\s,;]+")
 _SECRET_PATTERN = re.compile(r"\bsk-[A-Za-z0-9_-]{8,}\b")
+_P4_CLAIM_DIAGNOSTIC_FIELDS = {"claim_text", "evidence_handle", "supporting_excerpt"}
 
 
 class M5dCaseExecutionError(RuntimeError):
@@ -300,9 +304,328 @@ def score_grounded_records(
     }
 
 
+def score_p4_grounded_records(
+    cases: Sequence[RagV02Case],
+    records: Sequence[Mapping[str, Any]],
+    threshold: float,
+    *,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Score a complete P4 record set with one frozen scorer-v2 assessment per fact."""
+
+    if len(cases) != 96 or len(records) != 96 or any(case.split != "dev" for case in cases):
+        raise ValueError("P4 scoring requires all 96 complete DEV cases")
+    if any(case.dataset_version != "rag-v0.2" for case in cases):
+        raise ValueError("P4 scorer-v2 accepts only rag-v0.2 cases")
+    case_ids = [case.case_id for case in cases]
+    record_ids = [str(record.get("case_id", "")) for record in records]
+    if len(set(case_ids)) != len(case_ids) or len(set(record_ids)) != len(record_ids):
+        raise ValueError("P4 case IDs and checkpoint records must be unique")
+    if set(case_ids) != set(record_ids):
+        raise ValueError("P4 cannot score an incomplete or unexpected record set")
+
+    audit = audit_scorer_v2(repo_root)
+    fixture_rows = audit["fixtures"].get("facts")
+    if not isinstance(fixture_rows, list):
+        raise ValueError("audited scorer-v2 fixtures have no fact list")
+    fixture_by_key: dict[str, Mapping[str, Any]] = {}
+    for row in fixture_rows:
+        if not isinstance(row, Mapping):
+            raise ValueError("audited scorer-v2 fact fixture is malformed")
+        key = f"{row.get('case_id')}::{row.get('fact_id')}"
+        if key in fixture_by_key:
+            raise ValueError("audited scorer-v2 fact fixture keys are duplicated")
+        fixture_by_key[key] = row
+
+    by_case = {str(record["case_id"]): record for record in records}
+    citation_numerator = 0
+    citation_denominator = 0
+    recognized_count = 0
+    supported_count = 0
+    expected_count = 0
+    nonrecognition_count = 0
+    correct_gate_count = 0
+    accepted_evidence_turns = 0
+    accepted_evidence_with_citations = 0
+    safe_fallback_count = 0
+    latencies: list[float] = []
+    cost_observations = 0
+    trace_counts = {
+        "extractive_mode_case_count": 0,
+        "no_evidence_path_case_count": 0,
+        "tool_path_case_count": 0,
+        "malformed_structured_response_count": 0,
+        "proposed_claim_count": 0,
+        "accepted_claim_count": 0,
+        "invalid_handle_rejection_count": 0,
+        "excerpt_mismatch_rejection_count": 0,
+        "claim_not_substring_rejection_count": 0,
+        "all_claims_rejected_fallback_count": 0,
+    }
+
+    for case in cases:
+        record = by_case[case.case_id]
+        citations = [str(item) for item in record.get("public_citations", [])]
+        case_citations = citation_precision(citations, _judgments(case))
+        citation_numerator += case_citations.numerator
+        citation_denominator += case_citations.denominator
+        answer = str(record.get("final_answer", ""))
+        safe_fallback_count += int(answer.strip() == SAFE_GROUNDING_FALLBACK)
+        cited_locators = set(citations)
+
+        for fact in case.expected_facts:
+            key = f"{case.case_id}::{fact.fact_id}"
+            fixture = fixture_by_key.get(key)
+            if fixture is None:
+                raise ValueError(f"P4 scorer-v2 fixture is missing benchmark fact {key}")
+            _validate_p4_fixture_for_fact(fixture, case, fact, key)
+            paraphrases = fixture["positive_paraphrases"]
+            assessment = classify_labeled_fact_assertion(
+                answer,
+                list(fact.aliases),
+                positive_paraphrases=paraphrases,
+            )
+            expected_count += 1
+            if not assessment.recognized:
+                nonrecognition_count += 1
+                continue
+            recognized_count += 1
+            supporting = {
+                (
+                    f"{locator.document_slug}|{locator.document_version}|"
+                    f"{locator.section}|{locator.chunk_index}"
+                )
+                for locator in fact.supporting_locators
+            }
+            supported_count += int(bool(cited_locators & supporting))
+
+        top_score = record.get("top_confidence_score")
+        accepted = (
+            score_meets_threshold(float(top_score), threshold) if top_score is not None else False
+        )
+        correct_gate_count += int(accepted == case.answerable)
+        selected_evidence = record.get("selected_evidence", [])
+        tool_call_count = record.get("tool_call_count", 0)
+        if (
+            accepted
+            and isinstance(selected_evidence, list)
+            and selected_evidence
+            and tool_call_count == 0
+        ):
+            accepted_evidence_turns += 1
+            accepted_evidence_with_citations += int(bool(citations))
+
+        latency = record.get("answer_latency_ms")
+        if isinstance(latency, int | float) and not isinstance(latency, bool):
+            latencies.append(float(latency))
+        cost_observations += int(record.get("cost_usd") is not None)
+        _accumulate_p4_trace_counts(trace_counts, record.get("p4_diagnostics"))
+
+    return {
+        "scorer_version": "rag-v0.2-scorer-v2",
+        "citation_precision": MetricResult(
+            numerator=citation_numerator,
+            denominator=citation_denominator,
+            value=(citation_numerator / citation_denominator if citation_denominator else None),
+        ).as_dict(),
+        "groundedness": MetricResult(
+            numerator=supported_count,
+            denominator=recognized_count,
+            value=(supported_count / recognized_count if recognized_count else None),
+        ).as_dict(),
+        "unsupported_claim_rate": (
+            (recognized_count - supported_count) / recognized_count if recognized_count else None
+        ),
+        "expected_fact_coverage": MetricResult(
+            numerator=recognized_count,
+            denominator=expected_count,
+            value=(recognized_count / expected_count if expected_count else None),
+        ).as_dict(),
+        "retrieval_evidence_gate_accuracy": MetricResult(
+            numerator=correct_gate_count,
+            denominator=len(cases),
+            value=(correct_gate_count / len(cases) if cases else None),
+        ).as_dict(),
+        "answer_latency_p50_ms": percentile(latencies, 0.5),
+        "answer_latency_p95_ms": percentile(latencies, 0.95),
+        "cost_metadata_coverage": MetricResult(
+            numerator=cost_observations,
+            denominator=len(cases),
+            value=(cost_observations / len(cases) if cases else None),
+        ).as_dict(),
+        "accepted_evidence_citation_compliance": MetricResult(
+            numerator=accepted_evidence_with_citations,
+            denominator=accepted_evidence_turns,
+            value=(
+                accepted_evidence_with_citations / accepted_evidence_turns
+                if accepted_evidence_turns
+                else None
+            ),
+        ).as_dict(),
+        "safe_fallback_count": safe_fallback_count,
+        "safe_fallback_rate": safe_fallback_count / len(cases) if cases else None,
+        "repair_attempts": 0,
+        "repair_successes": 0,
+        "repair_failures": 0,
+        "repair_model_latency_p50_ms": None,
+        "repair_model_latency_p95_ms": None,
+        "repair_cost_total_usd": None,
+        "repair_cost_mean_usd_over_costed_attempts": None,
+        "repair_cost_observations": 0,
+        "recognized_fact_units": recognized_count,
+        "unsupported_fact_units": recognized_count - supported_count,
+        "scorer_v2_nonrecognition_count": nonrecognition_count,
+        "p4_diagnostics": {
+            **trace_counts,
+            "fabricated_or_non_supplied_evidence_handle_count": trace_counts[
+                "invalid_handle_rejection_count"
+            ],
+            "zero_fabricated_or_non_supplied_evidence_handles": (
+                trace_counts["invalid_handle_rejection_count"] == 0
+            ),
+        },
+    }
+
+
+def _validate_p4_fixture_for_fact(
+    fixture: Mapping[str, Any], case: RagV02Case, fact: Any, key: str
+) -> None:
+    if fixture.get("case_id") != case.case_id or fixture.get("fact_id") != fact.fact_id:
+        raise ValueError(f"P4 scorer-v2 fixture key does not match benchmark fact {key}")
+    if fixture.get("statement") != fact.statement:
+        raise ValueError(f"P4 scorer-v2 fixture statement differs from benchmark fact {key}")
+    if fixture.get("benchmark_aliases") != list(fact.aliases):
+        raise ValueError(f"P4 scorer-v2 fixture aliases differ from benchmark fact {key}")
+    locator = fixture.get("supporting_locator")
+    valid_locators = [item.model_dump() for item in fact.supporting_locators]
+    if not isinstance(locator, dict) or locator not in valid_locators:
+        raise ValueError(f"P4 scorer-v2 fixture locator differs from benchmark fact {key}")
+    if fixture.get("category") != case.category:
+        raise ValueError(f"P4 scorer-v2 fixture category differs from benchmark fact {key}")
+    paraphrases = fixture.get("positive_paraphrases")
+    if (
+        not isinstance(paraphrases, list)
+        or not paraphrases
+        or any(not isinstance(item, str) or not item.strip() for item in paraphrases)
+    ):
+        raise ValueError(f"P4 scorer-v2 fixture paraphrases are invalid for benchmark fact {key}")
+
+
+def _accumulate_p4_trace_counts(counts: dict[str, int], raw: Any) -> None:
+    if not isinstance(raw, Mapping):
+        raise ValueError("P4 scorer requires validated per-case trace diagnostics")
+    required_fields, allowed_reasons = frozen_p4_observability_contract()
+    if set(raw) != required_fields:
+        raise ValueError("P4 scorer diagnostics do not match the frozen observability contract")
+    active = raw.get("p4_extractive_mode_active")
+    reason = raw.get("p4_extractive_mode_reason")
+    tool_path = raw.get("tool_path_entered")
+    deactivated = raw.get("p4_extractive_mode_deactivated_after_tool")
+    if (
+        not isinstance(active, bool)
+        or not isinstance(tool_path, bool)
+        or not isinstance(deactivated, bool)
+        or deactivated != tool_path
+    ):
+        raise ValueError("P4 per-case trace mode diagnostics are malformed")
+    if not isinstance(reason, str) or reason not in allowed_reasons:
+        raise ValueError("P4 per-case trace mode reason is malformed")
+    rejection_projection = raw.get("deterministic_rejection_reason_per_claim")
+    expected_reason = (
+        "terminal_tool_answer_bypassed_validator"
+        if tool_path
+        else (
+            "malformed_or_invalid_structured_knowledge_output"
+            if active and raw.get("parse_success") is False
+            else "all_claims_rejected_safe_fallback"
+            if active
+            and raw.get("parse_success") is True
+            and isinstance(rejection_projection, list)
+            and all(value is not None for value in rejection_projection)
+            else "terminal_knowledge_answer_validated"
+            if active
+            else "no_selected_knowledge_evidence"
+        )
+    )
+    if reason != expected_reason or (active and tool_path):
+        raise ValueError("P4 terminal mode diagnostics are inconsistent")
+    counts["extractive_mode_case_count"] += int(active)
+    counts["no_evidence_path_case_count"] += int(reason == "no_selected_knowledge_evidence")
+    counts["tool_path_case_count"] += int(tool_path)
+    if not active:
+        if (
+            raw.get("raw_structured_model_response") is not None
+            or raw.get("parse_success") is not None
+            or raw.get("parse_failure_reason") is not None
+            or raw.get("proposed_claims") != []
+            or raw.get("proposed_evidence_handle_per_claim") != []
+            or raw.get("proposed_excerpt_per_claim") != []
+            or raw.get("handle_validation_result_per_claim") != []
+            or raw.get("excerpt_validation_result_per_claim") != []
+            or raw.get("deterministic_rejection_reason_per_claim") != []
+            or raw.get("rendered_final_claims") != ""
+            or raw.get("fallback_used") is not False
+            or raw.get("fallback_reason") is not None
+        ):
+            raise ValueError("P4 inactive-mode diagnostics contain response data")
+        return
+    if not isinstance(raw.get("parse_success"), bool):
+        raise ValueError("P4 per-case parse diagnostics are malformed")
+    counts["malformed_structured_response_count"] += int(not raw["parse_success"])
+    proposed = raw.get("proposed_claims")
+    handles = raw.get("proposed_evidence_handle_per_claim")
+    excerpts = raw.get("proposed_excerpt_per_claim")
+    handle_results = raw.get("handle_validation_result_per_claim")
+    excerpt_results = raw.get("excerpt_validation_result_per_claim")
+    rejection_reasons = raw.get("deterministic_rejection_reason_per_claim")
+    if (
+        not isinstance(proposed, list)
+        or not isinstance(handles, list)
+        or not isinstance(excerpts, list)
+        or not isinstance(handle_results, list)
+        or not isinstance(excerpt_results, list)
+        or not isinstance(rejection_reasons, list)
+    ):
+        raise ValueError("P4 per-case claim diagnostics are malformed")
+    if any(
+        not isinstance(claim, Mapping)
+        or set(claim) != _P4_CLAIM_DIAGNOSTIC_FIELDS
+        or any(not isinstance(claim[field], str) for field in _P4_CLAIM_DIAGNOSTIC_FIELDS)
+        for claim in proposed
+    ):
+        raise ValueError("P4 per-case proposed claims are malformed")
+    if any(
+        len(items) != len(proposed)
+        for items in (handles, excerpts, handle_results, excerpt_results, rejection_reasons)
+    ):
+        raise ValueError("P4 per-case claim diagnostic arrays are inconsistent")
+    if handles != [claim["evidence_handle"] for claim in proposed] or excerpts != [
+        claim["supporting_excerpt"] for claim in proposed
+    ]:
+        raise ValueError("P4 per-case projection arrays do not match proposed claims")
+    if any(not isinstance(value, bool) for value in handle_results):
+        raise ValueError("P4 per-case handle validations are malformed")
+    accepted_count = sum(value is None for value in rejection_reasons)
+    counts["proposed_claim_count"] += len(proposed)
+    counts["accepted_claim_count"] += accepted_count
+    counts["invalid_handle_rejection_count"] += sum(
+        reason == "invalid_handle" for reason in rejection_reasons
+    )
+    counts["excerpt_mismatch_rejection_count"] += sum(
+        reason == "excerpt_mismatch" for reason in rejection_reasons
+    )
+    counts["claim_not_substring_rejection_count"] += sum(
+        reason == "claim_not_substring" for reason in rejection_reasons
+    )
+    counts["all_claims_rejected_fallback_count"] += int(
+        reason == "all_claims_rejected_safe_fallback"
+    )
+
+
 __all__ = [
     "GroundedExecutionAdapter",
     "M5dCaseExecutionError",
     "run_grounded_evaluation",
     "score_grounded_records",
+    "score_p4_grounded_records",
 ]

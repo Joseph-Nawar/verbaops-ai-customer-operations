@@ -16,6 +16,8 @@ from verbaops.agent.errors import (
     AgentUnavailableError,
 )
 from verbaops.agent.evaluation import GroundingCandidate
+from verbaops.agent.p4_grounding import empty_p4_response_diagnostics, finalize_p4_response
+from verbaops.agent.p4_models import P4Response
 from verbaops.agent.prompts import load_system_prompt
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
@@ -39,6 +41,7 @@ from verbaops.llm.models import (
     ChatMessage,
     GenerateRequest,
     ResponseMetadata,
+    StructuredResponse,
 )
 from verbaops.llm.models import (
     ToolDefinition as LLMToolDefinition,
@@ -110,6 +113,11 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         messages=tuple(_request_messages(state, context)),
         tools=tuple(_tool_schemas(context)),
         tool_choice="auto",
+        response_format=(
+            StructuredResponse.response_format(P4Response)
+            if _p4_extractive_mode_active(state, context)
+            else None
+        ),
     )
     try:
         response = await context.llm_client.generate(request)
@@ -132,7 +140,12 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         raise AgentUnavailableError() from None
 
     content = response.content
-    if not response.tool_calls and (content is None or not content.strip()):
+    p4_extractive_mode_active = _p4_extractive_mode_active(state, context)
+    if (
+        not response.tool_calls
+        and (content is None or not content.strip())
+        and not p4_extractive_mode_active
+    ):
         raise AgentProtocolError()
 
     assistant_message = ChatMessage(
@@ -201,9 +214,11 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
     context = _context(runtime)
     invalid_call_ids = {message.tool_call_id for message in state["last_tool_results"]}
     tool_messages = list(state["last_tool_results"])
+    tool_path_entered = state.get("tool_path_entered", False)
     for call in state["pending_tool_calls"]:
         if call.id in invalid_call_ids:
             continue
+        tool_path_entered = True
         definition = context.tool_registry.get(call.name)
         started_at = perf_counter()
         try:
@@ -258,6 +273,7 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
         "messages": [*state["messages"], *tool_messages],
         "pending_tool_calls": [],
         "last_tool_results": tool_messages,
+        "tool_path_entered": tool_path_entered,
     }
 
 
@@ -268,15 +284,35 @@ async def finalize_grounding(
 
     context = _context(runtime)
     final_response = state.get("final_response")
-    if not isinstance(final_response, str) or not final_response.strip():
-        raise AgentProtocolError()
-    finalizer = context.citation_finalizer or CitationFinalizer()
     evidence = state.get("knowledge_evidence", [])
-    grounded = finalizer.finalize(final_response, evidence)
     profile = context.evaluation_profile
     candidate = (
         profile.grounding_candidate if profile is not None else GroundingCandidate.P0_CURRENT
     )
+    if (
+        candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        and _p4_extractive_mode_active(state, context)
+    ):
+        p4_result = finalize_p4_response(
+            final_response,
+            evidence,
+            context.citation_finalizer or CitationFinalizer(),
+        )
+        return {
+            "final_response": p4_result.final_response,
+            "grounded_citations": list(p4_result.citations),
+            "p4_diagnostics": {
+                **p4_result.diagnostics(),
+                **_p4_mode_diagnostics(
+                    state, active=True, terminal_reason=p4_result.terminal_mode_reason
+                ),
+            },
+        }
+
+    if not isinstance(final_response, str) or not final_response.strip():
+        raise AgentProtocolError()
+    finalizer = context.citation_finalizer or CitationFinalizer()
+    grounded = finalizer.finalize(final_response, evidence)
     is_pure_knowledge_turn = bool(evidence) and state.get("tool_call_count", 0) == 0
     repair_was_generated = False
     if (
@@ -306,11 +342,17 @@ async def finalize_grounding(
                         ],
                     }
         grounded = finalizer.finalize(SAFE_GROUNDING_FALLBACK, ())
-    return {
+    result = {
         "final_response": grounded.content,
         "grounded_citations": list(grounded.citations),
         "model_call_count": state["model_call_count"] + int(repair_was_generated),
     }
+    if candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+        result["p4_diagnostics"] = {
+            **empty_p4_response_diagnostics(),
+            **_p4_mode_diagnostics(state, active=False),
+        }
+    return result
 
 
 def route_after_agent(state: AgentState) -> str:
@@ -326,6 +368,42 @@ def _context(runtime: Runtime[AgentContext]) -> AgentContext:
     if not isinstance(context, AgentContext):
         raise AgentProtocolError()
     return context
+
+
+def _p4_extractive_mode_active(state: AgentState, context: AgentContext) -> bool:
+    profile = context.evaluation_profile
+    return bool(
+        profile is not None
+        and profile.grounding_candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        and state.get("knowledge_evidence")
+        and not state.get("tool_path_entered", False)
+    )
+
+
+def _p4_mode_diagnostics(
+    state: AgentState, *, active: bool, terminal_reason: str | None = None
+) -> dict[str, object]:
+    tool_path_entered = bool(state.get("tool_path_entered", False))
+    if tool_path_entered:
+        if active:
+            raise ValueError("P4 extractive mode cannot remain active after a Commerce tool")
+        reason = "terminal_tool_answer_bypassed_validator"
+    elif active:
+        if terminal_reason not in {
+            "terminal_knowledge_answer_validated",
+            "malformed_or_invalid_structured_knowledge_output",
+            "all_claims_rejected_safe_fallback",
+        }:
+            raise ValueError("P4 terminal knowledge diagnostics are missing a frozen reason")
+        reason = terminal_reason
+    else:
+        reason = "no_selected_knowledge_evidence"
+    return {
+        "p4_extractive_mode_active": active,
+        "p4_extractive_mode_reason": reason,
+        "tool_path_entered": tool_path_entered,
+        "p4_extractive_mode_deactivated_after_tool": tool_path_entered,
+    }
 
 
 def _request_messages(state: AgentState, context: AgentContext | None = None) -> list[ChatMessage]:

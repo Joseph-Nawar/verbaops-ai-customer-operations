@@ -8,6 +8,7 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from tests.agent.test_retrieval_graph import evidence as knowledge_evidence
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import (
@@ -15,6 +16,7 @@ from verbaops.agent.errors import (
     AgentProtocolError,
     AgentUnavailableError,
 )
+from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
@@ -27,6 +29,7 @@ from verbaops.llm.models import (
     ResponseMetadata,
     ToolCall,
 )
+from verbaops.retrieval.models import RetrievalResult, RetrievalStatus
 from verbaops.tools.registry import build_commerce_read_registry
 
 
@@ -42,6 +45,14 @@ class RecordingConversationService:
         self.tool_calls.append({"args": args, "kwargs": kwargs})
 
 
+@dataclass
+class FixedRetrievalService:
+    result: RetrievalResult
+
+    async def retrieve(self, **_kwargs: Any) -> RetrievalResult:
+        return self.result
+
+
 def make_state(message: str = "Where is my order?") -> dict[str, Any]:
     return {
         "messages": [ChatMessage(role="user", content=message)],
@@ -50,6 +61,7 @@ def make_state(message: str = "Where is my order?") -> dict[str, Any]:
         "model_call_count": 0,
         "tool_round_count": 0,
         "tool_call_count": 0,
+        "tool_path_entered": False,
         "validation_repair_count": 0,
         "final_response": None,
         "failure": None,
@@ -81,6 +93,9 @@ def make_context(
     llm: ScriptedLLMClient,
     service: RecordingConversationService,
     handler: Any,
+    *,
+    evaluation_profile: AgentEvaluationProfile | None = None,
+    retrieval_service: Any | None = None,
 ) -> AgentContext:
     http_client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     commerce_client = CommerceClient(
@@ -101,6 +116,8 @@ def make_context(
         commerce_client=commerce_client,
         tool_registry=build_commerce_read_registry(),
         conversation_service=cast(ConversationService, service),
+        retrieval_service=retrieval_service,
+        evaluation_profile=evaluation_profile,
     )
 
 
@@ -138,6 +155,62 @@ async def test_successful_tool_loop_persists_trace_and_returns_grounded_answer()
     assert service.tool_calls[0]["kwargs"]["status"] == "succeeded"
     assert service.tool_calls[0]["kwargs"]["tool_name"] == "get_shipment_status"
     assert requests[0].method == "GET"
+
+
+@pytest.mark.asyncio
+async def test_p4_tool_call_deactivates_structured_mode_for_terminal_tool_answer() -> None:
+    order_id = uuid4()
+    llm = ScriptedLLMClient(
+        [
+            model_response("not terminal P4 JSON", shipment_call(order_id)),
+            model_response("Your shipment is in transit."),
+        ]
+    )
+    service = RecordingConversationService()
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+    )
+    retrieval = FixedRetrievalService(
+        RetrievalResult(
+            invocation_id=uuid4(),
+            status=RetrievalStatus.SUCCEEDED,
+            evidence=(knowledge_evidence(),),
+        )
+    )
+    context = make_context(
+        llm,
+        service,
+        lambda _request: httpx.Response(200, json=shipment_payload(order_id)),
+        evaluation_profile=profile,
+        retrieval_service=retrieval,
+    )
+
+    result = await build_agent_graph().ainvoke(make_state(), context=context)
+
+    assert result["final_response"] == "Your shipment is in transit."
+    assert result["grounded_citations"] == []
+    assert result["tool_path_entered"] is True
+    assert result["p4_diagnostics"]["p4_extractive_mode_active"] is False
+    assert result["p4_diagnostics"]["p4_extractive_mode_reason"] == (
+        "terminal_tool_answer_bypassed_validator"
+    )
+    assert result["p4_diagnostics"]["tool_path_entered"] is True
+    assert result["p4_diagnostics"]["p4_extractive_mode_deactivated_after_tool"] is True
+    assert len(service.tool_calls) == 1
+    assert service.tool_calls[0]["kwargs"]["tool_name"] == "get_shipment_status"
+    assert service.tool_calls[0]["kwargs"]["status"] == "succeeded"
+    assert llm.requests[0].response_format is not None
+    assert llm.requests[0].tool_choice == "auto"
+    assert [tool.name for tool in llm.requests[0].tools or ()] == [
+        "get_order_status",
+        "get_shipment_status",
+        "get_refund_status",
+        "search_products",
+        "list_delivery_slots",
+    ]
+    assert llm.requests[1].response_format is None
+    assert llm.requests[1].tool_choice == "auto"
+    assert len(llm.requests[1].tools or ()) == 5
 
 
 @pytest.mark.asyncio
