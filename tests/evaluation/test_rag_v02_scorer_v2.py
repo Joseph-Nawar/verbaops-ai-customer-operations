@@ -170,6 +170,12 @@ def test_scorer_manifest_binds_full_dev_fixture_and_immutable_inputs() -> None:
 
     assert manifest["fixture_data_sha256"] == hashlib.sha256(fixtures_path.read_bytes()).hexdigest()
     assert manifest["scorer_spec_sha256"] == hashlib.sha256(spec_path.read_bytes()).hexdigest()
+    assert manifest["fixture_data_sha256"] == (
+        "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a"
+    )
+    assert manifest["scorer_spec_sha256"] == (
+        "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120"
+    )
     assert manifest["dataset_sha256"] == hashlib.sha256(dataset_path.read_bytes()).hexdigest()
     assert manifest["fixture_provenance"]["p4_outputs_available_during_construction"] is False
     assert manifest["fixture_provenance"]["candidate_outputs_consulted"] == []
@@ -180,6 +186,9 @@ def test_scorer_manifest_binds_full_dev_fixture_and_immutable_inputs() -> None:
     assert (
         manifest["scorer_implementation_sha256"]
         == hashlib.sha256(implementation_path.read_bytes()).hexdigest()
+    )
+    assert manifest["scorer_implementation_sha256"] == (
+        "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a"
     )
     assert manifest["scorer_entrypoint"] == (
         "verbaops.evaluation.rag_v02_scorer_impl.classify_labeled_fact_assertion"
@@ -273,7 +282,7 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
     assert plan["frozen_environment"]["evidence_gate"] == "G2_TOP_EVIDENCE_CROSS_ENCODER"
     assert plan["frozen_environment"]["evidence_gate_threshold"] == 0.2554669
     assert plan["frozen_environment"]["model"] == "groq/openai/gpt-oss-120b"
-    assert plan["candidate"]["structured_final_answer_generations_per_case_answer"] == 1
+    assert plan["candidate"]["structured_terminal_knowledge_responses_per_turn"] == 1
     assert plan["candidate"]["candidate_specific_repair_generations"] == 0
     assert plan["candidate"]["evaluation_labels_or_expected_facts_exposed_to_model"] is False
     assert plan["candidate"]["agent_prompt_version"] == "text-agent-system-p4-evidence-linked-v1"
@@ -306,6 +315,91 @@ def test_p4_preregistration_contract_is_dev_only_and_has_no_result_artifact() ->
     assert "grounding_finalizer_version" in plan["run_identity"]["required_fields"]
     assert plan["resume_identity"]["incompatible_identity_fails_closed"] is True
     assert plan["resume_identity"]["completed_cases_are_never_replayed"] is True
+    assert plan["stage4_dev_regression"]["run_only_if_p4_passes_every_rag_quality_floor"]
+    assert plan["stage4_dev_regression"]["commerce_authority_preserved"] is True
+    assert plan["stage4_dev_regression"]["scope_rule_reason"] == (
+        "Stage 4 DEV includes Commerce-tool tasks; authoritative Commerce facts must not be "
+        "converted into fabricated knowledge citations."
+    )
+
+
+def test_p4_extractive_mode_is_knowledge_specific_and_bypasses_tool_answers() -> None:
+    plan = json.loads(
+        (ROOT / "evals/rag/v0.2/m5d-b2-experiment-plan.json").read_text(encoding="utf-8")
+    )
+    candidate = plan["candidate"]
+    mode = candidate["p4_extractive_mode"]
+
+    assert mode["activation_predicate"] == {
+        "selected_knowledge_evidence_present": True,
+        "commerce_tool_call_executed_in_turn": False,
+    }
+    assert mode["knowledge_terminal_answer"]["response_schema"] == candidate["schema_path"]
+    assert mode["knowledge_terminal_answer"]["apply_extractive_validator"] is True
+    assert mode["no_selected_knowledge_evidence"] == {
+        "p4_extractive_mode_active": False,
+        "fabricate_evidence_handles": False,
+        "force_p4_claim_schema": False,
+        "preserve_existing_agent_prompt_and_tool_path": True,
+    }
+    assert mode["commerce_tool_path"] == {
+        "tool_call_uses_existing_validation_authorization_and_execution": True,
+        "valid_tool_execution_marks_turn_tool_involved": True,
+        "p4_extractive_mode_deactivated_after_tool": True,
+        "terminal_answer_mode": "existing_plain_tool_result_answer_path",
+        "same_p4_system_prompt": True,
+        "p4_structured_schema_applied_to_terminal_answer": False,
+        "p4_extractive_validator_applied_to_terminal_answer": False,
+        "existing_tool_definitions_unchanged": True,
+        "existing_tool_authorization_unchanged": True,
+        "additional_routing_generations": 0,
+        "additional_tool_answer_to_json_conversion_generations": 0,
+    }
+    assert mode["structured_response_emits_tool_calls"]["follow_existing_bounded_tool_loop"]
+    assert mode["structured_response_emits_tool_calls"]["post_tool_terminal_path"] == (
+        "existing_plain_tool_result_answer_path"
+    )
+    assert (
+        mode["structured_response_emits_tool_calls"]["second_final_answer_for_json_conversion"]
+        is False
+    )
+    assert candidate["candidate_specific_repair_generations"] == 0
+    assert plan["frozen_environment"]["tool_set_unchanged"] is True
+    assert plan["frozen_environment"]["tool_authorization_unchanged"] is True
+    assert plan["frozen_environment"]["model_tool_and_runtime_budgets_unchanged"] is True
+    assert plan["frozen_environment"]["public_application_path"] is True
+    assert plan["production_boundary"]["production_tool_set_or_authorization_changed"] is False
+    assert candidate["prompt_path_distinction"] == {
+        "retrieved_policy_or_company_knowledge": "use the P4 evidence-linked extractive claims contract",
+        "live_commerce_facts": "use authoritative Commerce tool results and normal customer-facing answer behavior",
+        "benchmark_answer_keys_exposed": False,
+    }
+    fields = set(plan["observability"]["required_sanitized_trace_fields"])
+    assert plan["observability"]["p4_extractive_mode_reason_values"] == [
+        "selected_evidence_knowledge_path",
+        "no_selected_knowledge_evidence",
+        "commerce_tool_call_emitted",
+        "deactivated_after_commerce_tool",
+        "terminal_tool_answer_bypassed_validator",
+        "terminal_knowledge_answer_validated",
+        "malformed_or_invalid_structured_knowledge_output",
+        "all_claims_rejected_safe_fallback",
+    ]
+    assert {
+        "p4_extractive_mode_active",
+        "p4_extractive_mode_reason",
+        "tool_path_entered",
+        "p4_extractive_mode_deactivated_after_tool",
+    } <= fields
+    assert {
+        "selected evidence: P4 structured knowledge path",
+        "no selected evidence: existing path",
+        "tool call emitted: existing tool path",
+        "terminal tool-derived answer: P4 validator not applied",
+        "terminal knowledge answer: P4 validator applied",
+        "malformed or invalid structured knowledge output",
+        "fallback after all knowledge claims are rejected",
+    } <= set(plan["observability"]["diagnostic_distinctions"])
 
 
 def test_p4_schema_and_plan_freeze_the_literal_extractive_chain_without_answer_keys() -> None:

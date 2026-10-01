@@ -86,7 +86,7 @@
   "candidate": {
     "id": "P4_EVIDENCE_LINKED_SINGLE_PASS",
     "status": "preregistered_not_implemented",
-    "structured_final_answer_generations_per_case_answer": 1,
+    "structured_terminal_knowledge_responses_per_turn": 1,
     "candidate_specific_repair_generations": 0,
     "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
     "agent_graph_version": "text-agent-m5d-v1",
@@ -118,12 +118,61 @@
       "nonempty claim text is a literal exact substring of the supporting excerpt"
     ],
     "explicit_limitation": "Extractive validation proves the rendered claim text occurs in the cited source excerpt and that the excerpt comes from supplied evidence; it does not establish every possible contextual interpretation of that source. Benchmark relevance and scorer metrics remain the quality evaluation.",
-    "schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9"
+    "schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9",
+    "p4_extractive_mode": {
+      "activation_predicate": {
+        "selected_knowledge_evidence_present": true,
+        "commerce_tool_call_executed_in_turn": false
+      },
+      "knowledge_terminal_answer": {
+        "response_schema": "evals/rag/v0.2/scorer-v2/p4-output.schema.json",
+        "apply_extractive_validator": true
+      },
+      "no_selected_knowledge_evidence": {
+        "p4_extractive_mode_active": false,
+        "fabricate_evidence_handles": false,
+        "force_p4_claim_schema": false,
+        "preserve_existing_agent_prompt_and_tool_path": true
+      },
+      "commerce_tool_path": {
+        "tool_call_uses_existing_validation_authorization_and_execution": true,
+        "valid_tool_execution_marks_turn_tool_involved": true,
+        "p4_extractive_mode_deactivated_after_tool": true,
+        "terminal_answer_mode": "existing_plain_tool_result_answer_path",
+        "same_p4_system_prompt": true,
+        "p4_structured_schema_applied_to_terminal_answer": false,
+        "p4_extractive_validator_applied_to_terminal_answer": false,
+        "existing_tool_definitions_unchanged": true,
+        "existing_tool_authorization_unchanged": true,
+        "additional_routing_generations": 0,
+        "additional_tool_answer_to_json_conversion_generations": 0
+      },
+      "structured_response_emits_tool_calls": {
+        "follow_existing_bounded_tool_loop": true,
+        "post_tool_terminal_path": "existing_plain_tool_result_answer_path",
+        "second_final_answer_for_json_conversion": false
+      }
+    },
+    "prompt_path_distinction": {
+      "retrieved_policy_or_company_knowledge": "use the P4 evidence-linked extractive claims contract",
+      "live_commerce_facts": "use authoritative Commerce tool results and normal customer-facing answer behavior",
+      "benchmark_answer_keys_exposed": false
+    }
   },
   "observability": {
     "scope": "evaluation-only where practical",
     "persist_credentials": false,
     "persist_unrelated_private_data": false,
+    "p4_extractive_mode_reason_values": [
+      "selected_evidence_knowledge_path",
+      "no_selected_knowledge_evidence",
+      "commerce_tool_call_emitted",
+      "deactivated_after_commerce_tool",
+      "terminal_tool_answer_bypassed_validator",
+      "terminal_knowledge_answer_validated",
+      "malformed_or_invalid_structured_knowledge_output",
+      "all_claims_rejected_safe_fallback"
+    ],
     "required_sanitized_trace_fields": [
       "raw_structured_model_response",
       "parse_success",
@@ -135,6 +184,10 @@
       "excerpt_validation_result_per_claim",
       "deterministic_rejection_reason_per_claim",
       "rendered_final_claims",
+      "p4_extractive_mode_active",
+      "p4_extractive_mode_reason",
+      "tool_path_entered",
+      "p4_extractive_mode_deactivated_after_tool",
       "fallback_used",
       "fallback_reason"
     ],
@@ -144,7 +197,14 @@
       "invalid evidence handle",
       "excerpt mismatch",
       "deterministic filtering",
-      "final scorer nonrecognition"
+      "final scorer nonrecognition",
+      "selected evidence: P4 structured knowledge path",
+      "no selected evidence: existing path",
+      "tool call emitted: existing tool path",
+      "terminal tool-derived answer: P4 validator not applied",
+      "terminal knowledge answer: P4 validator applied",
+      "malformed or invalid structured knowledge output",
+      "fallback after all knowledge claims are rejected"
     ]
   },
   "run_identity": {
@@ -216,6 +276,8 @@
   },
   "stage4_dev_regression": {
     "run_only_if_p4_passes_every_rag_quality_floor": true,
+    "commerce_authority_preserved": true,
+    "scope_rule_reason": "Stage 4 DEV includes Commerce-tool tasks; authoritative Commerce facts must not be converted into fabricated knowledge citations.",
     "release_holdout_for_tuning": false
   },
   "m5d_c_entry_criteria": [
