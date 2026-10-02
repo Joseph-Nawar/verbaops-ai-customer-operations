@@ -5,6 +5,7 @@ repos:
       - id: check-added-large-files
       - id: check-merge-conflict
       - id: end-of-file-fixer
+        exclude: ^evals/rag/v0\.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/p5-closeout\.json$
       - id: trailing-whitespace
   - repo: local
     hooks:

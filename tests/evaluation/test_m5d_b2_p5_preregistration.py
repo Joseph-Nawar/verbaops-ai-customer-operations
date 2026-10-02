@@ -242,3 +242,12 @@ def test_final_p5_namespace_is_closed_and_selection_artifact_absent() -> None:
     assert [path.name for path in canonical_root.glob("canonical-M0-P5-*")] == [P5_FINAL_RUN_ID]
     assert audit_m5d_b2_p5_closeout(ROOT)["canonical_evidence_status"] == "COMPLETE"
     assert not (ROOT / "evals/rag/v0.2/selection.json").exists()
+
+
+def test_precommit_preserves_hash_bound_p5_closeout_bytes() -> None:
+    config = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    assert (
+        "      - id: end-of-file-fixer\n"
+        "        exclude: ^evals/rag/v0\\.2/dev-evidence/canonical/"
+        "canonical-M0-P5-20261002T085922Z-80872fc6/p5-closeout\\.json$\n"
+    ) in config
