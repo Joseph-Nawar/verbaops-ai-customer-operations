@@ -115,7 +115,11 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         tool_choice="auto",
         response_format=(
             StructuredResponse.response_format(P4Response)
-            if _p4_extractive_mode_active(state, context)
+            if (
+                context.evaluation_profile.grounding_candidate
+                is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+                and _p4_extractive_mode_active(state, context)
+            )
             else None
         ),
     )

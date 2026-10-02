@@ -12,6 +12,7 @@ class GroundingCandidate(StrEnum):
     P2_FAIL_CLOSED_CITATIONS = "P2_FAIL_CLOSED_CITATIONS"
     P3_ONE_REPAIR_THEN_FAIL_CLOSED = "P3_ONE_REPAIR_THEN_FAIL_CLOSED"
     P4_EVIDENCE_LINKED_SINGLE_PASS = "P4_EVIDENCE_LINKED_SINGLE_PASS"
+    P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS = "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,7 +32,10 @@ class AgentEvaluationProfile:
     def prompt_version(self) -> str:
         if self.grounding_candidate is GroundingCandidate.P0_CURRENT:
             return "v2"
-        if self.grounding_candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+        if self.grounding_candidate in {
+            GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS,
+            GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS,
+        }:
             return "p4-evidence-linked-v1"
         return "v3"
 
@@ -41,7 +45,10 @@ class AgentEvaluationProfile:
 
     @property
     def grounding_finalizer_version(self) -> str | None:
-        if self.grounding_candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+        if self.grounding_candidate in {
+            GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS,
+            GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS,
+        }:
             return "evidence-linked-extractive-single-pass-v1"
         return None
 

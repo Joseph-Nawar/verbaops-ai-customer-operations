@@ -61,6 +61,45 @@ def test_p4_profile_does_not_change_production_or_historical_prompt_versions() -
     )
 
 
+def test_p5_profile_reuses_p4_prompt_graph_and_finalizer_versions() -> None:
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+    )
+
+    assert profile.prompt_version == "p4-evidence-linked-v1"
+    assert profile.graph_version == "text-agent-m5d-v1"
+    assert profile.grounding_finalizer_version == (
+        "evidence-linked-extractive-single-pass-v1"
+    )
+
+
+@pytest.mark.asyncio
+async def test_p4_p5_knowledge_generate_requests_differ_only_by_response_format() -> None:
+    p4_client = ScriptedLLMClient([response("{}")])
+    p5_client = ScriptedLLMClient([response("{}")])
+
+    await build_agent_graph().ainvoke(
+        state("What is the return window?"),
+        context=_context(p4_client, GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS),
+    )
+    await build_agent_graph().ainvoke(
+        state("What is the return window?"),
+        context=(
+            _context(
+                p5_client,
+                GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS,
+            )
+        ),
+    )
+
+    p4_request = p4_client.requests[0]
+    p5_request = p5_client.requests[0]
+    assert p4_request.tool_choice == p5_request.tool_choice == "auto"
+    assert p4_request.tools == p5_request.tools
+    assert p4_request.response_format is not None
+    assert p5_request.response_format is None
+
+
 @pytest.mark.asyncio
 async def test_p4_knowledge_request_keeps_tools_and_adds_frozen_schema() -> None:
     llm = ScriptedLLMClient([response("{}")])
