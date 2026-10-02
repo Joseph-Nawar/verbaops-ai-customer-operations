@@ -116,7 +116,8 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         response_format=(
             StructuredResponse.response_format(P4Response)
             if (
-                context.evaluation_profile.grounding_candidate
+                context.evaluation_profile is not None
+                and context.evaluation_profile.grounding_candidate
                 is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
                 and _p4_extractive_mode_active(state, context)
             )
@@ -293,25 +294,27 @@ async def finalize_grounding(
     candidate = (
         profile.grounding_candidate if profile is not None else GroundingCandidate.P0_CURRENT
     )
-    if (
-        candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
-        and _p4_extractive_mode_active(state, context)
-    ):
+    if candidate in (
+        GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS,
+        GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS,
+    ) and _p4_extractive_mode_active(state, context):
         p4_result = finalize_p4_response(
             final_response,
             evidence,
             context.citation_finalizer or CitationFinalizer(),
         )
-        return {
+        result: dict[str, object] = {
             "final_response": p4_result.final_response,
             "grounded_citations": list(p4_result.citations),
-            "p4_diagnostics": {
+        }
+        if candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS:
+            result["p4_diagnostics"] = {
                 **p4_result.diagnostics(),
                 **_p4_mode_diagnostics(
                     state, active=True, terminal_reason=p4_result.terminal_mode_reason
                 ),
-            },
-        }
+            }
+        return result
 
     if not isinstance(final_response, str) or not final_response.strip():
         raise AgentProtocolError()
@@ -378,7 +381,11 @@ def _p4_extractive_mode_active(state: AgentState, context: AgentContext) -> bool
     profile = context.evaluation_profile
     return bool(
         profile is not None
-        and profile.grounding_candidate is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
+        and profile.grounding_candidate
+        in (
+            GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS,
+            GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS,
+        )
         and state.get("knowledge_evidence")
         and not state.get("tool_path_entered", False)
     )

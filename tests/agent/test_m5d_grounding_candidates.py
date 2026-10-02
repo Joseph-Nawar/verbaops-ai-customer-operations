@@ -190,6 +190,64 @@ async def test_p4_request_without_selected_evidence_uses_plain_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_p5_ordinary_terminal_json_uses_the_existing_p4_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import verbaops.agent.graph as graph_module
+
+    original_finalize = graph_module.finalize_p4_response
+    parsed_contents: list[str | None] = []
+
+    def record_parse(content: str | None, *args: Any, **kwargs: Any) -> Any:
+        parsed_contents.append(content)
+        return original_finalize(content, *args, **kwargs)
+
+    monkeypatch.setattr(graph_module, "finalize_p4_response", record_parse)
+    terminal_json = (
+        '{"claims":[{"claim_text":"Issue a refund.","evidence_handle":"K1",'
+        '"supporting_excerpt":"Issue a refund."}]}'
+    )
+    llm = ScriptedLLMClient([response(terminal_json)])
+
+    result = await build_agent_graph().ainvoke(
+        state("What does the evidence say?"),
+        context=_context(llm, GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS),
+    )
+
+    assert parsed_contents == [terminal_json]
+    assert result["final_response"] == "Issue a refund. [1]"
+    assert result["model_call_count"] == 1
+    assert len(llm.requests) == 1
+    assert llm.requests[0].response_format is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "content",
+    ["{broken", '{"claims":[{"claim_text":"x"}]}', "", "  \n"],
+)
+async def test_p5_malformed_terminal_json_fails_closed_without_an_extra_call(
+    content: str,
+) -> None:
+    llm = ScriptedLLMClient([response(content)])
+
+    result = cast(
+        dict[str, Any],
+        await build_agent_graph().ainvoke(
+            state("What is the return window?"),
+            context=_context(llm, GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS),
+        ),
+    )
+
+    assert result["final_response"] == (
+        "I'm unable to verify that information from the available company knowledge."
+    )
+    assert result["model_call_count"] == 1
+    assert len(llm.requests) == 1
+    assert llm.requests[0].response_format is None
+
+
+@pytest.mark.asyncio
 async def test_blank_p4_knowledge_content_reaches_terminal_finalizer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
