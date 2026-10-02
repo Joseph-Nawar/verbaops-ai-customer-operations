@@ -88,6 +88,7 @@
     "existing_messages": true,
     "existing_tools": true,
     "existing_tool_choice": true,
+    "tool_choice": "auto",
     "response_format": null,
     "provider_json_mode": false,
     "provider_json_schema": false,
@@ -209,9 +210,13 @@
       "agent_graph_version",
       "grounding_finalizer_version",
       "knowledge_terminal_output_transport",
+      "tool_choice",
       "provider_response_format_attached",
       "run_id"
     ],
+    "fixed_values": {
+      "tool_choice": "auto"
+    },
     "canonical_run_id_format": "canonical-M0-P5-<UTC timestamp>-<8 lowercase hex chars>",
     "canonical_run_namespace": "evals/rag/v0.2/dev-evidence/canonical/<run_id>",
     "identity_sha256_fingerprint": true,

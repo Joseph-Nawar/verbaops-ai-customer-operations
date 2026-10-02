@@ -12,7 +12,9 @@ P5 asks only whether the same evidence-linked extractive single-pass candidate c
 
 | P4 knowledge request | P5 knowledge request |
 | --- | --- |
-| Existing `LLMClient.generate()` messages, tools, and tool choice, plus provider `response_format=json_schema` | Same messages, tools, and tool choice, with `response_format=None` |
+| `tools=<existing tools>, tool_choice="auto", response_format=<P4 JSON schema>` | `tools=<same existing tools>, tool_choice="auto", response_format=None` |
+
+**The only intended request-level delta is omission of `response_format`.**
 
 The frozen transport value is `prompt_json_plain_content_no_response_format`. P5 requests the exact claims object through the existing P4 system prompt and parses ordinary terminal text locally. It sends no JSON mode, JSON schema, or response format to Groq. The committed P4 output schema remains the local parser/validation contract only (`schema_sent_to_provider=false`).
 
@@ -32,7 +34,7 @@ The existing P4 validator remains authoritative: the handle must be among suppli
 
 ## Frozen evaluation inputs
 
-P5 experiment plan SHA256: `62270ba5de74cd24a0c0f8b39988f6f8563106fae640b97aa7ccc5198255176a`. The machine-readable contract is [m5d-b2-p5-experiment-plan.json](../../evals/rag/v0.2/m5d-b2-p5-experiment-plan.json).
+P5 experiment plan SHA256: `e700ec31f157f47837489fc2d26e1296388405f447701286adc899d7b42fc20e`. The machine-readable contract is [m5d-b2-p5-experiment-plan.json](../../evals/rag/v0.2/m5d-b2-p5-experiment-plan.json).
 
 - Candidate: `P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS`, preregistered and not implemented.
 - Split and size: DEV only, all 96 rag-v0.2 cases, one canonical run.
@@ -49,7 +51,7 @@ P5 does not rerun P0-P4, access the release holdout, create `selection.json`, or
 
 ## Canonical identity and evidence
 
-The P5 run identity must include the exact committed P5 plan SHA256 and the field `knowledge_terminal_output_transport=prompt_json_plain_content_no_response_format`, independently of the candidate ID. It also binds dataset and knowledge hashes; scorer definition, implementation, manifest, fixture, and spec; local output-schema hash; application-under-test SHA; evaluation-harness SHA; implementation-freeze SHA; exact-head hosted CI run/head/conclusion and required-job-conclusions hash; gate/threshold; candidate/model/provider/capability; retrieval profile/strategy/evidence count; prompt path/version/hash; graph/finalizer versions; and the unique run ID `canonical-M0-P5-<UTC timestamp>-<8 lowercase hex chars>`.
+The P5 run identity must include the exact committed P5 plan SHA256 and the fields `knowledge_terminal_output_transport=prompt_json_plain_content_no_response_format` and `tool_choice="auto"`, independently of the candidate ID. It also binds dataset and knowledge hashes; scorer definition, implementation, manifest, fixture, and spec; local output-schema hash; application-under-test SHA; evaluation-harness SHA; implementation-freeze SHA; exact-head hosted CI run/head/conclusion and required-job-conclusions hash; gate/threshold; candidate/model/provider/capability; retrieval profile/strategy/evidence count; prompt path/version/hash; graph/finalizer versions; and the unique run ID `canonical-M0-P5-<UTC timestamp>-<8 lowercase hex chars>`.
 
 P5 sidecars use the existing narrow, path-confined evaluation-only storage approach, but identify the candidate and payload as P5. Each case records whether knowledge mode was active, the transport value, `provider_response_format_attached=false`, tool-path entry/deactivation, raw terminal content when parsing applies, parse and schema outcomes, proposed claims/handles/excerpts, per-claim handle/excerpt results and rejection reasons, rendered claims, and fallback. Non-applicable structured fields are represented consistently without fabricating output. Credentials, headers, full prompts, and unrelated private data are excluded.
 

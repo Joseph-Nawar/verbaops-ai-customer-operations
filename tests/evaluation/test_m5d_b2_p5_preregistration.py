@@ -89,6 +89,7 @@ def test_p5_plan_freezes_only_the_prompt_json_transport_delta() -> None:
     assert request["client_method"] == "LLMClient.generate"
     assert request["existing_tools"] is True
     assert request["existing_tool_choice"] is True
+    assert request["tool_choice"] == "auto"
     assert request["response_format"] is None
     assert request["provider_json_mode"] is False
 
@@ -126,6 +127,7 @@ def test_p5_plan_freezes_only_the_prompt_json_transport_delta() -> None:
     assert {
         "p5_experiment_plan_sha256",
         "knowledge_terminal_output_transport",
+        "tool_choice",
         "local_output_schema_sha256",
         "application_under_test_sha",
         "evaluation_harness_sha",
@@ -141,6 +143,7 @@ def test_p5_plan_freezes_only_the_prompt_json_transport_delta() -> None:
         "grounding_finalizer_version",
         "run_id",
     }.issubset(required_identity_fields)
+    assert identity["fixed_values"]["tool_choice"] == "auto"
 
     assert plan["observability"]["required_sanitized_trace_fields"]
     assert (
