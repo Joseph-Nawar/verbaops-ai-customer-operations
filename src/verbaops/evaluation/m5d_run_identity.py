@@ -51,6 +51,32 @@ _P4_IDENTITY_FIELDS = (
     "hosted_ci_head_sha",
     "grounding_finalizer_version",
 )
+_P5_IDENTITY_FIELDS = (
+    "p5_experiment_plan_sha256",
+    "scorer_version",
+    "scorer_definition_commit_sha",
+    "scorer_implementation_sha256",
+    "scorer_manifest_sha256",
+    "scorer_fixture_sha256",
+    "scorer_spec_sha256",
+    "local_output_schema_sha256",
+    "application_under_test_sha",
+    "evaluation_harness_sha",
+    "implementation_freeze_sha",
+    "hosted_ci_run_id",
+    "hosted_ci_head_sha",
+    "hosted_ci_conclusion",
+    "hosted_ci_job_conclusions_sha256",
+    "provider",
+    "capability_alias",
+    "retrieval_strategy",
+    "final_evidence_count",
+    "agent_prompt_sha256",
+    "grounding_finalizer_version",
+    "knowledge_terminal_output_transport",
+    "tool_choice",
+    "provider_response_format_attached",
+)
 _GENERATED_ROOTS = (
     PurePosixPath("evals/rag/v0.2/dev-evidence/canonical"),
     PurePosixPath("artifacts/m5d"),
@@ -105,11 +131,17 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
         if field in identity:
             normalized[field] = identity[field]
     is_p4 = normalized.get("grounding_candidate") == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+    is_p5 = normalized.get("grounding_candidate") == "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
     if is_p4:
         missing_p4 = [field for field in _P4_IDENTITY_FIELDS if field not in identity]
         if missing_p4:
             raise ValueError(f"P4 run identity is missing fields: {', '.join(missing_p4)}")
         normalized.update({field: identity[field] for field in _P4_IDENTITY_FIELDS})
+    if is_p5:
+        missing_p5 = [field for field in _P5_IDENTITY_FIELDS if field not in identity]
+        if missing_p5:
+            raise ValueError(f"P5 run identity is missing fields: {', '.join(missing_p5)}")
+        normalized.update({field: identity[field] for field in _P5_IDENTITY_FIELDS})
     for field in (
         "dataset_sha256",
         "knowledge_manifest_sha256",
@@ -180,6 +212,75 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
             or normalized["scorer_version"] != "rag-v0.2-scorer-v2"
         ):
             raise ValueError("P4 run identity differs from its frozen candidate contract")
+    if is_p5:
+        if (
+            re.fullmatch(r"canonical-M0-P5-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}", normalized["run_id"])
+            is None
+        ):
+            raise ValueError("P5 run identity has an invalid canonical run ID")
+        for field in (
+            "scorer_implementation_sha256",
+            "scorer_manifest_sha256",
+            "scorer_fixture_sha256",
+            "scorer_spec_sha256",
+            "local_output_schema_sha256",
+            "agent_prompt_sha256",
+            "hosted_ci_job_conclusions_sha256",
+            "p5_experiment_plan_sha256",
+        ):
+            if (
+                not isinstance(normalized[field], str)
+                or _SHA256.fullmatch(normalized[field]) is None
+            ):
+                raise ValueError(f"P5 run identity has invalid {field}")
+        for field in (
+            "application_under_test_sha",
+            "implementation_freeze_sha",
+            "hosted_ci_head_sha",
+            "scorer_definition_commit_sha",
+        ):
+            if not isinstance(normalized[field], str) or _SHA1.fullmatch(normalized[field]) is None:
+                raise ValueError(f"P5 run identity has invalid {field}")
+        ci_run_id = normalized["hosted_ci_run_id"]
+        if isinstance(ci_run_id, bool) or not isinstance(ci_run_id, int) or ci_run_id <= 0:
+            raise ValueError("P5 run identity has invalid hosted_ci_run_id")
+        if normalized["hosted_ci_conclusion"] != "success":
+            raise ValueError("P5 run identity requires successful hosted CI")
+        if (
+            normalized["evaluated_git_sha"] != normalized["application_under_test_sha"]
+            or normalized["application_under_test_sha"] != normalized["implementation_freeze_sha"]
+            or normalized["implementation_freeze_sha"] != normalized["hosted_ci_head_sha"]
+        ):
+            raise ValueError("P5 application, implementation freeze, and hosted CI SHAs must match")
+        if (
+            normalized["benchmark_version"] != "rag-v0.2"
+            or normalized["split"] != "dev"
+            or normalized["dataset_sha256"]
+            != "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595"
+            or normalized["knowledge_manifest_sha256"]
+            != "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660"
+            or normalized["experiment_plan_sha256"] != normalized["p5_experiment_plan_sha256"]
+            or normalized["evidence_gate"] != "G2_TOP_EVIDENCE_CROSS_ENCODER"
+            or normalized["evidence_gate_threshold"] != 0.2554669
+            or normalized["grounding_candidate"] != "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
+            or normalized["model_candidate"] != "M0"
+            or normalized["model_revision"] != "groq/openai/gpt-oss-120b"
+            or normalized["provider"] != "Groq"
+            or normalized["capability_alias"] != "agent-fast"
+            or normalized["retrieval_profile_version"] != "knowledge-retrieval-v1.1"
+            or normalized["retrieval_strategy"] != "hybrid_rrf"
+            or normalized["final_evidence_count"] != 5
+            or normalized["agent_prompt_version"] != "text-agent-system-p4-evidence-linked-v1"
+            or normalized["agent_graph_version"] != "text-agent-m5d-v1"
+            or normalized["grounding_finalizer_version"]
+            != "evidence-linked-extractive-single-pass-v1"
+            or normalized["knowledge_terminal_output_transport"]
+            != "prompt_json_plain_content_no_response_format"
+            or normalized["tool_choice"] != "auto"
+            or normalized["provider_response_format_attached"] is not False
+            or normalized["scorer_version"] != "rag-v0.2-scorer-v2"
+        ):
+            raise ValueError("P5 run identity differs from its frozen candidate contract")
     threshold = normalized["evidence_gate_threshold"]
     if isinstance(threshold, str):
         if (
@@ -195,7 +296,12 @@ def _validated_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("M5D run identity has a non-finite evidence-gate threshold")
     if threshold is None:
         raise ValueError("M5D run identity requires an explicit threshold or calibration sweep")
-    for field in (*_IDENTITY_FIELDS, *_OPTIONAL_IDENTITY_FIELDS, *_P4_IDENTITY_FIELDS):
+    for field in (
+        *_IDENTITY_FIELDS,
+        *_OPTIONAL_IDENTITY_FIELDS,
+        *_P4_IDENTITY_FIELDS,
+        *_P5_IDENTITY_FIELDS,
+    ):
         if field not in normalized:
             continue
         if field == "evidence_gate_threshold" and normalized[field] is None:
@@ -464,6 +570,153 @@ def build_p4_run_identity(
     missing = sorted(required - identity.keys())
     if missing:
         raise ValueError(f"P4 identity is missing frozen fields: {', '.join(missing)}")
+    return _validated_identity(identity)
+
+
+def build_p5_run_identity(
+    repo_root: Path,
+    *,
+    profile: AgentEvaluationProfile,
+    run_id: str,
+    freeze_commit_sha: str,
+    hosted_ci_run_id: int,
+    hosted_ci_head_sha: str,
+    hosted_ci_conclusion: str,
+    job_conclusions: Mapping[str, str],
+) -> dict[str, Any]:
+    """Build the complete identity for the single frozen M5D-B2 P5 DEV run."""
+
+    from verbaops.evaluation.m5d_b2_p5_preregistration import (
+        P5_PLAN_PATH,
+        P5_PLAN_SHA256,
+        REQUIRED_P5_HOSTED_CI_JOBS,
+        audit_m5d_b2_p5_preregistration,
+    )
+
+    if profile.grounding_candidate is not GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS:
+        raise ValueError("P5 identity requires the P5 evaluation profile")
+    if (
+        not isinstance(run_id, str)
+        or re.fullmatch(r"canonical-M0-P5-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}", run_id) is None
+    ):
+        raise ValueError("P5 identity requires a canonical M0 P5 run ID")
+    if not isinstance(freeze_commit_sha, str) or _SHA1.fullmatch(freeze_commit_sha) is None:
+        raise ValueError("P5 identity requires a full implementation freeze SHA")
+    if hosted_ci_head_sha != freeze_commit_sha:
+        raise ValueError("hosted CI head must equal the P5 implementation freeze SHA")
+    if hosted_ci_conclusion != "success":
+        raise ValueError("P5 identity requires successful hosted CI")
+    if (
+        isinstance(hosted_ci_run_id, bool)
+        or not isinstance(hosted_ci_run_id, int)
+        or hosted_ci_run_id <= 0
+    ):
+        raise ValueError("P5 identity requires a positive hosted CI run ID")
+    if set(job_conclusions) != set(REQUIRED_P5_HOSTED_CI_JOBS) or any(
+        job_conclusions[name] != "success" for name in REQUIRED_P5_HOSTED_CI_JOBS
+    ):
+        raise ValueError("P5 identity requires all 16 exact hosted CI jobs to succeed")
+    commit_exists = subprocess.run(
+        ["git", "cat-file", "-e", f"{freeze_commit_sha}^{{commit}}"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if commit_exists.returncode != 0:
+        raise ValueError("P5 implementation freeze SHA is not present in the repository")
+
+    audit_m5d_b2_p5_preregistration(repo_root)
+    plan_path = repo_root / P5_PLAN_PATH
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    environment = plan["frozen_environment"]
+    candidate = plan["candidate"]
+    scorer = plan["scorer_contract"]
+    schema_path = repo_root / plan["local_output_contract"]["schema_path"]
+    prompt_path = repo_root / candidate["agent_prompt_path"]
+    dataset_path = repo_root / "evals/rag/v0.2/questions.jsonl"
+    knowledge_manifest_path = repo_root / "knowledge/novacommerce/manifest.json"
+    if _sha256_path(plan_path) != P5_PLAN_SHA256:
+        raise ValueError("P5 experiment plan bytes differ from the frozen plan")
+    if (
+        profile.evidence_gate is None
+        or profile.evidence_gate.value != environment["evidence_gate"]
+        or profile.evidence_gate_threshold != environment["evidence_gate_threshold"]
+        or profile.model_candidate != environment["model_candidate"]
+        or profile.prompt_version != "p4-evidence-linked-v1"
+        or profile.graph_version != candidate["agent_graph_version"]
+        or profile.grounding_finalizer_version != candidate["grounding_finalizer_version"]
+    ):
+        raise ValueError("P5 profile differs from the frozen candidate contract")
+    harness_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if harness_sha != freeze_commit_sha:
+        raise ValueError("P5 inference requires harness HEAD to equal the implementation freeze")
+
+    manifest = json.loads((repo_root / plan["scorer_contract"]["manifest_path"]).read_text())
+    jobs_payload = json.dumps(job_conclusions, sort_keys=True, separators=(",", ":"))
+    jobs_sha256 = hashlib.sha256(jobs_payload.encode("utf-8")).hexdigest()
+    p5_plan_sha256 = _sha256_path(plan_path)
+    identity = {
+        "benchmark_version": plan["benchmark_version"],
+        "split": plan["execution"]["split"],
+        "dataset_sha256": environment["dataset_sha256"],
+        "knowledge_manifest_sha256": environment["knowledge_manifest_sha256"],
+        "experiment_plan_sha256": p5_plan_sha256,
+        "pre_experiment_sha": PRE_EXPERIMENT_SHA,
+        "evaluated_git_sha": freeze_commit_sha,
+        "evaluation_harness_sha": harness_sha,
+        "evidence_gate": profile.evidence_gate.value,
+        "evidence_gate_threshold": profile.evidence_gate_threshold,
+        "grounding_candidate": profile.grounding_candidate.value,
+        "model_candidate": profile.model_candidate,
+        "retrieval_profile_version": environment["retrieval_profile_version"],
+        "agent_prompt_version": candidate["agent_prompt_version"],
+        "agent_graph_version": profile.graph_version,
+        "model_revision": environment["model_revision"],
+        "run_id": run_id,
+        "p5_experiment_plan_sha256": p5_plan_sha256,
+        "scorer_version": scorer["version"],
+        "scorer_definition_commit_sha": scorer["definition_commit_sha"],
+        "scorer_implementation_sha256": scorer["implementation_sha256"],
+        "scorer_manifest_sha256": scorer["manifest_sha256"],
+        "scorer_fixture_sha256": scorer["fixture_sha256"],
+        "scorer_spec_sha256": scorer["spec_sha256"],
+        "local_output_schema_sha256": _sha256_path(schema_path),
+        "application_under_test_sha": freeze_commit_sha,
+        "implementation_freeze_sha": freeze_commit_sha,
+        "hosted_ci_run_id": hosted_ci_run_id,
+        "hosted_ci_head_sha": hosted_ci_head_sha,
+        "hosted_ci_conclusion": hosted_ci_conclusion,
+        "hosted_ci_job_conclusions_sha256": jobs_sha256,
+        "provider": environment["provider"],
+        "capability_alias": environment["capability_alias"],
+        "retrieval_strategy": environment["retrieval_strategy"],
+        "final_evidence_count": environment["final_evidence_count"],
+        "agent_prompt_sha256": _sha256_path(prompt_path),
+        "grounding_finalizer_version": profile.grounding_finalizer_version,
+        "knowledge_terminal_output_transport": plan["knowledge_terminal_output_transport"],
+        "tool_choice": plan["knowledge_request"]["tool_choice"],
+        "provider_response_format_attached": plan["knowledge_request"][
+            "provider_response_format_attached"
+        ],
+    }
+    if (
+        _sha256_path(dataset_path) != identity["dataset_sha256"]
+        or _sha256_path(knowledge_manifest_path) != identity["knowledge_manifest_sha256"]
+    ):
+        raise ValueError("P5 dataset or knowledge manifest differs from the frozen plan")
+    required = set(plan["run_identity"]["required_fields"])
+    missing = sorted(required - identity.keys())
+    if missing:
+        raise ValueError(f"P5 identity is missing frozen fields: {', '.join(missing)}")
+    if scorer["definition_commit_sha"] != manifest["scorer_frozen_at_commit_sha"]:
+        raise ValueError("P5 scorer definition commit differs from the frozen manifest")
     return _validated_identity(identity)
 
 

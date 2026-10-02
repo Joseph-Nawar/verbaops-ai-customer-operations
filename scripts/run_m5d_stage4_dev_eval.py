@@ -6,7 +6,9 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -18,8 +20,19 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from verbaops.evaluation.cases import load_cases
 from verbaops.evaluation.corpus import CorpusManifest, audit_corpus
 from verbaops.evaluation.live import LiveEvaluationAdapter, TraceReader
+from verbaops.evaluation.m5d_b2_p5_preregistration import (
+    P5_PLAN_SHA256,
+    audit_m5d_b2_p5_preregistration,
+    require_p5_canonical_run_directory,
+)
+from verbaops.evaluation.m5d_run_identity import (
+    load_checkpoint_records,
+    run_identity_sha256,
+    verify_artifact_references,
+)
 from verbaops.evaluation.metrics import aggregate_results, score_case
 from verbaops.evaluation.models import CaseEvaluationResult, EvaluationObservation
+from verbaops.evaluation.p5_trace import verify_p5_trace_records
 
 ROOT = Path(__file__).resolve().parents[1]
 CASES_FILE = ROOT / "evals/agent/v0.1/cases.jsonl"
@@ -31,7 +44,150 @@ GROUNDING_CANDIDATES = {
     "P2_FAIL_CLOSED_CITATIONS",
     "P3_ONE_REPAIR_THEN_FAIL_CLOSED",
     "P4_EVIDENCE_LINKED_SINGLE_PASS",
+    "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS",
 }
+
+
+def _p5_rag_report_meets_stage4_gate(report: Mapping[str, Any]) -> bool:
+    """Require every frozen P5 RAG floor and the independent handle-trust invariant."""
+
+    for name, minimum in (("citation_precision", 0.95), ("groundedness", 0.90)):
+        metric = report.get(name)
+        if not isinstance(metric, Mapping):
+            return False
+        denominator = metric.get("denominator")
+        value = metric.get("value")
+        if (
+            isinstance(denominator, bool)
+            or not isinstance(denominator, int)
+            or denominator <= 0
+            or isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(float(value))
+            or float(value) < minimum
+        ):
+            return False
+    unsupported = report.get("unsupported_claim_rate")
+    coverage = report.get("expected_fact_coverage")
+    coverage_denominator = coverage.get("denominator") if isinstance(coverage, Mapping) else None
+    if (
+        isinstance(unsupported, bool)
+        or not isinstance(unsupported, int | float)
+        or not math.isfinite(float(unsupported))
+        or unsupported > 0.10
+        or not isinstance(coverage, Mapping)
+        or isinstance(coverage_denominator, bool)
+        or not isinstance(coverage_denominator, int)
+        or coverage_denominator <= 0
+        or isinstance(coverage.get("value"), bool)
+        or not isinstance(coverage.get("value"), int | float)
+        or not math.isfinite(float(coverage["value"]))
+        or coverage["value"] < 0.70
+    ):
+        return False
+    diagnostics = report.get("p5_diagnostics")
+    fabricated_count = (
+        diagnostics.get("fabricated_or_non_supplied_evidence_handle_count")
+        if isinstance(diagnostics, Mapping)
+        else None
+    )
+    return bool(
+        report.get("scorer_version") == "rag-v0.2-scorer-v2"
+        and isinstance(diagnostics, Mapping)
+        and diagnostics.get("zero_fabricated_or_non_supplied_evidence_handles") is True
+        and isinstance(fabricated_count, int)
+        and not isinstance(fabricated_count, bool)
+        and fabricated_count == 0
+    )
+
+
+def _require_complete_eligible_p5_rag_run(run_directory: Path | None) -> None:
+    """Verify complete, identity-bound P5 DEV artifacts before Stage 4 can start."""
+
+    if run_directory is None:
+        raise ValueError("P5 requires complete eligible canonical RAG evidence before Stage 4")
+    run_id = run_directory.name
+    run_directory = require_p5_canonical_run_directory(ROOT, run_directory, run_id=run_id)
+    audit_m5d_b2_p5_preregistration(ROOT)
+    try:
+        metadata = json.loads((run_directory / "metadata.json").read_text(encoding="utf-8"))
+        report = json.loads((run_directory / "report.json").read_text(encoding="utf-8"))
+        summary = json.loads((run_directory / "run-summary.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(
+            "P5 requires complete eligible canonical RAG evidence before Stage 4"
+        ) from error
+
+    if (
+        metadata.get("grounding_candidate") != "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
+        or metadata.get("split") != "dev"
+        or metadata.get("completed_case_count") != 96
+        or metadata.get("execution_eligibility") != "EXECUTION_ELIGIBLE"
+        or metadata.get("holdout_executed") is not False
+        or summary.get("canonical") is not True
+        or summary.get("run_id") != run_id
+        or summary.get("completed_cases") != 96
+        or summary.get("holdout_executed") is not False
+        or report.get("canonical_run_id") != run_id
+    ):
+        raise ValueError("P5 RAG evidence is incomplete or execution-ineligible")
+    identity = metadata.get("run_identity")
+    digest = metadata.get("run_identity_sha256")
+    if (
+        not isinstance(identity, dict)
+        or identity.get("run_id") != run_id
+        or identity.get("grounding_candidate") != "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
+        or identity.get("p5_experiment_plan_sha256") != P5_PLAN_SHA256
+        or identity.get("split") != "dev"
+        or summary.get("run_identity") != identity
+        or summary.get("run_identity_sha256") != digest
+        or report.get("canonical_run_identity_sha256") != digest
+    ):
+        raise ValueError("P5 RAG identity does not match its canonical artifacts")
+    if run_identity_sha256(identity) != digest:
+        raise ValueError("P5 RAG identity fingerprint is invalid")
+
+    checkpoint = run_directory / "grounded_cases.jsonl"
+    identity_sidecar = checkpoint.with_name(f"{checkpoint.name}.identity.json")
+    try:
+        stored_identity = json.loads(identity_sidecar.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError("P5 checkpoint identity sidecar is missing or malformed") from error
+    if stored_identity != {"identity": identity, "run_identity_sha256": digest}:
+        raise ValueError("P5 checkpoint identity sidecar does not match metadata")
+    from verbaops.evaluation.rag_v02 import RagV02Case
+
+    expected_case_ids: set[str] = set()
+    with (ROOT / "evals/rag/v0.2/questions.jsonl").open(encoding="utf-8") as dataset:
+        for line_number, line in enumerate(dataset, 1):
+            if not re.search(r'"split"\s*:\s*"dev"', line):
+                continue
+            try:
+                case = RagV02Case.model_validate_json(line)
+            except ValueError as error:
+                raise ValueError(f"rag-v0.2 DEV line {line_number} is invalid") from error
+            expected_case_ids.add(case.case_id)
+            if len(expected_case_ids) == 96:
+                break
+    if len(expected_case_ids) != 96:
+        raise ValueError("rag-v0.2 DEV must contain exactly 96 cases")
+    records = load_checkpoint_records(checkpoint, identity, expected_case_ids=expected_case_ids)
+    if len(records) != 96:
+        raise ValueError("P5 RAG checkpoint is not exactly 96 unique observations")
+    trace_refs = verify_p5_trace_records(ROOT, run_directory, run_id, records.values())
+    for references in (
+        metadata.get("artifacts"),
+        summary.get("artifacts"),
+        summary.get("input_gate_artifacts"),
+        trace_refs,
+    ):
+        if not isinstance(references, list):
+            raise ValueError("P5 RAG artifact references are incomplete")
+        verify_artifact_references(ROOT, references)
+    if not _p5_rag_report_meets_stage4_gate(report):
+        raise ValueError(
+            "P5 RAG report does not pass every frozen quality floor and trust invariant"
+        )
 
 
 def _read_checkpoint(path: Path, expected_context: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -62,6 +218,11 @@ async def _run(args: argparse.Namespace) -> None:
         args.gate != "G2_TOP_EVIDENCE_CROSS_ENCODER" or args.threshold != 0.2554669
     ):
         raise ValueError("P4 requires the frozen G2 gate and threshold")
+    is_p5 = args.grounding == "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
+    if is_p5 and (args.gate != "G2_TOP_EVIDENCE_CROSS_ENCODER" or args.threshold != 0.2554669):
+        raise ValueError("P5 requires the frozen G2 gate and threshold")
+    if is_p5:
+        _require_complete_eligible_p5_rag_run(args.p5_rag_run_dir)
     if not args.database_url or not args.token:
         raise ValueError("database and public API bearer token are required")
 
@@ -227,6 +388,7 @@ def main() -> None:
     parser.add_argument("--model-candidate", default="M0")
     parser.add_argument("--gate", required=True)
     parser.add_argument("--threshold", type=float, required=True)
+    parser.add_argument("--p5-rag-run-dir", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=60.0)
     args = parser.parse_args()
     try:

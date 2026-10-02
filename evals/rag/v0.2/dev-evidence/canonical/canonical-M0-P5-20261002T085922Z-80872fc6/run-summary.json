@@ -1,0 +1,93 @@
+{
+  "artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/grounded_cases.jsonl",
+      "sha256": "3f4e788b83981dd94361ae999581da8d9a42db422d30ed6ac6f25b2b3fefcea2"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/grounded_cases.jsonl.identity.json",
+      "sha256": "ef22ffd93f2f1fe16cab15e81e5be8a4fd0856bafa6a81d23f1a6f7d87725175"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/interruption.json",
+      "sha256": "41753b0da3689590a3559edec6ba2f4929976f05c0e46816f95f7f48cdf63dbc"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/metadata.json",
+      "sha256": "18b7ac30c658c36ede9c9b310f6ababd088678bdea672a34cb91f5d97791c757"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces/cd724cdc-2d32-4936-a989-9525cec5fb0c.json",
+      "sha256": "53f651bc6a8e2aa942761952fbb6cd7c92f8ac869fed00b9ac4401f6227f2279"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces/a6089d66-d3a7-4c7b-a7d6-2903f0afd0a8.json",
+      "sha256": "a548faec782059ad0d5f8d8bb23b274325c7ed94f6bd2b3577cefdb6972cdb5e"
+    }
+  ],
+  "blocked_case_id": "m5d-v02-shipping-003",
+  "canonical": true,
+  "completed_cases": 2,
+  "evaluated_git_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+  "evaluation_harness_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+  "input_gate_artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate-report.json",
+      "sha256": "ad96bd0e53f87dd43f02d7024df2f91d5b29661806abc015f859a6d1dcab5628"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl",
+      "sha256": "167e97a96e0260578b1c93ef1a8aa007026172d1b0712f37893426e908e3adae"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-gate-20260929T123626Z-45586c67/gate_cases.jsonl.identity.json",
+      "sha256": "a081ad3b27493c360023082b588821d3c0a2ddc55d317e030cdb63c6962488a1"
+    }
+  ],
+  "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+  "run_id": "canonical-M0-P5-20261002T085922Z-80872fc6",
+  "run_identity": {
+    "agent_graph_version": "text-agent-m5d-v1",
+    "agent_prompt_sha256": "29d5512332a8e0463929c44a2c46d4ff0dc8f5c6e49523db57066856278cada6",
+    "agent_prompt_version": "text-agent-system-p4-evidence-linked-v1",
+    "application_under_test_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "benchmark_version": "rag-v0.2",
+    "capability_alias": "agent-fast",
+    "dataset_sha256": "398521c3a2974634c7d8aace8a391fac33b10b60c3718814d4b222612168a595",
+    "evaluated_git_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "evaluation_harness_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "evidence_gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+    "evidence_gate_threshold": 0.2554669,
+    "experiment_plan_sha256": "e700ec31f157f47837489fc2d26e1296388405f447701286adc899d7b42fc20e",
+    "final_evidence_count": 5,
+    "grounding_candidate": "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS",
+    "grounding_finalizer_version": "evidence-linked-extractive-single-pass-v1",
+    "hosted_ci_conclusion": "success",
+    "hosted_ci_head_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "hosted_ci_job_conclusions_sha256": "9c796c8222820b55b4b7c1fb3f6ae3db427e27dc7c3039abb26f30067f92637d",
+    "hosted_ci_run_id": 36984148887,
+    "implementation_freeze_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "knowledge_manifest_sha256": "26bf94fd2fea6b0b5ce0ba0c91f87ae67dad32b95446a9ae1fa8301e21ee4660",
+    "knowledge_terminal_output_transport": "prompt_json_plain_content_no_response_format",
+    "local_output_schema_sha256": "c406afdf4100c01328bd86e06d8d4408c25a51a696fb00ff0ea69394ccc625e9",
+    "model_candidate": "M0",
+    "model_revision": "groq/openai/gpt-oss-120b",
+    "p5_experiment_plan_sha256": "e700ec31f157f47837489fc2d26e1296388405f447701286adc899d7b42fc20e",
+    "pre_experiment_sha": "347eccfd7aaa22332bdf36ee396715133b716b9c",
+    "provider": "Groq",
+    "provider_response_format_attached": false,
+    "retrieval_profile_version": "knowledge-retrieval-v1.1",
+    "retrieval_strategy": "hybrid_rrf",
+    "run_id": "canonical-M0-P5-20261002T085922Z-80872fc6",
+    "scorer_definition_commit_sha": "fa800f5bfee4ee903905d89bf600642e9ddb0d95",
+    "scorer_fixture_sha256": "7dd8662d39b14c71c01fad309341c478401d649f7165ae4ced384053b420675a",
+    "scorer_implementation_sha256": "aa0eff0b165a8d40e22416bad493f432931409ca70d2abee89682966c39df67a",
+    "scorer_manifest_sha256": "6a86c9d93f3ab9f53595d99138745311f1f4cad8e2673150be7446d1ecdd5bbb",
+    "scorer_spec_sha256": "55eb54f61be1dfe6536a23f0786021b193e032dfa0fdc760bc2caa6c5688f120",
+    "scorer_version": "rag-v0.2-scorer-v2",
+    "split": "dev",
+    "tool_choice": "auto"
+  },
+  "run_identity_sha256": "62c95ac2e893cdab7aaf3f076e6599610d0e15f5a4f1725f10b283cdd52dd58f",
+  "run_status": "INTERRUPTED"
+}

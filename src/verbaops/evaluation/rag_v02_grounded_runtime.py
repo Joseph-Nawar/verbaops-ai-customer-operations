@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from verbaops.evaluation.live import TraceReader
 from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p5_trace import P5TraceStore
 from verbaops.knowledge.repository_tables import (
     knowledge_chunks,
     knowledge_documents,
@@ -38,12 +39,19 @@ class PublicRagV02AgentAdapter:
         gate_threshold: float,
         p4_trace_run_directory: Path | None = None,
         p4_trace_run_id: str | None = None,
+        p5_trace_run_directory: Path | None = None,
+        p5_trace_run_id: str | None = None,
     ) -> None:
         is_p4 = grounding_candidate == "P4_EVIDENCE_LINKED_SINGLE_PASS"
+        is_p5 = grounding_candidate == "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS"
         if is_p4 != (p4_trace_run_directory is not None and p4_trace_run_id is not None):
             raise ValueError("P4 adapter requires an explicitly configured trace run")
         if (p4_trace_run_directory is None) != (p4_trace_run_id is None):
             raise ValueError("P4 trace directory and run ID must be configured together")
+        if is_p5 != (p5_trace_run_directory is not None and p5_trace_run_id is not None):
+            raise ValueError("P5 adapter requires an explicitly configured trace run")
+        if (p5_trace_run_directory is None) != (p5_trace_run_id is None):
+            raise ValueError("P5 trace directory and run ID must be configured together")
         self._base_url = base_url.rstrip("/")
         self._bearer_token = bearer_token
         self._http_client = http_client
@@ -53,6 +61,11 @@ class PublicRagV02AgentAdapter:
         self._p4_trace_store = (
             P4TraceStore(p4_trace_run_directory, p4_trace_run_id)
             if p4_trace_run_directory is not None and p4_trace_run_id is not None
+            else None
+        )
+        self._p5_trace_store = (
+            P5TraceStore(p5_trace_run_directory, p5_trace_run_id)
+            if p5_trace_run_directory is not None and p5_trace_run_id is not None
             else None
         )
         self._trace_reader = TraceReader(sessions)
@@ -134,6 +147,13 @@ class PublicRagV02AgentAdapter:
             result["p4_trace_artifact"] = {
                 "path": p4_artifact.relative_path,
                 "sha256": p4_artifact.sha256,
+            }
+        if self._p5_trace_store is not None:
+            p5_artifact = self._p5_trace_store.read(run_id)
+            result["p5_diagnostics"] = p5_artifact.payload["diagnostics"]
+            result["p5_trace_artifact"] = {
+                "path": p5_artifact.relative_path,
+                "sha256": p5_artifact.sha256,
             }
         return result
 

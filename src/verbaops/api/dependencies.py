@@ -35,6 +35,8 @@ class ApplicationDependencies:
     evaluation_profile: AgentEvaluationProfile | None = None
     p4_trace_run_directory: Path | None = None
     p4_trace_run_id: str | None = None
+    p5_trace_run_directory: Path | None = None
+    p5_trace_run_id: str | None = None
 
 
 class RuntimeResourceUnavailableError(RuntimeError):

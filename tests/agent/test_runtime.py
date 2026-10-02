@@ -35,6 +35,7 @@ from verbaops.conversations.domain import (
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
 from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p5_trace import P5TraceStore, project_p5_diagnostics
 from verbaops.llm.errors import LLMUnavailableError
 from verbaops.llm.models import CapabilityAlias, GenerateResponse, ResponseMetadata, ToolCall
 from verbaops.tools.registry import build_commerce_read_registry
@@ -325,6 +326,55 @@ async def test_p4_runtime_writes_terminal_diagnostics_only_to_explicit_run_sidec
     assert artifact.payload["diagnostics"]["p4_extractive_mode_reason"] == (
         "no_selected_knowledge_evidence"
     )
+
+
+@pytest.mark.asyncio
+async def test_p5_runtime_writes_p5_projected_trace_to_explicit_run_sidecar(
+    tmp_path: Path,
+) -> None:
+    class P5Graph:
+        async def ainvoke(
+            self, _state: dict[str, Any], *, context: Any, config: dict[str, Any]
+        ) -> dict[str, Any]:
+            del context, config
+            return {
+                "final_response": "I am unable to verify that information from the available company knowledge.",
+                "p5_diagnostics": project_p5_diagnostics(
+                    empty_p4_response_diagnostics(),
+                    knowledge_mode_active=False,
+                    tool_path_entered=False,
+                ),
+            }
+
+    run_id = "canonical-M0-P5-runtime"
+    trace_store = P5TraceStore(tmp_path / run_id, run_id)
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+    )
+    service = RecordingConversationService()
+    commerce = CommerceClient(
+        CommerceSettings(
+            base_url="https://commerce.test",
+            service_token=SecretStr("test-token"),
+            timeout_seconds=1.0,
+        ),
+        httpx.AsyncClient(transport=httpx.MockTransport(lambda _request: httpx.Response(500))),
+    )
+    runtime = AgentRuntime(
+        conversation_service=cast(ConversationService, service),
+        llm_client=ScriptedLLMClient([]),
+        commerce_client=commerce,
+        graph=P5Graph(),
+        evaluation_profile=profile,
+        p5_trace_store=trace_store,
+    )
+
+    result = await runtime.run_turn(scope(), uuid4(), uuid4(), "What is the policy?")
+
+    artifact = trace_store.read(result.agent_run_id)
+    assert artifact.payload["candidate"] == "P5"
+    assert artifact.payload["agent_run_id"] == str(result.agent_run_id)
+    assert artifact.payload["diagnostics"]["provider_response_format_attached"] is False
 
 
 @pytest.mark.asyncio
