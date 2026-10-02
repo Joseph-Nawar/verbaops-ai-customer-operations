@@ -16,6 +16,10 @@ from verbaops.evaluation.m5d_run_identity import (
     load_checkpoint_records,
 )
 from verbaops.evaluation.p4_trace import frozen_p4_observability_contract
+from verbaops.evaluation.p5_trace import (
+    P5_KNOWLEDGE_TERMINAL_OUTPUT_TRANSPORT,
+    P5_TRACE_FIELDS,
+)
 from verbaops.evaluation.rag_metrics import citation_precision, grounded_fact_score
 from verbaops.evaluation.rag_models import MetricResult, RagCase
 from verbaops.evaluation.rag_reports import percentile
@@ -484,6 +488,104 @@ def score_p4_grounded_records(
                 trace_counts["invalid_handle_rejection_count"] == 0
             ),
         },
+    }
+
+
+def score_p5_grounded_records(
+    cases: Sequence[RagV02Case],
+    records: Sequence[Mapping[str, Any]],
+    threshold: float,
+    *,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Score P5 using the same fact-specific scorer-v2 path without changing history."""
+
+    p4_compatible_records: list[dict[str, Any]] = []
+    for record in records:
+        p5_diagnostics = record.get("p5_diagnostics")
+        if not isinstance(p5_diagnostics, Mapping) or set(p5_diagnostics) != P5_TRACE_FIELDS:
+            raise ValueError("P5 scoring requires the frozen P5 diagnostic field contract")
+        if (
+            p5_diagnostics.get("knowledge_terminal_output_transport")
+            != P5_KNOWLEDGE_TERMINAL_OUTPUT_TRANSPORT
+            or p5_diagnostics.get("provider_response_format_attached") is not False
+        ):
+            raise ValueError("P5 diagnostics do not match the frozen request transport")
+        p4_compatible_records.append(
+            {
+                **dict(record),
+                "p4_diagnostics": _p5_diagnostics_for_shared_scorer(p5_diagnostics),
+            }
+        )
+
+    report = score_p4_grounded_records(cases, p4_compatible_records, threshold, repo_root=repo_root)
+    report["p5_diagnostics"] = report.pop("p4_diagnostics")
+    return report
+
+
+def _p5_diagnostics_for_shared_scorer(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Map P5 trace names to the already-tested shared extractive scorer inputs."""
+
+    active = raw.get("knowledge_mode_active")
+    tool_path = raw.get("tool_path_entered")
+    if not isinstance(active, bool) or not isinstance(tool_path, bool) or (active and tool_path):
+        raise ValueError("P5 trace mode diagnostics are malformed")
+    if raw.get("extractive_mode_deactivated_after_tool") is not tool_path:
+        raise ValueError("P5 tool-path diagnostics are inconsistent")
+
+    parse_success = raw.get("json_parse_success")
+    schema_valid = raw.get("schema_validation_result")
+    json_failure = raw.get("json_parse_failure_reason")
+    if active:
+        if parse_success is True and schema_valid is True:
+            p4_parse_success = True
+            p4_parse_failure = None
+        elif parse_success is True and schema_valid is False:
+            p4_parse_success = False
+            p4_parse_failure = "invalid_p4_schema"
+        elif parse_success is False and schema_valid is None:
+            p4_parse_success = False
+            p4_parse_failure = json_failure
+        else:
+            raise ValueError("P5 parse and schema diagnostics are inconsistent")
+        mode_reason = (
+            "malformed_or_invalid_structured_knowledge_output"
+            if not p4_parse_success
+            else "all_claims_rejected_safe_fallback"
+            if all(
+                value is not None
+                for value in raw.get("deterministic_rejection_reason_per_claim", [])
+            )
+            else "terminal_knowledge_answer_validated"
+        )
+    else:
+        p4_parse_success = None
+        p4_parse_failure = None
+        mode_reason = (
+            "terminal_tool_answer_bypassed_validator"
+            if tool_path
+            else "no_selected_knowledge_evidence"
+        )
+
+    return {
+        "raw_structured_model_response": raw.get("raw_terminal_content"),
+        "parse_success": p4_parse_success,
+        "parse_failure_reason": p4_parse_failure,
+        "proposed_claims": raw.get("proposed_claims"),
+        "proposed_evidence_handle_per_claim": raw.get("proposed_evidence_handle_per_claim"),
+        "proposed_excerpt_per_claim": raw.get("proposed_excerpt_per_claim"),
+        "handle_validation_result_per_claim": raw.get("handle_validation_result_per_claim"),
+        "excerpt_validation_result_per_claim": raw.get("excerpt_validation_result_per_claim"),
+        "deterministic_rejection_reason_per_claim": raw.get(
+            "deterministic_rejection_reason_per_claim"
+        ),
+        "rendered_final_claims": raw.get("rendered_final_claims"),
+        "p4_extractive_mode_active": active,
+        "p4_extractive_mode_reason": mode_reason,
+        "tool_path_entered": tool_path,
+        "p4_extractive_mode_deactivated_after_tool": tool_path,
+        "fallback_used": raw.get("fallback_used"),
+        "fallback_reason": raw.get("fallback_reason"),
     }
 
 
