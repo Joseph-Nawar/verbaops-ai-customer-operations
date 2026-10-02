@@ -9,9 +9,12 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from verbaops.agent.p4_grounding import finalize_p4_response
 from verbaops.evaluation.live import TraceReader
 from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p5_trace import P5TraceStore, project_p5_diagnostics
 from verbaops.evaluation.rag_v02_grounded_runtime import PublicRagV02AgentAdapter
+from verbaops.retrieval.grounding import CitationFinalizer
 
 
 @pytest.mark.asyncio
@@ -205,3 +208,86 @@ async def test_p4_adapter_binds_sidecar_payload_and_hash_to_agent_run(
     assert result["p4_diagnostics"] == diagnostics
     assert result["p4_trace_artifact"]["path"] == f"p4-traces/{run_id}.json"
     assert result["p4_trace_artifact"]["sha256"] == trace_store.read(run_id).sha256
+
+
+@pytest.mark.asyncio
+async def test_p5_adapter_returns_p5_labelled_trace_reference_and_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    run_uuid = UUID("00000000-0000-0000-0000-000000000021")
+    conversation_id = "00000000-0000-0000-0000-000000000022"
+    message_id = "00000000-0000-0000-0000-000000000023"
+    canonical_run_id = "canonical-M0-P5-20261002T120000Z-1234abcd"
+
+    class Response:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, Any]:
+            return self.payload
+
+    class HTTPClient:
+        async def post(self, url: str, **_kwargs: Any) -> Response:
+            if url.endswith("/v1/conversations"):
+                return Response({"conversation_id": conversation_id})
+            return Response(
+                {
+                    "run_id": str(run_uuid),
+                    "assistant_message": {"id": message_id, "content": "A claim. [[K1]]"},
+                }
+            )
+
+    run_directory = tmp_path / canonical_run_id
+    trace_store = P5TraceStore(run_directory, canonical_run_id)
+    diagnostics = project_p5_diagnostics(
+        finalize_p4_response("{", [], CitationFinalizer()).diagnostics(),
+        knowledge_mode_active=True,
+        tool_path_entered=False,
+    )
+    trace_store.write(run_uuid, diagnostics)
+    call = SimpleNamespace(
+        model="groq/openai/gpt-oss-120b",
+        provider="groq",
+        gateway_model_id="groq/openai/gpt-oss-120b",
+        capability_alias="agent-fast",
+        cost_usd=0.001,
+        status="succeeded",
+        latency_ms=500.0,
+    )
+    trace = SimpleNamespace(
+        model_calls=(call,), tool_invocations=(), run=SimpleNamespace(status="completed")
+    )
+    adapter = PublicRagV02AgentAdapter(
+        "http://localhost:8000",
+        "development-token",
+        cast(httpx.AsyncClient, HTTPClient()),
+        cast(async_sessionmaker[AsyncSession], object()),
+        grounding_candidate="P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS",
+        gate_threshold=0.2554669,
+        p5_trace_run_directory=run_directory,
+        p5_trace_run_id=canonical_run_id,
+    )
+
+    async def read_trace(_run_id: UUID) -> Any:
+        return trace
+
+    async def citation_rows(_message_id: UUID) -> list[dict[str, Any]]:
+        return []
+
+    async def retrieval_rows(_run_id: UUID) -> tuple[list[str], float]:
+        return ["returns-policy|2026.1|Returns|1"], 0.5
+
+    monkeypatch.setattr(
+        adapter, "_trace_reader", cast(TraceReader, SimpleNamespace(read=read_trace))
+    )
+    monkeypatch.setattr(adapter, "_citation_rows", citation_rows)
+    monkeypatch.setattr(adapter, "_retrieval_rows", retrieval_rows)
+
+    result = await adapter.execute(SimpleNamespace(query="What is the return window?"))
+
+    assert result["p5_diagnostics"] == diagnostics
+    assert result["p5_trace_artifact"]["path"] == f"p5-traces/{run_uuid}.json"
+    assert result["p5_trace_artifact"]["sha256"] == trace_store.read(run_uuid).sha256

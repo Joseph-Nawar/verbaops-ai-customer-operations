@@ -13,6 +13,7 @@ from verbaops.auth.context import Role, TrustedContext
 from verbaops.auth.development import DevelopmentAuthProvider
 from verbaops.auth.provider import OpaqueCredential
 from verbaops.config.settings import Environment, Settings
+from verbaops.evaluation.m5d_b2_p5_preregistration import require_p5_canonical_run_directory
 from verbaops.evaluation.m5d_run_identity import (
     build_agent_evaluation_profile,
     require_canonical_run_directory,
@@ -69,7 +70,7 @@ def main() -> None:
     if is_p5:
         if args.p5_run_dir is None or args.p5_run_id is None:
             raise ValueError("P5 API requires --p5-run-dir and --p5-run-id")
-        require_canonical_run_directory(ROOT, args.p5_run_dir, run_id=args.p5_run_id)
+        require_p5_canonical_run_directory(ROOT, args.p5_run_dir, run_id=args.p5_run_id)
     elif args.p5_run_dir is not None or args.p5_run_id is not None:
         raise ValueError("P5 trace arguments are valid only for P5")
     app = create_app(
