@@ -17,7 +17,7 @@
 
 ## Tasks
 
-### 1. Candidate profile and explicit request transport
+### Task 1: Candidate profile and explicit request transport
 
 **Files:** `src/verbaops/agent/evaluation.py`, `src/verbaops/agent/graph.py`, `tests/agent/test_m5d_grounding_candidates.py`.
 
@@ -25,7 +25,7 @@
 - Add the P5 evaluation profile and an explicit candidate check that omits `response_format` only for P5. Keep the `LLMClient.generate()` boundary and production defaults unchanged.
 - **GREEN:** Run the focused tests and full candidate test module; commit `feat(agent): add P5 evaluation request profile`.
 
-### 2. Reuse terminal parsing, extractive finalization, and tool loop
+### Task 2: Reuse terminal parsing, extractive finalization, and tool loop
 
 **Files:** `src/verbaops/agent/graph.py`; focused tests in `tests/agent/test_m5d_grounding_candidates.py`, `tests/agent/test_tool_loop.py`, and `tests/agent/test_p4_grounding.py`.
 
@@ -33,7 +33,7 @@
 - Extend the existing P4 knowledge finalization branch to P5 without attaching P4's provider schema. Keep no-evidence behavior, tool validation/authorization, budgets, exact extractive checks/rendering, and citation finalization unchanged.
 - **GREEN:** Run `uv run pytest tests/agent/test_m5d_grounding_candidates.py tests/agent/test_tool_loop.py tests/agent/test_p4_grounding.py -q`; commit `feat(agent): reuse extractive finalization for P5`.
 
-### 3. Persist sanitized P5 diagnostics
+### Task 3: Persist sanitized P5 diagnostics
 
 **Files:** Add `src/verbaops/evaluation/p5_trace.py` and `tests/evaluation/test_p5_trace.py`; wire only required opt-in/run-directory values through the existing runtime/API assembly and public runner.
 
@@ -41,7 +41,7 @@
 - Implement a narrow P4-diagnostic-to-P5 projection and P5-only `p5-traces/` storage. Keep only minimal trace constants in runtime code; do not copy `evals/` into the image or read the plan dynamically. Do not rename P4 keys or add a general trace framework. Store no credentials, headers, prompts, or unrelated private data.
 - **GREEN:** Run the P5 trace tests plus `tests/evaluation/test_p4_trace.py` and affected API/runtime tests; commit `feat(eval): persist P5-labelled canonical traces`.
 
-### 4. Add P5 scorer-v2 reporting
+### Task 4: Add P5 scorer-v2 reporting
 
 **Files:** Modify `src/verbaops/evaluation/rag_grounding.py`; add `tests/evaluation/test_m5d_p5_scoring.py`.
 
@@ -49,7 +49,7 @@
 - Add the smallest explicit P5 scoring entry point/projection over existing scorer-v2 logic. Do not change the scorer, fixtures, floors, or historical paths.
 - **GREEN:** Run P5 scoring, P4 scoring, and scorer-v2 tests; commit `feat(eval): score P5 with frozen scorer-v2`.
 
-### 5. Add P5 plan audit, identity, authorization, and canonical runner
+### Task 5: Add P5 plan audit, identity, authorization, and canonical runner
 
 **Files:** Add `src/verbaops/evaluation/m5d_b2_p5_preregistration.py` and `tests/evaluation/test_m5d_p5_run_identity.py`; extend `src/verbaops/evaluation/m5d_run_identity.py` and `scripts/run_m5d_grounded_eval.py` narrowly.
 
@@ -57,7 +57,7 @@
 - Add P5-specific authorization rather than routing through P4 closeout guards. Extend the public API runner for one 96-case DEV namespace, checkpoint validation, P5 traces, and complete-only scoring/reporting. Do not load holdout rows.
 - **GREEN:** Run P5 identity/runner tests plus P4 identity/closeout and preregistration regressions; commit `feat(eval): authorize canonical P5 DEV runs`.
 
-### 6. Add future Stage 4 support and freeze
+### Task 6: Add future Stage 4 support and freeze
 
 **Files:** `scripts/run_m5d_stage4_dev_eval.py`, its focused tests, and only necessary contract wiring.
 
