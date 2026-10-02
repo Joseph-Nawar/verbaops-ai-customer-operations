@@ -66,6 +66,30 @@ def test_non_p4_application_rejects_evaluation_trace_sink(tmp_path: Path) -> Non
         )
 
 
+def test_p5_trace_sink_requires_explicit_p5_candidate_and_canonical_run_identity(
+    tmp_path: Path,
+) -> None:
+    profile = AgentEvaluationProfile(
+        grounding_candidate=GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+    )
+    with pytest.raises(ValueError, match="P5 trace"):
+        create_app(
+            settings=build_settings(), auth_provider=build_provider(), evaluation_profile=profile
+        )
+
+    run_id = "canonical-M0-P5-app"
+    run_directory = tmp_path / run_id
+    app = create_app(
+        settings=build_settings(),
+        auth_provider=build_provider(),
+        evaluation_profile=profile,
+        p5_trace_run_directory=run_directory,
+        p5_trace_run_id=run_id,
+    )
+    assert app.state.verbaops_dependencies.p5_trace_run_directory == run_directory
+    assert app.state.verbaops_dependencies.p5_trace_run_id == run_id
+
+
 @pytest.mark.asyncio
 async def test_application_metadata_uses_package_version(app: FastAPI) -> None:
     response = await request(app, "GET", "/openapi.json")

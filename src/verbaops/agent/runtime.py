@@ -33,6 +33,7 @@ from verbaops.conversations.domain import (
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
 from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p5_trace import P5TraceStore
 from verbaops.llm.client import LLMClient
 from verbaops.llm.models import ChatMessage
 from verbaops.retrieval.grounding import CitationFinalizer
@@ -68,6 +69,7 @@ class AgentRuntime:
         citation_finalizer: CitationFinalizer | None = None,
         evaluation_profile: AgentEvaluationProfile | None = None,
         p4_trace_store: P4TraceStore | None = None,
+        p5_trace_store: P5TraceStore | None = None,
         deadline_seconds: float = 45.0,
     ) -> None:
         is_p4 = bool(
@@ -75,8 +77,15 @@ class AgentRuntime:
             and evaluation_profile.grounding_candidate
             is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
         )
+        is_p5 = bool(
+            evaluation_profile is not None
+            and evaluation_profile.grounding_candidate
+            is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+        )
         if is_p4 != (p4_trace_store is not None):
             raise ValueError("P4 runtime requires an explicitly configured P4 trace store")
+        if is_p5 != (p5_trace_store is not None):
+            raise ValueError("P5 runtime requires an explicitly configured P5 trace store")
         self._conversation_service = conversation_service
         self._llm_client = llm_client
         self._commerce_client = commerce_client
@@ -86,6 +95,7 @@ class AgentRuntime:
         self._citation_finalizer = citation_finalizer
         self._evaluation_profile = evaluation_profile
         self._p4_trace_store = p4_trace_store
+        self._p5_trace_store = p5_trace_store
         self._deadline_seconds = deadline_seconds
 
     async def run_turn(
@@ -149,6 +159,11 @@ class AgentRuntime:
                 if not isinstance(diagnostics, dict):
                     raise AgentProtocolError()
                 self._p4_trace_store.write(turn_start.agent_run.id, diagnostics)
+            if self._p5_trace_store is not None:
+                diagnostics = final_state.get("p5_diagnostics")
+                if not isinstance(diagnostics, dict):
+                    raise AgentProtocolError()
+                self._p5_trace_store.write(turn_start.agent_run.id, diagnostics)
             retrieval_invocation_id = final_state.get("retrieval_invocation_id")
             grounded_citations = final_state.get("grounded_citations", [])
             if retrieval_invocation_id is not None or grounded_citations:

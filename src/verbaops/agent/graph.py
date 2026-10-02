@@ -35,6 +35,7 @@ from verbaops.commerce.errors import (
     CommerceTimeoutError,
     CommerceUnavailableError,
 )
+from verbaops.evaluation.p5_trace import project_p5_diagnostics
 from verbaops.llm.errors import LLMError
 from verbaops.llm.models import (
     CapabilityAlias,
@@ -314,6 +315,10 @@ async def finalize_grounding(
                     state, active=True, terminal_reason=p4_result.terminal_mode_reason
                 ),
             }
+        elif candidate is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS:
+            result["p5_diagnostics"] = project_p5_diagnostics(
+                p4_result.diagnostics(), knowledge_mode_active=True, tool_path_entered=False
+            )
         return result
 
     if not isinstance(final_response, str) or not final_response.strip():
@@ -359,6 +364,12 @@ async def finalize_grounding(
             **empty_p4_response_diagnostics(),
             **_p4_mode_diagnostics(state, active=False),
         }
+    elif candidate is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS:
+        result["p5_diagnostics"] = project_p5_diagnostics(
+            empty_p4_response_diagnostics(),
+            knowledge_mode_active=False,
+            tool_path_entered=bool(state.get("tool_path_entered", False)),
+        )
     return result
 
 

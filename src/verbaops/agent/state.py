@@ -26,3 +26,4 @@ class AgentState(TypedDict):
     retrieval_invocation_id: UUID | None
     grounded_citations: list[RetrievalEvidence]
     p4_diagnostics: NotRequired[dict[str, object]]
+    p5_diagnostics: NotRequired[dict[str, object]]

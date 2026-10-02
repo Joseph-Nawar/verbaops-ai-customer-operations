@@ -244,6 +244,10 @@ async def test_p5_valid_commerce_call_disables_extractive_terminal_parsing() -> 
 
     assert result["final_response"] == "Your shipment is in transit."
     assert result["tool_path_entered"] is True
+    assert result["p5_diagnostics"]["knowledge_mode_active"] is False
+    assert result["p5_diagnostics"]["tool_path_entered"] is True
+    assert result["p5_diagnostics"]["extractive_mode_deactivated_after_tool"] is True
+    assert result["p5_diagnostics"]["raw_terminal_content"] is None
     assert service.tool_calls[0]["kwargs"]["status"] == "succeeded"
     assert all(request.response_format is None for request in llm.requests)
     assert all(request.tool_choice == "auto" for request in llm.requests)
@@ -281,6 +285,9 @@ async def test_p5_authoritative_not_found_result_still_bypasses_extractive_parse
 
     assert result["final_response"] == "I could not locate that shipment."
     assert result["tool_path_entered"] is True
+    assert result["p5_diagnostics"]["knowledge_mode_active"] is False
+    assert result["p5_diagnostics"]["tool_path_entered"] is True
+    assert result["p5_diagnostics"]["extractive_mode_deactivated_after_tool"] is True
     assert "not_found" in (llm.requests[1].messages[-1].content or "")
     assert service.tool_calls[0]["kwargs"]["error_code"] == "commerce_not_found"
     assert all(request.response_format is None for request in llm.requests)
@@ -297,9 +304,7 @@ async def test_p5_invalid_unexecuted_tool_call_does_not_enter_commerce_path() ->
         '{"claims":[{"claim_text":"Issue a refund.","evidence_handle":"K1",'
         '"supporting_excerpt":"Issue a refund."}]}'
     )
-    llm = ScriptedLLMClient(
-        [model_response(None, invalid_call), model_response(terminal_json)]
-    )
+    llm = ScriptedLLMClient([model_response(None, invalid_call), model_response(terminal_json)])
     service = RecordingConversationService()
     commerce_requests = 0
     retrieval = FixedRetrievalService(
@@ -330,6 +335,8 @@ async def test_p5_invalid_unexecuted_tool_call_does_not_enter_commerce_path() ->
     assert result["tool_path_entered"] is False
     assert result["validation_repair_count"] == 1
     assert result["final_response"] == "Issue a refund. [1]"
+    assert result["p5_diagnostics"]["knowledge_mode_active"] is True
+    assert result["p5_diagnostics"]["tool_path_entered"] is False
     assert commerce_requests == 0
     assert service.tool_calls[0]["kwargs"]["error_code"] == "invalid_tool_arguments"
     assert len(llm.requests) == 2

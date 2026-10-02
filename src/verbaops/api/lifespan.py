@@ -20,6 +20,7 @@ from verbaops.db.resources import (
     dispose_database_resources,
 )
 from verbaops.evaluation.p4_trace import P4TraceStore
+from verbaops.evaluation.p5_trace import P5TraceStore
 from verbaops.knowledge.embeddings import EmbeddingClient
 from verbaops.knowledge.repository import KnowledgeRepository
 from verbaops.knowledge.service import KnowledgeService
@@ -152,6 +153,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                     is GroundingCandidate.P4_EVIDENCE_LINKED_SINGLE_PASS
                     and dependencies.p4_trace_run_directory is not None
                     and dependencies.p4_trace_run_id is not None
+                    else None
+                ),
+                p5_trace_store=(
+                    P5TraceStore(
+                        dependencies.p5_trace_run_directory,
+                        dependencies.p5_trace_run_id,
+                        secrets_to_hide=(
+                            dependencies.settings.llm.api_key.get_secret_value(),
+                            dependencies.settings.commerce.service_token.get_secret_value(),
+                            dependencies.settings.auth.development_token.get_secret_value(),
+                        ),
+                    )
+                    if evaluation_profile is not None
+                    and evaluation_profile.grounding_candidate
+                    is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+                    and dependencies.p5_trace_run_directory is not None
+                    and dependencies.p5_trace_run_id is not None
                     else None
                 ),
             )

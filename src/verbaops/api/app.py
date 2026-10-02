@@ -35,6 +35,8 @@ def create_app(
     evaluation_profile: AgentEvaluationProfile | None = None,
     p4_trace_run_directory: Path | None = None,
     p4_trace_run_id: str | None = None,
+    p5_trace_run_directory: Path | None = None,
+    p5_trace_run_id: str | None = None,
 ) -> FastAPI:
     """Create an independent VerbaOps AI FastAPI application instance."""
 
@@ -53,6 +55,21 @@ def create_app(
         and (not p4_trace_run_id or p4_trace_run_directory.name != p4_trace_run_id)
     ):
         raise ValueError("P4 trace path must match its canonical run ID")
+    is_p5 = bool(
+        evaluation_profile is not None
+        and evaluation_profile.grounding_candidate
+        is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
+    )
+    if is_p5 != (p5_trace_run_directory is not None and p5_trace_run_id is not None):
+        raise ValueError("P5 trace run directory and canonical run ID are required only for P5")
+    if (p5_trace_run_directory is None) != (p5_trace_run_id is None):
+        raise ValueError("P5 trace directory and run ID must be configured together")
+    if (
+        p5_trace_run_id is not None
+        and p5_trace_run_directory is not None
+        and (not p5_trace_run_id or p5_trace_run_directory.name != p5_trace_run_id)
+    ):
+        raise ValueError("P5 trace path must match its canonical run ID")
 
     configure_logging(settings)
     app = FastAPI(
@@ -67,6 +84,8 @@ def create_app(
         evaluation_profile=evaluation_profile,
         p4_trace_run_directory=p4_trace_run_directory,
         p4_trace_run_id=p4_trace_run_id,
+        p5_trace_run_directory=p5_trace_run_directory,
+        p5_trace_run_id=p5_trace_run_id,
     )
     app.add_middleware(RequestContextMiddleware)
     app.add_exception_handler(AuthenticationError, cast(Any, authentication_error_handler))

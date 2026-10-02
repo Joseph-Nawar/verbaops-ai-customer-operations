@@ -68,9 +68,7 @@ def test_p5_profile_reuses_p4_prompt_graph_and_finalizer_versions() -> None:
 
     assert profile.prompt_version == "p4-evidence-linked-v1"
     assert profile.graph_version == "text-agent-m5d-v1"
-    assert profile.grounding_finalizer_version == (
-        "evidence-linked-extractive-single-pass-v1"
-    )
+    assert profile.grounding_finalizer_version == ("evidence-linked-extractive-single-pass-v1")
 
 
 @pytest.mark.asyncio
@@ -219,6 +217,9 @@ async def test_p5_ordinary_terminal_json_uses_the_existing_p4_parser(
     assert result["model_call_count"] == 1
     assert len(llm.requests) == 1
     assert llm.requests[0].response_format is None
+    assert result["p5_diagnostics"]["knowledge_mode_active"] is True
+    assert result["p5_diagnostics"]["provider_response_format_attached"] is False
+    assert result["p5_diagnostics"]["raw_terminal_content"] == terminal_json
 
 
 @pytest.mark.asyncio
