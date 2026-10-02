@@ -223,6 +223,30 @@ def test_p5_authorization_rejects_completed_run_before_any_resume(
         )
 
 
+def test_p5_authorization_rejects_complete_checkpoint_even_if_report_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(p5_preregistration, "audit_m5d_b2_p5_preregistration", lambda _root: {})
+    run_id = "canonical-M0-P5-20261002T120000Z-1234abcd"
+    run_directory = tmp_path / "evals/rag/v0.2/dev-evidence/canonical" / run_id
+    run_directory.mkdir(parents=True)
+    (run_directory / "run-summary.json").write_text(
+        json.dumps({"canonical": True, "run_id": run_id, "completed_cases": 96}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="completed canonical P5 run cannot resume"):
+        require_p5_inference_authorized(
+            repo_root=tmp_path,
+            run_id=run_id,
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+
 def test_p5_resume_identity_rejects_duplicate_checkpoint_cases(tmp_path: Path) -> None:
     identity = _identity()
     checkpoint = tmp_path / "grounded_cases.jsonl"
@@ -380,8 +404,7 @@ def test_p5_runner_builds_the_p5_identity_after_exact_ci_preflight(
     else:
         raise AssertionError("P5 runner did not construct the P5 run identity")
 
-    assert (
-        captured["profile"].grounding_candidate
-        is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
-    )
+    profile = captured["profile"]
+    assert isinstance(profile, AgentEvaluationProfile)
+    assert profile.grounding_candidate is GroundingCandidate.P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS
     assert captured["run_id"] == args.run_id

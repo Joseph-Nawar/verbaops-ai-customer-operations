@@ -193,7 +193,8 @@ async def test_p5_ordinary_terminal_json_uses_the_existing_p4_parser(
 ) -> None:
     import verbaops.agent.graph as graph_module
 
-    original_finalize = graph_module.finalize_p4_response
+    graph_module_for_patch = cast(Any, graph_module)
+    original_finalize = graph_module_for_patch.finalize_p4_response
     parsed_contents: list[str | None] = []
 
     def record_parse(content: str | None, *args: Any, **kwargs: Any) -> Any:

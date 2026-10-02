@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -17,11 +18,14 @@ from verbaops.evaluation.p5_trace import (
 from verbaops.retrieval.grounding import CitationFinalizer
 
 
-def _plan() -> dict[str, object]:
-    return json.loads(
-        (Path(__file__).parents[2] / "evals/rag/v0.2/m5d-b2-p5-experiment-plan.json").read_text(
-            encoding="utf-8"
-        )
+def _plan() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            (Path(__file__).parents[2] / "evals/rag/v0.2/m5d-b2-p5-experiment-plan.json").read_text(
+                encoding="utf-8"
+            )
+        ),
     )
 
 

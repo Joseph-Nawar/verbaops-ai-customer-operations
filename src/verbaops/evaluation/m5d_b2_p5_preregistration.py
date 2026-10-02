@@ -28,6 +28,8 @@ def _sha256(path: Path) -> str:
 
 def _p5_run_directories(root: Path) -> list[Path]:
     canonical_root = root / P5_CANONICAL_NAMESPACE
+    if canonical_root.is_symlink():
+        raise ValueError("P5 canonical run namespace contains a symlink")
     if not canonical_root.exists():
         return []
     return sorted(
@@ -43,7 +45,12 @@ def require_p5_canonical_run_directory(root: Path, run_directory: Path, *, run_i
     if not isinstance(run_id, str) or P5_RUN_ID.fullmatch(run_id) is None:
         raise ValueError("canonical M0 P5 run ID is required")
     canonical_root = root / P5_CANONICAL_NAMESPACE
-    if canonical_root.is_symlink() or run_directory.is_symlink():
+    path_components = [root]
+    path_components.extend(
+        root.joinpath(*P5_CANONICAL_NAMESPACE.parts[:index])
+        for index in range(1, len(P5_CANONICAL_NAMESPACE.parts) + 1)
+    )
+    if any(path.is_symlink() for path in path_components) or run_directory.is_symlink():
         raise ValueError("canonical P5 namespace may not contain symlink paths")
     resolved_root = root.resolve()
     resolved_canonical_root = canonical_root.resolve()
@@ -193,6 +200,23 @@ def require_p5_inference_authorized(
     requested_directory = repo_root / P5_CANONICAL_NAMESPACE / run_id
     if (requested_directory / "report.json").exists():
         raise ValueError("completed canonical P5 run cannot resume")
+    summary_path = requested_directory / "run-summary.json"
+    if summary_path.exists():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise ValueError("P5 canonical run summary is malformed") from error
+        completed_cases = summary.get("completed_cases") if isinstance(summary, dict) else None
+        if (
+            not isinstance(summary, dict)
+            or summary.get("canonical") is not True
+            or summary.get("run_id") != run_id
+            or isinstance(completed_cases, bool)
+            or not isinstance(completed_cases, int)
+        ):
+            raise ValueError("P5 canonical run summary identity is invalid")
+        if completed_cases >= 96:
+            raise ValueError("completed canonical P5 run cannot resume")
     if freeze_commit_sha is None or re.fullmatch(r"[a-f0-9]{40}", freeze_commit_sha) is None:
         raise ValueError("P5 requires a committed full implementation freeze SHA")
     if hosted_ci_head_sha != freeze_commit_sha:

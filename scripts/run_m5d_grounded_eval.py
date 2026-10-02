@@ -427,6 +427,8 @@ async def _run(args: argparse.Namespace) -> None:
         "production_promoted": False,
         "credentials_persisted": False,
     }
+    if is_p5:
+        metadata["execution_eligibility"] = "EXECUTION_ELIGIBLE"
     identity_path = checkpoint.with_name(f"{checkpoint.name}.identity.json")
     metadata_path = args.run_dir / "metadata.json"
     report_path = args.run_dir / "report.json"
@@ -456,6 +458,7 @@ async def _run(args: argparse.Namespace) -> None:
         "evaluation_harness_sha": evaluation_harness_sha,
         "pre_experiment_sha": PRE_EXPERIMENT_SHA,
         "completed_cases": len(records),
+        "holdout_executed": False,
         "artifacts": [
             artifact_reference(ROOT, checkpoint),
             artifact_reference(ROOT, identity_path),
