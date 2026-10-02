@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 import subprocess
 from argparse import Namespace
 from pathlib import Path
@@ -153,13 +154,14 @@ def test_p5_identity_digest_rejects_missing_harness_sha_and_invalid_run_id() -> 
 
 
 def test_p5_authorization_requires_exact_green_ci_and_committed_freeze(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     head = _head()
     monkeypatch.setattr(identity_module, "require_committed_behavior", lambda *_a, **_k: head)
+    monkeypatch.setattr(p5_preregistration, "audit_m5d_b2_p5_preregistration", lambda _root: {})
 
     require_p5_inference_authorized(
-        repo_root=ROOT,
+        repo_root=tmp_path,
         run_id="canonical-M0-P5-20261002T120000Z-1234abcd",
         freeze_commit_sha=head,
         hosted_ci_run_id=36999999999,
@@ -172,13 +174,286 @@ def test_p5_authorization_requires_exact_green_ci_and_committed_freeze(
     failed[REQUIRED_P5_HOSTED_CI_JOBS[0]] = "failure"
     with pytest.raises(ValueError, match="required jobs"):
         require_p5_inference_authorized(
-            repo_root=ROOT,
+            repo_root=tmp_path,
             run_id="canonical-M0-P5-20261002T120000Z-1234abcd",
             freeze_commit_sha=head,
             hosted_ci_run_id=36999999999,
             hosted_ci_head_sha=head,
             hosted_ci_conclusion="success",
             job_conclusions=failed,
+        )
+
+
+def _copy_p5_closeout_fixture(tmp_path: Path) -> Path:
+    fixture_root = tmp_path / "repo"
+    run_relative = Path(
+        "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6"
+    )
+    shutil.copytree(ROOT / run_relative, fixture_root / run_relative)
+    files = (
+        Path("evals/rag/v0.2/m5d-b2-p5-experiment-plan.json"),
+        Path("evals/rag/v0.2/dev-decision.json"),
+        Path("evals/rag/v0.2/dev-evidence/m5d-b-dev-summary.json"),
+    )
+    for relative in files:
+        destination = fixture_root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / relative, destination)
+    return fixture_root
+
+
+def test_final_p5_closeout_audit_validates_canonical_terminal_evidence() -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    result = audit_m5d_b2_p5_closeout(ROOT)
+
+    assert result["run_id"] == "canonical-M0-P5-20261002T085922Z-80872fc6"
+    assert result["run_identity_sha256"] == (
+        "62c95ac2e893cdab7aaf3f076e6599610d0e15f5a4f1725f10b283cdd52dd58f"
+    )
+    assert result["classification"] == "P5_EXECUTION_INELIGIBLE_GROQ_TOOL_USE_FAILED"
+    assert result["execution_eligibility"] == "INELIGIBLE"
+    assert result["completed_cases"] == 2
+    assert result["expected_cases"] == 96
+    assert result["completed_case_ids"] == [
+        "m5d-v02-shipping-001",
+        "m5d-v02-shipping-002",
+    ]
+    assert result["blocked_case_id"] == "m5d-v02-shipping-003"
+    assert result["observation_count"] == 2
+    assert result["trace_sidecar_count"] == 2
+    assert result["report_generated"] is False
+    assert result["quality_metrics_computed"] is False
+    assert result["release_holdout_executed"] is False
+    assert result["selection_json_present"] is False
+    assert result["artifact_hashes_valid"] is True
+    assert result["canonical_evidence_status"] == "COMPLETE"
+
+
+def test_p5_closeout_audit_accepts_relative_repository_root() -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    assert audit_m5d_b2_p5_closeout(Path("."))["completed_cases"] == 2
+
+
+def test_p5_closeout_audit_rejects_tampered_canonical_artifact(tmp_path: Path) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    checkpoint = (
+        fixture_root
+        / "evals/rag/v0.2/dev-evidence/canonical/"
+        / "canonical-M0-P5-20261002T085922Z-80872fc6/grounded_cases.jsonl"
+    )
+    checkpoint.write_bytes(checkpoint.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match=r"artifact|sha256"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_p5_closeout_audit_rejects_missing_trace_sidecar(tmp_path: Path) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    trace = next(
+        (
+            fixture_root
+            / "evals/rag/v0.2/dev-evidence/canonical/"
+            / "canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces"
+        ).glob("*.json")
+    )
+    trace.unlink()
+
+    with pytest.raises(ValueError, match=r"trace|artifact|hash"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_p5_closeout_audit_rejects_mismatched_trace_bytes(tmp_path: Path) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    trace = next(
+        (
+            fixture_root
+            / "evals/rag/v0.2/dev-evidence/canonical/"
+            / "canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces"
+        ).glob("*.json")
+    )
+    trace.write_bytes(trace.read_bytes() + b" ")
+
+    with pytest.raises(ValueError, match=r"artifact|sha256"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_p5_closeout_audit_rejects_report_and_selection_artifact(
+    tmp_path: Path,
+) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    run_directory = (
+        fixture_root
+        / "evals/rag/v0.2/dev-evidence/canonical/"
+        / "canonical-M0-P5-20261002T085922Z-80872fc6"
+    )
+    (run_directory / "report.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"report|score|closeout"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+    (run_directory / "report.json").unlink()
+    selection = fixture_root / "evals/rag/v0.2/selection.json"
+    selection.parent.mkdir(parents=True, exist_ok=True)
+    selection.write_text("{}", encoding="utf-8")
+    with pytest.raises(ValueError, match="selection"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_p5_closeout_audit_rejects_quality_score_fields(tmp_path: Path) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    decision_path = fixture_root / "evals/rag/v0.2/dev-decision.json"
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    p5_run = next(
+        item
+        for item in decision["canonical_runs"]
+        if item.get("run_id") == "canonical-M0-P5-20261002T085922Z-80872fc6"
+    )
+    p5_run["metrics"] = {"citation_precision": {"numerator": 0, "denominator": 0}}
+    decision_path.write_text(json.dumps(decision, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="canonical run decision mismatch"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_p5_closeout_audit_rejects_score_fields_in_closeout_record(tmp_path: Path) -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import audit_m5d_b2_p5_closeout
+
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    decision_path = fixture_root / "evals/rag/v0.2/dev-decision.json"
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision["p5_execution_closeout"]["citation_precision"] = {"value": 1.0}
+    decision_path.write_text(json.dumps(decision, indent=2) + "\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="P5 execution closeout record mismatch"):
+        audit_m5d_b2_p5_closeout(fixture_root)
+
+
+def test_closed_p5_run_cannot_resume_or_start_a_second_run() -> None:
+    final_run_id = "canonical-M0-P5-20261002T085922Z-80872fc6"
+    with pytest.raises(ValueError, match="canonical P5 run is closed and cannot resume"):
+        require_p5_inference_authorized(
+            repo_root=ROOT,
+            run_id=final_run_id,
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+    with pytest.raises(ValueError, match=r"closed|second P5"):
+        require_p5_inference_authorized(
+            repo_root=ROOT,
+            run_id="canonical-M0-P5-20261002T120000Z-1234abcd",
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+
+def test_closed_p5_run_cannot_resume_if_closeout_marker_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    monkeypatch.setattr(p5_preregistration, "audit_m5d_b2_p5_preregistration", lambda _root: {})
+    closeout_path = (
+        fixture_root
+        / "evals/rag/v0.2/dev-evidence/canonical/"
+        / "canonical-M0-P5-20261002T085922Z-80872fc6/p5-closeout.json"
+    )
+    closeout_path.unlink()
+
+    with pytest.raises(ValueError, match="canonical P5 run is closed and cannot resume"):
+        require_p5_inference_authorized(
+            repo_root=fixture_root,
+            run_id="canonical-M0-P5-20261002T085922Z-80872fc6",
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+
+def test_final_milestone_closeout_prevents_second_p5_run_without_run_directory(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    monkeypatch.setattr(p5_preregistration, "audit_m5d_b2_p5_preregistration", lambda _root: {})
+    run_directory = (
+        fixture_root
+        / "evals/rag/v0.2/dev-evidence/canonical/"
+        / "canonical-M0-P5-20261002T085922Z-80872fc6"
+    )
+    shutil.rmtree(run_directory)
+
+    with pytest.raises(
+        ValueError, match="canonical P5 run is closed; no second P5 run is permitted"
+    ):
+        require_p5_inference_authorized(
+            repo_root=fixture_root,
+            run_id="canonical-M0-P5-20261002T120000Z-1234abcd",
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+
+def test_summary_closeout_marker_prevents_second_p5_when_decision_marker_is_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fixture_root = _copy_p5_closeout_fixture(tmp_path)
+    monkeypatch.setattr(p5_preregistration, "audit_m5d_b2_p5_preregistration", lambda _root: {})
+    decision_path = fixture_root / "evals/rag/v0.2/dev-decision.json"
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    decision.pop("p5_execution_closeout")
+    decision_path.write_text(json.dumps(decision, indent=2) + "\n", encoding="utf-8")
+    shutil.rmtree(
+        fixture_root
+        / "evals/rag/v0.2/dev-evidence/canonical/"
+        / "canonical-M0-P5-20261002T085922Z-80872fc6"
+    )
+
+    with pytest.raises(
+        ValueError, match="canonical P5 run is closed; no second P5 run is permitted"
+    ):
+        require_p5_inference_authorized(
+            repo_root=fixture_root,
+            run_id="canonical-M0-P5-20261002T120000Z-1234abcd",
+            freeze_commit_sha=None,
+            hosted_ci_run_id=None,
+            hosted_ci_head_sha=None,
+            hosted_ci_conclusion=None,
+            job_conclusions={},
+        )
+
+
+def test_closed_p4_remains_unresumable_after_p5_closeout() -> None:
+    from verbaops.evaluation.m5d_b2_preregistration import require_p4_inference_authorized
+
+    with pytest.raises(ValueError, match="closed"):
+        require_p4_inference_authorized(
+            repo_root=ROOT,
+            run_id="canonical-M0-P4-20261001T173102Z-31113cc8",
+            freeze_commit_sha="77d04cd54143bd13b851ee2cbbe1f57766371fd0",
+            hosted_ci_head_sha="77d04cd54143bd13b851ee2cbbe1f57766371fd0",
+            hosted_ci_conclusion="success",
+            job_conclusions={},
         )
 
 

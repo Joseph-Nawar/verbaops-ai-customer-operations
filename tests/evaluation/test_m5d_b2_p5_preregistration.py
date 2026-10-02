@@ -229,10 +229,16 @@ def test_p4_closeout_and_frozen_plan_remain_unchanged() -> None:
         assert _sha256(ROOT / relative_path) == expected_sha
 
 
-def test_p5_plan_has_no_result_namespace_or_selection_artifact() -> None:
+def test_final_p5_namespace_is_closed_and_selection_artifact_absent() -> None:
+    from verbaops.evaluation.m5d_b2_p5_preregistration import (
+        P5_FINAL_RUN_ID,
+        audit_m5d_b2_p5_closeout,
+    )
+
     plan = _load_plan()
     canonical_root = ROOT / "evals/rag/v0.2/dev-evidence/canonical"
     assert plan["execution"]["selection_artifact_allowed"] is False
     assert plan["execution"]["release_holdout_access_allowed"] is False
-    assert not any(canonical_root.glob("canonical-M0-P5-*"))
+    assert [path.name for path in canonical_root.glob("canonical-M0-P5-*")] == [P5_FINAL_RUN_ID]
+    assert audit_m5d_b2_p5_closeout(ROOT)["canonical_evidence_status"] == "COMPLETE"
     assert not (ROOT / "evals/rag/v0.2/selection.json").exists()

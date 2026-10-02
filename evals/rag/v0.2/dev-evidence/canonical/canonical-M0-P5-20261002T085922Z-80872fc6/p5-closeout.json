@@ -1,0 +1,98 @@
+{
+  "application_under_test_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+  "artifact_references_verified": true,
+  "artifacts": [
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/grounded_cases.jsonl",
+      "sha256": "3f4e788b83981dd94361ae999581da8d9a42db422d30ed6ac6f25b2b3fefcea2"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/grounded_cases.jsonl.identity.json",
+      "sha256": "ef22ffd93f2f1fe16cab15e81e5be8a4fd0856bafa6a81d23f1a6f7d87725175"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/interruption.json",
+      "sha256": "41753b0da3689590a3559edec6ba2f4929976f05c0e46816f95f7f48cdf63dbc"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/metadata.json",
+      "sha256": "18b7ac30c658c36ede9c9b310f6ababd088678bdea672a34cb91f5d97791c757"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces/cd724cdc-2d32-4936-a989-9525cec5fb0c.json",
+      "sha256": "53f651bc6a8e2aa942761952fbb6cd7c92f8ac869fed00b9ac4401f6227f2279"
+    },
+    {
+      "path": "evals/rag/v0.2/dev-evidence/canonical/canonical-M0-P5-20261002T085922Z-80872fc6/p5-traces/a6089d66-d3a7-4c7b-a7d6-2903f0afd0a8.json",
+      "sha256": "a548faec782059ad0d5f8d8bb23b274325c7ed94f6bd2b3577cefdb6972cdb5e"
+    }
+  ],
+  "blocked_case_id": "m5d-v02-shipping-003",
+  "candidate": "P5_PROMPT_JSON_EXTRACTIVE_SINGLE_PASS",
+  "canonical_observations_replayed": 0,
+  "capability_alias": "agent-fast",
+  "classification": "P5_EXECUTION_INELIGIBLE_GROQ_TOOL_USE_FAILED",
+  "completed_case_ids": [
+    "m5d-v02-shipping-001",
+    "m5d-v02-shipping-002"
+  ],
+  "completed_cases": 2,
+  "evaluation_harness_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+  "expected_cases": 96,
+  "failure_class": "PROVIDER_GENERATED_TOOL_CALL_REJECTION",
+  "failure_timestamps_utc": {
+    "gateway_error": "2026-10-02T09:04:48.363951214Z",
+    "gateway_http_error": "2026-10-02T09:04:48.367156107Z",
+    "public_api_503": "2026-10-02T09:04:48.388486+00:00"
+  },
+  "gate": "G2_TOP_EVIDENCE_CROSS_ENCODER",
+  "hosted_ci": {
+    "conclusion": "success",
+    "head_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+    "job_conclusions_sha256": "9c796c8222820b55b4b7c1fb3f6ae3db427e27dc7c3039abb26f30067f92637d",
+    "run_id": 36984148887
+  },
+  "implementation_freeze_sha": "16fac0f5d416961eea7858a7fd54f220bfef3b32",
+  "knowledge_terminal_output_transport": "prompt_json_plain_content_no_response_format",
+  "m5d_c_started": false,
+  "model": "groq/openai/gpt-oss-120b",
+  "model_candidate": "M0",
+  "next_action": "STOP_FOR_REVIEW; do not resume or retry this P5 run",
+  "p5_experiment_plan_sha256": "e700ec31f157f47837489fc2d26e1296388405f447701286adc899d7b42fc20e",
+  "provider_error": {
+    "error_code": "tool_use_failed",
+    "error_type": "invalid_request_error",
+    "failed_generation_content_persisted": false,
+    "failed_generation_field_present": true,
+    "http_status": 400,
+    "log_evidence_source": "timestamp-correlated LiteLLM gateway exception and VerbaOps public API request-completed event",
+    "parameter": "UNKNOWN",
+    "provider": "Groq",
+    "rate_limit_marker_at_failure": false,
+    "response_format_marker_in_error_event": false
+  },
+  "provider_internal_request_or_retry_count": "UNKNOWN",
+  "provider_response_format_attached": false,
+  "public_api_correlation_id": "0ccef7bb-1b07-4166-a2ce-7bd4817fe461",
+  "public_api_request_id": "8c978e47-0e84-4e72-8879-6f491593d5cc",
+  "public_http_status": 503,
+  "quality_eligibility_conclusion": "NONE; incomplete execution does not establish quality-floor results",
+  "quality_metrics": "NOT_COMPUTED",
+  "release_holdout_executed": false,
+  "report_generated": false,
+  "run_id": "canonical-M0-P5-20261002T085922Z-80872fc6",
+  "run_identity_sha256": "62c95ac2e893cdab7aaf3f076e6599610d0e15f5a4f1725f10b283cdd52dd58f",
+  "runner_retry_after_failure": false,
+  "runner_status": "INTERRUPTED",
+  "schema_version": 1,
+  "scoreable": false,
+  "scoring_status": "NOT_SCORED_INCOMPLETE_EXECUTION",
+  "selection_json_present": false,
+  "split": "dev",
+  "stage4_dev_eligible": false,
+  "stage6_started": false,
+  "threshold": 0.2554669,
+  "tool_choice": "auto",
+  "trace_sidecar_count": 2,
+  "trace_sidecars_hash_verified": true
+}
