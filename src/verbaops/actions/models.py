@@ -173,3 +173,15 @@ class CommerceSnapshot(ActionModel):
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("snapshot observation time must be timezone-aware")
         return value
+
+
+class ActionRequestSummary(ActionModel):
+    """Safe server-owned proposal state returned to the agent and caller."""
+
+    action_request_id: UUID
+    action_type: ActionType
+    state: ActionState
+    proposal_fingerprint: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+    safe_summary: Annotated[str, StringConstraints(min_length=1, max_length=500)]
+    required_next_actor: Literal["customer", "support_supervisor", "none"]
+    reason_code: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")]

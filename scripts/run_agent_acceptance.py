@@ -131,6 +131,7 @@ def run_acceptance() -> int:
         ),
         "NOVACOMMERCE_SERVICE_TOKEN": commerce_token,
         "VERBAOPS_LLM__API_KEY": gateway_key,
+        "VERBAOPS_COMMERCE__TENANT_ID": tenant_id,
         "VERBAOPS_AUTH__DEVELOPMENT_TOKEN": development_token,
         "VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID": principal_id,
         "VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID": tenant_id,

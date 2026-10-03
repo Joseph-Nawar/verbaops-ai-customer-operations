@@ -23,6 +23,7 @@ from verbaops.commerce.models import (
     ProductSearchResponse,
     RefundResponse,
     ShipmentResponse,
+    TenantCurrencyResponse,
 )
 from verbaops.config import CommerceSettings
 
@@ -46,6 +47,18 @@ def make_client(handler: Callable[[httpx.Request], httpx.Response]) -> CommerceC
         make_settings(),
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
     )
+
+
+def test_client_exposes_its_configured_commerce_tenant() -> None:
+    tenant_id = uuid4()
+    client = CommerceClient(
+        CommerceSettings(tenant_id=tenant_id),
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200))
+        ),
+    )
+
+    assert client.tenant_id == tenant_id
 
 
 def assert_safe(value: object) -> None:
@@ -178,6 +191,56 @@ async def test_client_constructs_exact_paths_queries_and_headers_for_all_reads()
         "https://commerce.internal/api/v1/products/search?q=phone&limit=2&offset=0",
         "https://commerce.internal/api/v1/delivery-slots?from_date=2026-08-25&to_date=2026-08-26&available_only=true",
     ]
+
+
+@pytest.mark.asyncio
+async def test_tenant_currency_is_a_typed_authenticated_read_and_missing_config_is_none() -> None:
+    requests: list[httpx.Request] = []
+
+    def configured(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"currency_code": "USD"})
+
+    result = await make_client(configured).get_tenant_currency()
+    assert isinstance(result, TenantCurrencyResponse)
+    assert result.currency_code == "USD"
+    assert requests[0].method == "GET"
+    assert requests[0].url.path == "/api/v1/tenant-config/currency"
+    assert requests[0].headers["authorization"] == f"Bearer {SENTINEL_TOKEN}"
+    assert "x-verbaops-customer-id" not in requests[0].headers
+
+    calls = 0
+
+    def unconfigured(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            503,
+            json={
+                "error": {
+                    "code": "tenant_currency_unavailable",
+                    "message": "Tenant currency is unavailable.",
+                }
+            },
+        )
+
+    missing = await make_client(unconfigured).get_tenant_currency()
+    assert missing is None
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_unrelated_tenant_currency_service_failure_remains_unavailable() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(503, json={"error": {"code": "upstream_unavailable"}})
+
+    with pytest.raises(CommerceUnavailableError):
+        await make_client(handler).get_tenant_currency()
+    assert calls == 2
 
 
 @pytest.mark.asyncio

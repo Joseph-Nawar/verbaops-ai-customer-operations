@@ -30,6 +30,17 @@ def test_unknown_prompt_version_remains_rejected() -> None:
         load_system_prompt("p5")
 
 
+def test_stage6_prompt_explains_proposal_states_without_rewriting_frozen_prompt() -> None:
+    prompt = load_system_prompt("stage6")
+    frozen_prompt = load_system_prompt("v2")
+
+    assert "Proposal tools only create typed pending requests" in prompt
+    assert "awaiting_confirmation" in prompt
+    assert "awaiting_approval" in prompt
+    assert "No business mutation is available in Stage 5." in frozen_prompt
+    assert "Proposal tools only create typed pending requests" not in frozen_prompt
+
+
 def test_system_prompt_is_included_in_built_wheel(tmp_path: Path) -> None:
     subprocess.run(
         ["uv", "build", "--wheel", "--out-dir", str(tmp_path)],
@@ -42,6 +53,7 @@ def test_system_prompt_is_included_in_built_wheel(tmp_path: Path) -> None:
     with zipfile.ZipFile(wheels[0]) as archive:
         for prompt_name in (
             "verbaops/agent/prompts/system_v2.txt",
+            "verbaops/agent/prompts/system_stage6.txt",
             "verbaops/agent/prompts/system_p4_evidence_linked_v1.txt",
         ):
             assert prompt_name in archive.namelist()

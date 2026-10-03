@@ -21,6 +21,7 @@ from verbaops.commerce.models import (
     ProductSearchResponse,
     RefundResponse,
     ShipmentResponse,
+    TenantCurrencyResponse,
 )
 from verbaops.config import CommerceSettings
 
@@ -39,6 +40,12 @@ class CommerceClient:
         """Avoid rendering settings, URLs, headers, or credentials."""
 
         return f"{type(self).__name__}(...)"
+
+    @property
+    def tenant_id(self) -> UUID:
+        """Return the one tenant this Commerce connection is configured to serve."""
+
+        return self._settings.tenant_id
 
     async def get_order(self, order_id: UUID, customer_id: UUID) -> OrderResponse:
         """Fetch one customer-scoped order."""
@@ -94,6 +101,15 @@ class CommerceClient:
             },
         )
 
+    async def get_tenant_currency(self) -> TenantCurrencyResponse | None:
+        """Fetch canonical tenant currency, returning None only when unconfigured."""
+
+        return await self._get(
+            "/v1/tenant-config/currency",
+            TenantCurrencyResponse,
+            missing_error_code="tenant_currency_unavailable",
+        )
+
     async def _get(
         self,
         path: str,
@@ -101,6 +117,7 @@ class CommerceClient:
         *,
         params: Mapping[str, str | int | bool] | None = None,
         customer_id: UUID | None = None,
+        missing_error_code: str | None = None,
     ) -> ResponseT:
         headers = {"Authorization": f"Bearer {self._settings.service_token.get_secret_value()}"}
         if customer_id is not None:
@@ -123,6 +140,12 @@ class CommerceClient:
                     continue
                 raise CommerceUnavailableError() from None
 
+            if (
+                missing_error_code is not None
+                and response.status_code == 503
+                and _response_error_code(response) == missing_error_code
+            ):
+                return cast(ResponseT, None)
             if response.status_code in (502, 503, 504) and attempt == 0:
                 continue
             self._raise_for_status(response)
@@ -151,3 +174,19 @@ class CommerceClient:
             return TypeAdapter(response_type).validate_python(payload)
         except (UnicodeDecodeError, ValueError, TypeError, ValidationError):
             raise CommerceProtocolError() from None
+
+
+def _response_error_code(response: httpx.Response) -> str | None:
+    """Read only the bounded API error code needed to distinguish missing config."""
+
+    try:
+        payload = response.json()
+    except (UnicodeDecodeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    error = payload.get("error")
+    if not isinstance(error, dict):
+        return None
+    code = error.get("code")
+    return code if isinstance(code, str) and len(code) <= 128 else None

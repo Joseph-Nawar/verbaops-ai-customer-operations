@@ -120,9 +120,7 @@ async def send_message(
     if context.customer_id is None:
         raise PublicAPIError(403, "customer_context_required", "customer context is required")
     try:
-        result = await runtime.run_turn(
-            _scope(context), conversation_id, context.customer_id, request.content
-        )
+        result = await runtime.run_turn(context, conversation_id, request.content)
     except ConversationNotFoundError:
         raise PublicAPIError(404, "conversation_not_found", "conversation not found") from None
     except (ConversationBusyError, AgentBusyError):

@@ -13,6 +13,7 @@ from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.errors import AgentUnavailableError
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.agent.versions import GRAPH_VERSION, PROMPT_VERSION, TOOL_SCHEMA_VERSION
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
 from verbaops.conversations.domain import ConversationScope
@@ -57,6 +58,15 @@ def _response(content: str | None, *tool_calls: ToolCall) -> GenerateResponse:
 
 def _scope() -> ConversationScope:
     return ConversationScope(tenant_id=uuid4(), principal_id=uuid4())
+
+
+def _trusted_context(scope: ConversationScope, customer_id: UUID) -> TrustedContext:
+    return TrustedContext(
+        tenant_id=scope.tenant_id,
+        principal_id=scope.principal_id,
+        customer_id=customer_id,
+        roles=frozenset({Role.CUSTOMER}),
+    )
 
 
 def _commerce_client(order_id: UUID) -> tuple[CommerceClient, httpx.AsyncClient]:
@@ -114,8 +124,9 @@ async def test_runtime_persists_versions_traces_and_visible_history(
     )
 
     try:
-        first = await runtime.run_turn(scope, conversation.id, customer_id, "Where is my order?")
-        second = await runtime.run_turn(scope, conversation.id, customer_id, str(order_id))
+        trusted = _trusted_context(scope, customer_id)
+        first = await runtime.run_turn(trusted, conversation.id, "Where is my order?")
+        second = await runtime.run_turn(trusted, conversation.id, str(order_id))
     finally:
         await http_client.aclose()
 
@@ -208,7 +219,7 @@ async def test_runtime_failure_persists_failed_model_call_without_assistant(
 
     try:
         with pytest.raises(AgentUnavailableError):
-            await runtime.run_turn(scope, conversation.id, uuid4(), "Try again")
+            await runtime.run_turn(_trusted_context(scope, uuid4()), conversation.id, "Try again")
     finally:
         await http_client.aclose()
 

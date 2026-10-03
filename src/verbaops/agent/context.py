@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from verbaops.agent.evaluation import AgentEvaluationProfile
+from verbaops.auth.context import TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
@@ -19,8 +20,7 @@ class AgentContext:
 
     conversation_id: UUID
     agent_run_id: UUID
-    scope: ConversationScope
-    customer_id: UUID
+    trusted_context: TrustedContext
     llm_client: LLMClient
     commerce_client: CommerceClient
     tool_registry: ToolRegistry
@@ -28,3 +28,12 @@ class AgentContext:
     retrieval_service: RetrievalService | None = None
     citation_finalizer: CitationFinalizer | None = None
     evaluation_profile: AgentEvaluationProfile | None = None
+
+    @property
+    def scope(self) -> ConversationScope:
+        """Derive persistence scope from the single authenticated identity value."""
+
+        return ConversationScope(
+            tenant_id=self.trusted_context.tenant_id,
+            principal_id=self.trusted_context.principal_id,
+        )

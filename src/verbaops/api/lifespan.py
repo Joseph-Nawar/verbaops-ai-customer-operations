@@ -8,6 +8,9 @@ import httpx
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from verbaops.actions.proposals import ActionProposalService
+from verbaops.actions.repository import ActionRepository
+from verbaops.actions.transitions import ActionTransitionService
 from verbaops.agent.evaluation import GroundingCandidate
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.api.dependencies import ApplicationDependencies
@@ -49,6 +52,7 @@ class RuntimeResources:
     llm_client: LiteLLMClient | None = field(default=None, repr=False)
     commerce_client: CommerceClient | None = field(default=None, repr=False)
     conversation_service: ConversationService | None = field(default=None, repr=False)
+    action_proposal_service: ActionProposalService | None = field(default=None, repr=False)
     agent_runtime: AgentRuntime | None = field(default=None, repr=False)
     embedding_client: EmbeddingClient | None = field(default=None, repr=False)
     knowledge_service: KnowledgeService | None = field(default=None, repr=False)
@@ -72,6 +76,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     llm_client: LiteLLMClient | None = None
     commerce_client: CommerceClient | None = None
     conversation_service: ConversationService | None = None
+    action_proposal_service: ActionProposalService | None = None
     agent_runtime: AgentRuntime | None = None
     embedding_client: EmbeddingClient | None = None
     knowledge_service: KnowledgeService | None = None
@@ -107,6 +112,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
             conversation_service = ConversationService(database.session_factory)
+            action_proposal_service = ActionProposalService(
+                commerce_client,
+                ActionRepository(database.session_factory),
+                ActionTransitionService(database.session_factory),
+            )
             knowledge_service = KnowledgeService(
                 database.session_factory,
                 repository=KnowledgeRepository(),
@@ -135,6 +145,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 conversation_service=conversation_service,
                 llm_client=llm_client,
                 commerce_client=commerce_client,
+                action_proposal_service=action_proposal_service,
                 retrieval_service=retrieval_service,
                 citation_finalizer=CitationFinalizer(),
                 evaluation_profile=evaluation_profile,
@@ -182,6 +193,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             llm_client=llm_client,
             commerce_client=commerce_client,
             conversation_service=conversation_service,
+            action_proposal_service=action_proposal_service,
             agent_runtime=agent_runtime,
             embedding_client=embedding_client,
             knowledge_service=knowledge_service,
