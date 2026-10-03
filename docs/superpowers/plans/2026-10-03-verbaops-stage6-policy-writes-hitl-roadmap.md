@@ -122,6 +122,8 @@ M6A freezes VerbaOps types, policy, persistence, and transitions. M6B completes 
 - fingerprint_proposal(tenant_id: UUID, customer_id: UUID, action_type: ActionType, schema_version: str, target_ids: tuple[UUID, ...], normalized_payload: dict[str, JSONValue], material_snapshot: dict[str, JSONValue]) -> str returns lowercase SHA-256 hex over a domain/version-prefixed deterministic envelope. UUIDs, Decimal values, UTC timestamps, enums, and object keys have one canonical representation. Include material preflight values; exclude secrets, prompts, action ID, and approval/confirmation decisions.
 - ActionRequestSummary(action_request_id: UUID, action_type: ActionType, state: ActionState, proposal_fingerprint: str, safe_summary: str, required_next_actor: Literal['customer','support_supervisor','none']). ActionProposalService.propose(trusted_context: TrustedContext, conversation_id: UUID, agent_run_id: UUID, tool_invocation_id: UUID, proposal: ActionProposal) -> ActionRequestSummary reads scoped Commerce facts, resolves currency for refunds, evaluates policy, fingerprints, deduplicates, and records request plus event.
 - ActionTransitionService.transition(action_request_id: UUID, tenant_id: UUID, expected_fingerprint: str, target_state: ActionState, actor_id: UUID | None, event_type: ActionEventType, reason_code: str | None) -> ActionRequestRecord locks the request, validates state/fingerprint/expiry, and commits state plus bounded event atomically.
+- ActionDecisionService is the narrow actor/application boundary. Its four methods share (action_request_id: UUID, proposal_fingerprint: str, trusted_context: TrustedContext) -> ActionRequestRecord: confirm, reject, approve, and reject_approval. M6D adds confirm/reject; M6E extends that same service with approve/reject_approval. Each operation authorizes TrustedContext, refreshes required facts, then uses ActionTransitionService; route handlers contain no lifecycle logic.
+- The final API surface is GET /v1/action-requests/{action_request_id}; POST /confirmation, /rejection, /approval, /approval-rejection, and /reconciliation under that action path. M6D introduces customer operations and M6E adds supervisor operations/access; no public execute or generic state route exists.
 - ToolExecutionContext(trusted_context: TrustedContext, conversation_id: UUID, agent_run_id: UUID, tool_invocation_id: UUID). Model-visible fields remain only action payload.
 - CommerceClient keeps typed fixed-path methods: get_return(return_id: UUID, customer_id: UUID) -> ReturnResponse; get_support_ticket(ticket_id: UUID, customer_id: UUID) -> SupportTicketResponse; get_tenant_currency() -> TenantCurrencyResponse; cancel_order(order_id: UUID, customer_id: UUID, idempotency_key: UUID) -> OrderResponse; reschedule_delivery(order_id: UUID, customer_id: UUID, delivery_slot_id: UUID, idempotency_key: UUID) -> ShipmentResponse; create_return(customer_id: UUID, request: ReturnCreateRequest, idempotency_key: UUID) -> ReturnResponse; create_support_ticket(customer_id: UUID, request: SupportTicketCreateRequest, idempotency_key: UUID) -> SupportTicketResponse; request_refund(order_id: UUID, customer_id: UUID, request: RefundCreateRequest, approval_reference: RefundApprovalReference | None, idempotency_key: UUID) -> RefundResponse. No URL/path argument. Read retries never apply to writes. Writes use trusted customer ID and stable idempotency key; refund approval reference is constructed only from the stored action approval.
 - ActionExecutor.execute_ready(action_request_id: UUID) -> ActionRequestRecord is internal. ActionReconciler.reconcile(action_request_id: UUID, trusted_context: TrustedContext) -> ActionRequestRecord reads back first and may replay only the identical operation with the same key under the NovaCommerce idempotency contract.
@@ -177,7 +179,7 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 - action_events stores event/action/tenant IDs, actor/time, previous/next states, fingerprint, correlation IDs, and bounded reason. It never duplicates prompts, credentials, raw Commerce bodies, ticket text, or reasons.
 - Register new metadata through migrations/env.py and the existing VerbaOps Base. Add a database trigger that rejects UPDATE and DELETE on action_events; expose no application update/delete operation. Do not edit historical migrations.
 
-- [ ] RED: Test exact columns/checks, scoped indexes, unique origin invocation, active-request uniqueness, and database rejection of event UPDATE/DELETE. Run uv run pytest tests/migrations/test_action_lifecycle_migration.py -q; expected RED before revision 0006.
+- [ ] RED: Test exact columns/checks, scoped indexes, unique action_requests.originating_tool_invocation_id, active-request uniqueness, and database rejection of event UPDATE/DELETE. Run uv run pytest tests/migrations/test_action_lifecycle_migration.py -q; expected RED before revision 0006.
 - [ ] GREEN: Add 0006_action_lifecycle_v1 after 0005_retrieval_grounding_v1 with reversible constraints/indexes and restrictive event FK.
 - [ ] Verify: Run migration tests and uv run alembic upgrade head on an isolated VerbaOps test DB.
 - [ ] Commit: feat: add action lifecycle schema.
@@ -191,7 +193,7 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 **Interfaces**
 - ActionRepository.create_or_get(*, trusted_context: TrustedContext, conversation_id: UUID, agent_run_id: UUID, tool_invocation_id: UUID, proposal: ActionProposal, proposal_fingerprint: str, expires_at: datetime) -> tuple[ActionRequestRecord, bool] inserts proposed request plus created event atomically; identical active tenant/conversation/customer/fingerprint returns the existing request.
 - ActionTransitionService.transition(...) is the only state mutator. It locks, checks transition/fingerprint/expiry/version, then updates row and event in one transaction.
-- Unique origin invocation creates at most one action. A changed active proposal with same conversation/customer/action/targets expires the older undispatched request as superseded. Different action/targets remain independent. Terminal requests allow a new ID/key.
+- A unique action_requests.originating_tool_invocation_id creates at most one action per durable ToolInvocation row. A changed active proposal with same conversation/customer/action/targets expires the older undispatched request as superseded. Different action/targets remain independent. Terminal requests allow a new ID/key.
 - Generate and store one random UUID idempotency key at creation. Expiry is 24 hours; checks share the lock with gate/claim operations. Dispatched/unresolved work remains reconcilable.
 
 - [ ] RED: Test invalid transition, atomic event, duplicate invocation, active identical dedup, changed-proposal supersession, terminal fresh action, expiry race, and concurrent create. Run uv run pytest tests/actions/test_transitions.py -q and uv run pytest tests/postgres/stage6/test_action_repository.py tests/postgres/stage6/test_action_concurrency.py -m "postgres and contract" -q; expected RED before repository exists.
@@ -273,12 +275,12 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 - Test: tests/conversations/test_tool_invocation_lifecycle.py, tests/agent/test_tool_loop.py
 
 **Interfaces**
-- ConversationService.begin_tool_invocation(scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, tool_call_id: str, tool_name: str, risk_level: str, arguments: dict[str, Any]) -> ToolInvocationRecord inserts/returns one row keyed by (agent_run_id, tool_call_id). complete_tool_invocation(invocation_id: UUID, status: Literal['succeeded','failed'], result: JSONValue, latency_ms: float, error_code: str | None) finalizes that row.
+- ConversationService.begin_tool_invocation(scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, tool_call_id: str, tool_name: str, risk_level: str, arguments: dict[str, Any]) -> ToolInvocationRecord creates and returns the new proposed trace row for this validated tool execution. The graph retains its tool_invocation_id and passes it in ToolExecutionContext; provider tool_call_id remains trace metadata, never a database idempotency key. ConversationService.complete_tool_invocation(scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, invocation_id: UUID, status: Literal['succeeded','failed'], result: JSONValue, latency_ms: float, error_code: str | None) -> ToolInvocationRecord finalizes that same row after scoped conversation/run validation. No ToolInvocation schema migration or UNIQUE(agent_run_id, tool_call_id) is required.
 - ToolExecutionContext contains trusted_context: TrustedContext, conversation_id: UUID, agent_run_id: UUID, tool_invocation_id: UUID. Read-handler customer ID derives from trusted context.
 - AgentRuntime.run_turn(trusted_context: TrustedContext, conversation_id: UUID, content: str) threads authenticated context through AgentContext. ToolInvocation retains only proposed/succeeded/failed.
 
-- [ ] RED: Test durable origin reference, failed-handler completion of same row, and rejection of caller identity claims. Run uv run pytest tests/conversations/test_tool_invocation_lifecycle.py tests/agent/test_tool_loop.py -q; expected RED.
-- [ ] GREEN: Split trace insert/finalize and pass trusted context/IDs; preserve trace scope and redaction.
+- [ ] RED: Test proposed-row creation, exact invocation ID propagation into the action and ToolExecutionContext, success/failure finalization of the same row, scoped conversation/run validation, and rejection of caller identity claims. Run uv run pytest tests/conversations/test_tool_invocation_lifecycle.py tests/agent/test_tool_loop.py -q; expected RED.
+- [ ] GREEN: Insert one proposed trace row before handler execution; retain and pass its ID; finalize that exact row on success or failure. Keep tool_call_id as trace metadata and add no ToolInvocation migration or uniqueness constraint.
 - [ ] Verify: Run conversation PostgreSQL race tests and agent/tool tests; each action points to one trace ID.
 - [ ] Commit: feat: bind proposal tools to durable invocation context.
 
@@ -293,7 +295,7 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 - Register propose_reschedule_delivery, propose_cancel_order, propose_return, propose_support_ticket, propose_refund with strict inputs and outputs limited to action ID, state, safe summary, reason.
 - Existing read tools remain. No Commerce write method is registered in ToolRegistry; proposal tests prove Commerce POST count stays zero.
 
-- [ ] RED: Test all five schemas, absent identity/gate inputs, preflight snapshot, invocation dedup, provider-free output, and zero write POSTs. Run uv run pytest tests/tools/test_proposals.py tests/agent/test_action_proposal_tools.py -q; expected RED.
+- [ ] RED: Test all five schemas, absent identity/gate inputs, preflight snapshot, action-side origin-reference dedup (one invocation cannot create two actions), provider-free output, and zero write POSTs. Run uv run pytest tests/tools/test_proposals.py tests/agent/test_action_proposal_tools.py -q; expected RED.
 - [ ] GREEN: Wire lifespan-owned ActionProposalService into the registry; persist proposal-created and initial policy transition.
 - [ ] Verify: Run tool/graph/conversation API/Commerce client tests with scripted fake model output; assert denied, awaiting_confirmation, awaiting_approval are server-owned.
 - [ ] Commit: feat: add typed action proposal tools.
@@ -314,9 +316,9 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 **Interfaces**
 - Add typed CommerceClient methods for cancel, reschedule, return, ticket, refund. Fixed route templates, service credential, trusted customer header, Idempotency-Key, typed body; no URL/path argument or registry binding.
 - ActionExecutor.execute_ready(action_request_id) refreshes facts, atomically claims ready_to_execute → executing and appends execution_started, commits before network I/O, records bounded outcome afterward.
-- Stored UUID key is reused unchanged. Only proven pre-dispatch failures may retry boundedly. ReadTimeout, WriteTimeout, post-dispatch reset, malformed/contradictory 2xx are ambiguous; no read retry policy for writes.
+- Stored UUID key is reused unchanged. Only proven pre-dispatch failures may retry boundedly. ReadTimeout, WriteTimeout, post-dispatch reset, malformed/contradictory 2xx are ambiguous; transition/record executing → unresolved, preserve the same action/key, do not claim success, and do not automatically replay or reconcile in M6D.1. No read retry policy applies to writes.
 
-- [ ] RED: Test fixed paths/headers, pre-dispatch same-key retry, definite rejection, post-dispatch timeout reconciliation, and malformed success never becoming succeeded. Run uv run pytest tests/commerce/test_write_client.py tests/actions/test_executor.py -q; expected RED.
+- [ ] RED: Test fixed paths/headers, pre-dispatch same-key retry, definite rejection, post-dispatch timeout becoming unresolved without automatic replay (test_post_dispatch_timeout_becomes_unresolved_without_automatic_replay), and malformed success never becoming succeeded. Run uv run pytest tests/commerce/test_write_client.py tests/actions/test_executor.py -q; expected RED.
 - [ ] GREEN: Implement typed POST methods and internal enum dispatch table.
 - [ ] Verify: Run CommerceClient contract/executor tests; assert no arbitrary URL, key change, credential exposure, or DB transaction across network I/O.
 - [ ] Commit: feat: add internal action executor.
@@ -340,21 +342,21 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 ### Task M6D.3 — Customer state/confirmation API
 
 **Files**
-- Create: src/verbaops/api/routes/action_requests.py, tests/api/test_action_requests.py, tests/actions/test_decisions.py
+- Create: src/verbaops/api/routes/action_requests.py, src/verbaops/actions/decisions.py, tests/api/test_action_requests.py, tests/actions/test_decisions.py
 - Modify: src/verbaops/api/app.py, src/verbaops/api/dependencies.py, src/verbaops/api/lifespan.py
 
 **Interfaces**
-- GET /v1/action-requests/{action_request_id} returns a safe ActionRequestView scoped to the owning customer or authorized same-tenant supervisor. Existing GET /v1/conversations/{conversation_id} remains the customer-scoped reload source for active views.
-- Actor routes are POST /v1/action-requests/{action_request_id}/confirmation, /rejection, /approval, /approval-rejection, and /reconciliation. The first four accept exactly {proposal_fingerprint}; reconciliation accepts no body, key, or state and is available only to the owning customer or authorized same-tenant supervisor. All endpoints derive actors from TrustedContext; same-decision replay is idempotent; opposite/stale decision conflicts.
+- GET /v1/action-requests/{action_request_id} returns a safe ActionRequestView scoped only to the owning customer. Existing GET /v1/conversations/{conversation_id} remains the customer-scoped reload source for active views; M6E adds authorized same-tenant supervisor review scope.
+- M6D exposes only POST /v1/action-requests/{action_request_id}/confirmation, /rejection, and /reconciliation. Confirmation/rejection accept exactly {proposal_fingerprint}; reconciliation accepts no body, key, or state and is available only to the owning customer. All derive actors from TrustedContext; same-decision replay is idempotent; opposite/stale decisions conflict. M6E adds /approval and /approval-rejection plus authorized same-tenant supervisor review access.
 - No body accepts actor, state, tenant/customer, role, policy result, or idempotency key. Cross-scope IDs use sanitized non-enumerating 404.
 - Refresh material Commerce facts before accepting confirmation; if relevant state or displayed values changed, expire the old request and require a new fingerprint. A customer may withdraw while awaiting approval or confirmation; withdrawal serializes with supervisor decisions. A no-approval confirmation triggers the internal executor after the state/event transaction commits. Awaiting-approval requests cannot be confirmed early. No public execute/state-setting endpoint.
 
-- [ ] RED: Test confirm/reject, exact fingerprint, stale/expired, same retry, opposite conflict, no execute route, and test_cross_customer_action_id_matches_random_id_not_found. Add test_stale_fingerprint_cannot_replay_confirmation_or_approval here for confirmation; M6E.1 extends it for approval. Run uv run pytest tests/api/test_action_requests.py -q; expected RED.
-- [ ] GREEN: Add actor routes/service dependencies; invoke executor only when the server determines the final gate has passed.
+- [ ] RED: Test customer confirm/reject, exact fingerprint, stale/expired, same retry, opposite conflict, owner-only reads/reconciliation, absence of execute/approval/approval-rejection routes, and test_cross_customer_action_id_matches_random_id_not_found. Add test_stale_fingerprint_cannot_replay_confirmation_or_approval here for confirmation; M6E.1 extends it for approval. Run uv run pytest tests/api/test_action_requests.py -q; expected RED.
+- [ ] GREEN: Add customer-only GET, confirmation, rejection, and reconciliation routes backed by ActionDecisionService; invoke the executor only when the server determines all gates passed. Add no supervisor route or access in M6D.
 - [ ] Verify: Run API/action/executor/auth regressions; assert identity is never accepted from browser/model.
 - [ ] Commit: feat: add customer action confirmation API.
 
-**M6D acceptance/stop:** No-approval actions execute only after customer confirmation; gated cancellation/refund remain awaiting_approval; success has exact read-back; ambiguous writes reuse the original key or remain unresolved.
+**M6D acceptance/stop:** Ordinary no-HITL actions can complete after customer confirmation. Unusual cancellations and >500.00 refunds remain durably awaiting_approval; M6D exposes no public operation that can satisfy that approval. Ambiguous dispatch becomes unresolved without automatic replay; reconciliation starts in M6D.2. The customer API contains no supervisor routes.
 
 # M6E — Human approval and high-risk actions
 
@@ -364,34 +366,33 @@ Every milestone ends with focused tests green; relevant regressions; whole-miles
 ### Task M6E.1 — Supervisor decisions and cancellation gate
 
 **Files**
-- Modify: src/verbaops/api/routes/action_requests.py, src/verbaops/actions/policy.py, src/verbaops/actions/proposals.py
+- Modify: src/verbaops/api/routes/action_requests.py, src/verbaops/actions/decisions.py
 - Create: tests/actions/test_approval.py
 - Modify: tests/api/test_action_requests.py, tests/actions/test_decisions.py
 
 **Interfaces**
-- POST /approval and /approval-rejection accept proposal_fingerprint only. Enforce support_supervisor, proposer_id != supervisor principal, tenant scope, freshness, and locked state.
-- Approval records actor/time/fingerprint and changes awaiting_approval → awaiting_confirmation. Customer confirmation follows. Rejection is terminal; same decision replay is idempotent. Customer withdrawal while awaiting approval races through the same locked transition service; the first valid decision wins.
-- Only otherwise-eligible PROCESSING orders and/or LABEL_CREATED shipments require approval. Reschedule including IN_TRANSIT, other eligible cancellations, eligible returns, and ordinary tickets do not.
-
-- [ ] RED: Test role and tenant-admin denial, test_proposer_cannot_approve_own_action, approval-before-confirmation, stale/replayed approval in test_stale_fingerprint_cannot_replay_confirmation_or_approval, rejection, and cancellation matrix. Run uv run pytest tests/actions/test_approval.py tests/api/test_action_requests.py -q; expected RED.
-- [ ] GREEN: Implement locked approval/rejection through ActionTransitionService and action-specific policy.
-- [ ] Verify: Run policy, API, and PostgreSQL gate-race tests; approval never overrides Commerce eligibility.
+- Add POST /v1/action-requests/{action_request_id}/approval and /approval-rejection; extend GET and reconciliation authorization to the owning customer or an authorized same-tenant support_supervisor. Bodies contain only proposal_fingerprint.
+- Extend ActionDecisionService with approve(...) and reject_approval(...). Enforce trusted support_supervisor, proposer_id != supervisor principal, tenant scope, freshness, and locked state; update the same action row through ActionTransitionService. Approval records actor/time/fingerprint and advances awaiting_approval to awaiting_confirmation. Customer confirmation follows; rejection is terminal and same-decision replay is idempotent.
+- Consume the frozen M6A/M6C policy result: otherwise-eligible PROCESSING orders and/or LABEL_CREATED shipments are already awaiting_approval; reschedule including IN_TRANSIT and other eligible cancellations are not. The cancellation matrix is a regression test, not M6E policy implementation.
+- [ ] RED: Test role and tenant-admin denial, authorized supervisor review scope, test_proposer_cannot_approve_own_action, approval-before-confirmation, stale/replayed approval in test_stale_fingerprint_cannot_replay_confirmation_or_approval, rejection, and the frozen cancellation matrix as a regression. Run uv run pytest tests/actions/test_approval.py tests/api/test_action_requests.py -q; expected RED.
+- [ ] GREEN: Implement supervisor approve/reject in the existing ActionDecisionService through ActionTransitionService. Do not modify policy.py or proposals.py; only a separate explicit failing regression may justify a policy defect fix.
+- [ ] Verify: Run frozen policy-matrix regressions, API, and PostgreSQL decision-race tests; approval never overrides Commerce eligibility and the gate matrix is unchanged.
 - [ ] Commit: feat: add unusual cancellation approval flow.
 
 ### Task M6E.2 — Bound high-value refund approval
 
 **Files**
-- Modify: src/verbaops/actions/executor.py, src/verbaops/actions/proposals.py, src/verbaops/actions/verification.py
+- Modify: src/verbaops/actions/executor.py, src/verbaops/actions/verification.py
 - Modify: tests/actions/test_approval.py, tests/actions/test_executor.py, tests/integration/test_stage6_refunds.py
 
 **Interfaces**
-- Resolve NovaCommerce currency before confirmation; VerbaOps uses strict amount > 500.00. Exactly 500.00 is not gated.
-- Supervisor approves immutable action/fingerprint; customer confirms the same fingerprint afterward. Executor builds RefundApprovalReference only from stored approval and sends it on authenticated Commerce write.
+- Consume the already-frozen M6A/M6C decision that amount > 500.00 requires approval; exactly 500.00 is not gated. Do not reimplement threshold policy in M6E.
+- M6B supplies canonical currency and NovaCommerce's approval-reference contract; M6D supplies an executor that accepts only ready_to_execute actions and refuses incomplete gates. Build RefundApprovalReference only from current stored approval matching the action ID/fingerprint; customer then confirms the same fingerprint and the executor sends the trusted evidence.
 - NovaCommerce independently checks threshold/eligibility and stores reference in Commerce event. requires_manual_approval may remain true with status approved; no payment is issued.
 - Unexpected pending_manual_approval becomes unresolved.
 
 - [ ] RED: Test 499.99/500.00/500.01; missing currency before confirmation; missing/wrong-action/stale evidence; valid evidence; remaining-refundable denial; replay; unexpected pending. Run uv run pytest tests/actions/test_approval.py tests/actions/test_executor.py tests/integration/test_stage6_refunds.py -q; expected RED.
-- [ ] GREEN: Construct reference from the stored approval; verify exact approved refund without implying settlement.
+- [ ] GREEN: Integrate the current stored supervisor approval into the existing executor path; verify exact approved refund without implying settlement or changing proposal policy.
 - [ ] Verify: Run NovaCommerce refund/PostgreSQL and VerbaOps refund/API/executor tests; >500 without reference causes no mutation.
 - [ ] Commit: feat: bind high value refunds to approval.
 
@@ -532,6 +533,8 @@ Self-review findings and resolutions:
 - Preserved the approved gate matrix: reschedule always requires customer confirmation and never supervisor approval, including Commerce-eligible IN_TRANSIT; only unusual eligible cancellations and refunds above 500.00 use supervisor approval.
 - action_events remains append-only but not event-sourced; current state is authoritative.
 - Currency ownership is one NovaCommerce Settings source plus authenticated narrow read; absence fails closed before confirmation.
-- ToolInvocation is created before proposal execution so actions reference a durable origin ID.
+- ToolInvocation uses its existing trace identity; tool_call_id is metadata, not a new uniqueness key. action_requests.originating_tool_invocation_id is the sole action-side uniqueness guard, so one durable invocation can create at most one action without a ToolInvocation migration.
+- M6D records ambiguous post-dispatch outcomes as unresolved and performs no replay; M6D.2 owns serialized read-back-first reconciliation. M6D exposes only customer routes; M6E adds supervisor routes and extends the shared ActionDecisionService.
+- M6E consumes the M6A/M6C gate result and adds approval decisions; policy matrix changes are out of scope absent an explicit failing regression. The only new actor abstraction is the focused ActionDecisionService backed by existing locked transitions; no generic actor framework is introduced.
 - Write retries remain separate from read retries; ambiguity is read-back-first and same-key only.
 - Seven milestones are dependency ordered and independently reviewable. No architecture contradiction or placeholder remains.
