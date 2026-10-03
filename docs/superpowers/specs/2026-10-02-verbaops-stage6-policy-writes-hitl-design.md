@@ -68,13 +68,13 @@ All five action types require explicit customer confirmation in the initial Stag
 
 | Action | Proposal fields | Customer confirmation | Supervisor approval in initial policy |
 |---|---|---|---|
-| Reschedule delivery | Order ID and target delivery-slot ID | Required; show current and target date/window and order | Required when shipment is `in_transit`; other Commerce-eligible states do not require it |
-| Cancel order | Order ID | Required; show order identity and consequence, including that cancellation is not a refund | Required when the eligible order is `processing` or shipment is `label_created`; other eligible states do not require it |
+| Reschedule delivery | Order ID and target delivery-slot ID | Required; show current and target date/window and order | Not required in any Commerce-eligible state, including `IN_TRANSIT` |
+| Cancel order | Order ID | Required; show order identity and consequence, including that cancellation is not a refund | Required only when an otherwise-eligible order has status `PROCESSING` and/or its shipment has status `LABEL_CREATED`; other eligible states do not require it |
 | Initiate return | Order ID, distinct order-item IDs and quantities, reason | Required; show each item/quantity and that a return request does not guarantee a refund | Not required for an otherwise eligible return |
 | Create support ticket | Optional order ID, typed category, subject, description | Required; show the exact category and submitted summary | Not required for an ordinary ticket |
 | Request refund | Order ID, positive amount, reason, canonical tenant currency | Required; show amount, currency, order, reason, and that approval does not issue payment | Required when amount is greater than `500.00` in the configured NovaCommerce tenant currency; exactly `500.00` does not cross the existing threshold |
 
-These late-stage reschedule/cancellation conditions trigger review only for otherwise eligible actions. They do not override Commerce eligibility. A non-cancellable order, expired return window, unavailable delivery slot, or amount above the remaining refundable value is denied by Commerce even if a supervisor approved the VerbaOps risk gate.
+Only otherwise-eligible cancellations with order status `PROCESSING` and/or shipment status `LABEL_CREATED` trigger supervisor review; other eligible cancellation states do not. These cancellation holds do not override Commerce eligibility. Rescheduling requires customer confirmation but no supervisor approval in any Commerce-eligible state, including `IN_TRANSIT`. NovaCommerce independently enforces order and shipment state, ownership, slot existence, slot availability/capacity, slot date, and transactional correctness. A non-cancellable order, expired return window, unavailable delivery slot, or amount above the remaining refundable value is denied by Commerce even if a supervisor approved the cancellation risk gate.
 
 The ticket category is a closed enum shared by VerbaOps and NovaCommerce: `order`, `delivery`, `returns_refunds`, `product`, `warranty`, `payment`, `account`, or `other`. User-facing labels may be localized; stored values remain stable keys.
 
@@ -183,11 +183,11 @@ Policy checks, as applicable:
 * Authenticated principal has an allowed role and server-resolved customer association. A model-provided customer identifier is never accepted.
 * Action, conversation, customer, tenant, and current principal are correctly scoped.
 * Commerce resource belongs to the trusted customer; cross-customer/tenant existence is not disclosed. Local action reads always pair tenant and customer scope. Because NovaCommerce is currently the single implemented demo tenant, the service rejects a trusted tenant that does not match its configured Commerce binding; the customer ID still comes only from trusted context.
-* Current state and material values satisfy the gate matrix, including late-stage reschedule/cancellation review and the refund threshold.
+* Current state and material values satisfy the gate matrix, including eligible late-stage cancellation review and the refund threshold.
 * Proposal and bound gate decisions are current, unexpired, and fingerprint-identical.
 * Current state permits the requested transition.
 
-VerbaOps performs early authorization, schema validation, gate selection, freshness checks, and workflow control. NovaCommerce independently enforces ownership, valid state, slot capacity/date, cancellation eligibility, return window and quantity, remaining refundable amount, ticket ownership, database constraints, transactional locking, idempotency, and Commerce events. A supervisor cannot override a NovaCommerce invariant. A VerbaOps risk hold can be approved only where NovaCommerce would still accept the write. Stage 6 has no free-form exception override: only the named late-stage cancellation and in-transit reschedule holds in the action matrix may be cleared by supervisor approval. Other failed policy or business checks are denied.
+VerbaOps performs early authorization, schema validation, gate selection, freshness checks, and workflow control. NovaCommerce independently enforces ownership, valid state, slot capacity/date, cancellation eligibility, return window and quantity, remaining refundable amount, ticket ownership, database constraints, transactional locking, idempotency, and Commerce events. A supervisor cannot override a NovaCommerce invariant. A VerbaOps risk hold can be approved only where NovaCommerce would still accept the write. Stage 6 has no free-form exception override: only the named otherwise-eligible late-stage cancellation holds in the action matrix may be cleared by supervisor approval. Other failed policy or business checks are denied.
 
 Policy reads Commerce facts using authenticated customer-scoped reads. These are preflight snapshots, not permission to bypass the later Commerce check. Relevant checks run again before execution, and NovaCommerce remains authoritative under concurrent changes.
 
@@ -213,7 +213,7 @@ The initial authorized role is `support_supervisor`. The model, customer, propos
 
 The supervisor endpoint returns a tenant-scoped view of the immutable proposal, customer-confirmation requirement, material values, policy reason, and fingerprint. The decision records trusted supervisor principal, time, decision, and fingerprint. Approval is accepted only while the action is `awaiting_approval`, unexpired, and current. Rejection is terminal. Identical repeat decisions are idempotent; conflicting decisions are rejected.
 
-Refunds over `500.00` in tenant currency require this gate. Eligible late-stage cancellations and in-transit rescheduling require it as shown in the action matrix. Ordinary returns and tickets do not.
+Refunds over `500.00` in tenant currency and otherwise-eligible cancellations with order status `PROCESSING` and/or shipment status `LABEL_CREATED` require this gate. Delivery rescheduling, including for Commerce-eligible `IN_TRANSIT` shipments, requires customer confirmation only and never requires supervisor approval in the initial policy. Ordinary returns and tickets do not require supervisor approval.
 
 ### Refund approval and NovaCommerce contract
 
@@ -344,7 +344,7 @@ These are focused contract changes around the approved modular architecture. The
 
 Use deterministic contexts and a stubbed NovaCommerce HTTP boundary; no live provider or paid LLM call is required.
 
-* Pure policy tests cover action/role/state/gate branches and the `500.00` boundary.
+* Pure policy tests cover action/role/state/gate branches, including Commerce-eligible `IN_TRANSIT` rescheduling with customer confirmation and no supervisor approval, and the `500.00` boundary.
 * Persistence tests cover transitions, immutable fingerprints, atomic events, scope predicates, uniqueness, idempotency, and expiry races.
 * API tests cover actor roles, exact-fingerprint decisions, rejection, repeated-decision idempotency, and non-enumerating cross-scope behavior.
 * Commerce client contract tests cover typed writes, auth/customer/idempotency headers, sanitized errors, and refund approval reference.
@@ -392,7 +392,7 @@ Later implementation is complete only when evidence demonstrates that:
 2. Every accepted proposal is typed and durably stored.
 3. Deterministic policy gates each executable action.
 4. Customer confirmation binds to the exact immutable proposal.
-5. Configured high-risk actions require an authorized, separate supervisor.
+5. The initial supervisor workflows are limited to otherwise-eligible cancellations with order status `PROCESSING` and/or shipment status `LABEL_CREATED`, and refunds above `500.00`; each requires an authorized, separate supervisor. Delivery rescheduling, including in `IN_TRANSIT`, has no supervisor gate.
 6. Stale/materially changed proposals invalidate prior confirmation and approval.
 7. Writes execute only through authenticated NovaCommerce APIs.
 8. Each logical action has one stable idempotency key.
@@ -410,6 +410,6 @@ Later implementation is complete only when evidence demonstrates that:
 
 This is one coherent Stage 6 architecture suitable for one later implementation roadmap. Cross-cutting work is bounded to VerbaOps durable actions and gates, the existing NovaCommerce contract, agent/API/web integration, and deterministic verification. These are parts of one action lifecycle, not independent subsystems.
 
-The state table, transition rules, gate ordering, refund behavior, and API operations agree. VerbaOps owns workflow authorization and decisions; NovaCommerce owns final eligibility and transactional write rules. A refund can be approved as a request without representing a payout. Return and ticket verification have exact-resource contracts. Production authentication remains outside Stage 6 runtime scope. Stage 5 grounding evidence remains separate and unchanged.
+The state table, transition rules, gate ordering, refund behavior, and API operations agree. All five actions require customer confirmation. Initial supervisor approval is limited to otherwise-eligible cancellations with order status `PROCESSING` and/or shipment status `LABEL_CREATED`, and refunds above `500.00`. Rescheduling, including for Commerce-eligible `IN_TRANSIT` shipments, requires customer confirmation only and no supervisor approval. VerbaOps owns workflow authorization and decisions; NovaCommerce owns final eligibility and transactional write rules. A refund can be approved as a request without representing a payout. Return and ticket verification have exact-resource contracts. Production authentication remains outside Stage 6 runtime scope. Stage 5 grounding evidence remains separate and unchanged.
 
 No unresolved placeholder or unspecified core gate remains in this specification.
