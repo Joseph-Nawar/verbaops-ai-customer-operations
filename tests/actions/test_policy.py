@@ -1,4 +1,4 @@
-﻿"""Provider-free contracts for the frozen Stage 6 action policy."""
+"""Provider-free contracts for the frozen Stage 6 action policy."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -111,22 +111,20 @@ def test_customer_scope_and_resource_ownership_come_from_trusted_context() -> No
         False,
     )
 
-    mismatched = _evaluate(
-        _context(), _proposals()[0], _snapshot(customer_id=OTHER_CUSTOMER_ID)
-    )
+    mismatched = _evaluate(_context(), _proposals()[0], _snapshot(customer_id=OTHER_CUSTOMER_ID))
     assert (mismatched.allowed, mismatched.reason_code) == (False, "customer_scope_mismatch")
 
     wrong_order = _evaluate(
-        _context(), _proposals()[0], _snapshot(order_id=UUID("30000000-0000-4000-8000-000000000009"))
+        _context(),
+        _proposals()[0],
+        _snapshot(order_id=UUID("30000000-0000-4000-8000-000000000009")),
     )
     assert (wrong_order.allowed, wrong_order.reason_code) == (False, "proposal_resource_mismatch")
 
 
 def test_support_agent_and_supervisor_require_a_server_bound_customer() -> None:
     proposal = _proposals()[0]
-    support_agent = _evaluate(
-        _context(frozenset({Role.SUPPORT_AGENT})), proposal, _snapshot()
-    )
+    support_agent = _evaluate(_context(frozenset({Role.SUPPORT_AGENT})), proposal, _snapshot())
     assert support_agent.allowed is True
 
     unbound_agent = _evaluate(
@@ -149,9 +147,7 @@ def test_support_agent_and_supervisor_require_a_server_bound_customer() -> None:
 
 
 def test_tenant_admin_alone_is_not_action_authority() -> None:
-    decision = _evaluate(
-        _context(frozenset({Role.TENANT_ADMIN})), _proposals()[0], _snapshot()
-    )
+    decision = _evaluate(_context(frozenset({Role.TENANT_ADMIN})), _proposals()[0], _snapshot())
     assert (decision.allowed, decision.reason_code) == (False, "proposal_role_not_allowed")
 
 
@@ -251,9 +247,7 @@ def test_refund_supervisor_threshold_is_strictly_greater_than_five_hundred(
 
 
 def test_missing_trusted_refund_currency_fails_closed_before_confirmation() -> None:
-    decision = _evaluate(
-        _context(), _proposals()[4], _snapshot(), canonical_currency=None
-    )
+    decision = _evaluate(_context(), _proposals()[4], _snapshot(), canonical_currency=None)
     assert (decision.allowed, decision.reason_code, decision.confirmation_required) == (
         False,
         "canonical_currency_unavailable",

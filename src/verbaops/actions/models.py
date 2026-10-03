@@ -1,4 +1,4 @@
-﻿"""Typed action proposals and lifecycle values."""
+"""Typed action proposals and lifecycle values."""
 
 from datetime import datetime
 from decimal import Decimal
@@ -87,7 +87,9 @@ class ActionModel(BaseModel):
 
 ReasonText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
 SubjectText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
-DescriptionText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+DescriptionText = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+]
 
 
 class RescheduleDeliveryProposal(ActionModel):

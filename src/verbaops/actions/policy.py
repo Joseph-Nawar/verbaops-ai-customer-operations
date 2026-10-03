@@ -1,4 +1,4 @@
-﻿"""Pure deterministic gates for the initial Stage 6 action policy."""
+"""Pure deterministic gates for the initial Stage 6 action policy."""
 
 from decimal import Decimal
 from typing import Annotated
@@ -65,9 +65,7 @@ def _evaluate_reschedule(policy_version: str) -> PolicyDecision:
     return _allowed(policy_version)
 
 
-def _evaluate_cancellation(
-    snapshot: CommerceSnapshot, policy_version: str
-) -> PolicyDecision:
+def _evaluate_cancellation(snapshot: CommerceSnapshot, policy_version: str) -> PolicyDecision:
     approval_required = (
         snapshot.order_status is OrderStatus.PROCESSING
         or snapshot.shipment_status is ShipmentStatus.LABEL_CREATED
@@ -83,9 +81,7 @@ def _evaluate_support_ticket(policy_version: str) -> PolicyDecision:
     return _allowed(policy_version)
 
 
-def _evaluate_refund(
-    proposal: RefundProposal, policy_version: str
-) -> PolicyDecision:
+def _evaluate_refund(proposal: RefundProposal, policy_version: str) -> PolicyDecision:
     return _allowed(
         policy_version,
         approval_required=proposal.amount > _REFUND_APPROVAL_THRESHOLD,
@@ -136,7 +132,3 @@ def evaluate_action_policy(
     if isinstance(proposal, RefundProposal):
         return _evaluate_refund(proposal, policy_version)
     raise TypeError(f"unsupported action proposal: {type(proposal).__name__}")
-
-
-
-

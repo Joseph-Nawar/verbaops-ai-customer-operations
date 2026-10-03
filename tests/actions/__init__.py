@@ -1,1 +1,1 @@
-﻿"""Action lifecycle tests."""
+"""Action lifecycle tests."""

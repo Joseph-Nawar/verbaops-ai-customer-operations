@@ -167,9 +167,7 @@ class ActionRequest(Base):
     customer_confirmation_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     customer_confirmation_fingerprint: Mapped[str | None] = mapped_column(String(64))
     supervisor_approval_decision: Mapped[str | None] = mapped_column(String(16))
-    supervisor_approval_actor_id: Mapped[UUID | None] = mapped_column(
-        PostgreSQLUUID(as_uuid=True)
-    )
+    supervisor_approval_actor_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     supervisor_approval_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     supervisor_approval_fingerprint: Mapped[str | None] = mapped_column(String(64))
     idempotency_key: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
@@ -205,9 +203,7 @@ class ActionEvent(Base):
             ondelete="RESTRICT",
             name="fk_action_events_request_tenant",
         ),
-        UniqueConstraint(
-            "action_request_id", "sequence", name="uq_action_events_request_sequence"
-        ),
+        UniqueConstraint("action_request_id", "sequence", name="uq_action_events_request_sequence"),
         CheckConstraint("sequence > 0", name="action_event_sequence_positive"),
         CheckConstraint(
             f"event_type IN ({_EVENT_TYPES})",

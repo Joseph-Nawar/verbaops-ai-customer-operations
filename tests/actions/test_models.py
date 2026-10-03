@@ -1,4 +1,4 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -23,11 +23,43 @@ def _proposal_cases() -> tuple[tuple[type[BaseModel], dict[str, Any]], ...]:
     item_id = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
     slot_id = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
     return (
-        (RescheduleDeliveryProposal, {"action_type": "reschedule_delivery", "order_id": order_id, "delivery_slot_id": slot_id}),
+        (
+            RescheduleDeliveryProposal,
+            {
+                "action_type": "reschedule_delivery",
+                "order_id": order_id,
+                "delivery_slot_id": slot_id,
+            },
+        ),
         (CancelOrderProposal, {"action_type": "cancel_order", "order_id": order_id}),
-        (ReturnProposal, {"action_type": "initiate_return", "order_id": order_id, "items": ({"order_item_id": item_id, "quantity": 1},), "reason": "Changed my mind"}),
-        (SupportTicketProposal, {"action_type": "create_support_ticket", "order_id": order_id, "category": TicketCategory.ORDER, "subject": "Delivery update", "description": "Please check delivery status."}),
-        (RefundProposal, {"action_type": "request_refund", "order_id": order_id, "amount": Decimal("500.00"), "reason": "Duplicate charge"}),
+        (
+            ReturnProposal,
+            {
+                "action_type": "initiate_return",
+                "order_id": order_id,
+                "items": ({"order_item_id": item_id, "quantity": 1},),
+                "reason": "Changed my mind",
+            },
+        ),
+        (
+            SupportTicketProposal,
+            {
+                "action_type": "create_support_ticket",
+                "order_id": order_id,
+                "category": TicketCategory.ORDER,
+                "subject": "Delivery update",
+                "description": "Please check delivery status.",
+            },
+        ),
+        (
+            RefundProposal,
+            {
+                "action_type": "request_refund",
+                "order_id": order_id,
+                "amount": Decimal("500.00"),
+                "reason": "Duplicate charge",
+            },
+        ),
     )
 
 
@@ -72,7 +104,13 @@ def test_return_items_are_nonempty_distinct_and_positive() -> None:
         ReturnProposal.model_validate({**base, "items": ()})
     with pytest.raises(ValidationError):
         ReturnProposal.model_validate(
-            {**base, "items": ({"order_item_id": first, "quantity": 1}, {"order_item_id": first, "quantity": 2})}
+            {
+                **base,
+                "items": (
+                    {"order_item_id": first, "quantity": 1},
+                    {"order_item_id": first, "quantity": 2},
+                ),
+            }
         )
     with pytest.raises(ValidationError):
         ReturnProposal.model_validate(
@@ -84,7 +122,9 @@ def test_refund_amount_is_a_positive_canonical_currency_decimal() -> None:
     order_id = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
     base = {"action_type": "request_refund", "order_id": order_id, "reason": "Duplicate"}
 
-    assert RefundProposal.model_validate({**base, "amount": Decimal("500.00")}).amount == Decimal("500.00")
+    assert RefundProposal.model_validate({**base, "amount": Decimal("500.00")}).amount == Decimal(
+        "500.00"
+    )
     with pytest.raises(ValidationError):
         RefundProposal.model_validate({**base, "amount": Decimal("0.00")})
     with pytest.raises(ValidationError):
@@ -117,7 +157,6 @@ def test_action_state_vocabulary_is_exactly_frozen() -> None:
     }
 
 
-
 def test_action_types_are_a_closed_wire_contract() -> None:
     assert {action_type.value for action_type in ActionType} == {
         "reschedule_delivery",
@@ -126,4 +165,3 @@ def test_action_types_are_a_closed_wire_contract() -> None:
         "create_support_ticket",
         "request_refund",
     }
-

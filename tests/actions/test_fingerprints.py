@@ -1,4 +1,4 @@
-﻿import re
+import re
 from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any

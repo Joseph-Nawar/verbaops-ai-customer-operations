@@ -1,4 +1,4 @@
-﻿"""Versioned canonical proposal fingerprints."""
+"""Versioned canonical proposal fingerprints."""
 
 import hashlib
 import json
@@ -99,4 +99,3 @@ def fingerprint_proposal(
         sort_keys=True,
     ).encode("utf-8")
     return hashlib.sha256(canonical).hexdigest()
-

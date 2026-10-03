@@ -1,1 +1,1 @@
-﻿"""Durable deterministic action lifecycle domain contracts."""
+"""Durable deterministic action lifecycle domain contracts."""
