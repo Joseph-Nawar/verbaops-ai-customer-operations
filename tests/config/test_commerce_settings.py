@@ -29,12 +29,14 @@ def test_nested_environment_variables_load_immutable_commerce_settings(
 ) -> None:
     clear_verbaops_environment(monkeypatch)
     monkeypatch.setenv("VERBAOPS_COMMERCE__BASE_URL", "https://commerce.internal/v1/")
+    monkeypatch.setenv("VERBAOPS_COMMERCE__TENANT_ID", "20000000-0000-4000-8000-000000000002")
     monkeypatch.setenv("VERBAOPS_COMMERCE__SERVICE_TOKEN", "sentinel-commerce-token")
     monkeypatch.setenv("VERBAOPS_COMMERCE__TIMEOUT_SECONDS", "12.5")
 
     settings = make_settings()
 
     assert settings.commerce.base_url == "https://commerce.internal/v1/"
+    assert str(settings.commerce.tenant_id) == "20000000-0000-4000-8000-000000000002"
     assert settings.commerce.service_token == SecretStr("sentinel-commerce-token")
     assert settings.commerce.timeout_seconds == 12.5
     assert "sentinel-commerce-token" not in f"{settings!r} {settings}"

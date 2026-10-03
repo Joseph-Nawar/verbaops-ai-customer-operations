@@ -58,6 +58,7 @@ from verbaops.tools.stage6_models import (
     MissingTrustedCustomerContextError,
     Stage6ToolExecutionContext,
 )
+from verbaops.tools.stage6_registry import Stage6ToolRegistry
 
 
 def build_agent_graph() -> Any:
@@ -192,8 +193,11 @@ async def validate_tool_calls(
     invalid_calls: list[tuple[Any, str, str]] = []
     for call in calls:
         try:
-            definition = context.tool_registry.get(call.name)
-            definition.input_model.model_validate(call.arguments)
+            if isinstance(context.tool_registry, Stage6ToolRegistry):
+                context.tool_registry.validate_input(call.name, call.arguments)
+            else:
+                definition = context.tool_registry.get(call.name)
+                definition.input_model.model_validate(call.arguments)
         except UnknownToolError:
             invalid_calls.append((call, "unknown_tool", "unknown read-only tool"))
         except ValidationError:

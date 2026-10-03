@@ -13,7 +13,7 @@ from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.actions.models import ActionRequestSummary, ActionState
 from verbaops.agent.context import AgentContext
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
-from verbaops.agent.graph import execute_tools
+from verbaops.agent.graph import execute_tools, validate_tool_calls
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.agent.stage6_versions import (
     STAGE6_PROMPT_VERSION,
@@ -58,6 +58,7 @@ class ProposalServiceSpy:
 class RecordingConversationService:
     def __init__(self) -> None:
         self.invocations: dict[UUID, dict[str, Any]] = {}
+        self.invalid_invocations: list[dict[str, Any]] = []
 
     async def begin_tool_invocation(self, *args: Any, **kwargs: Any) -> Any:
         invocation_id = uuid4()
@@ -69,6 +70,9 @@ class RecordingConversationService:
     ) -> Any:
         self.invocations[invocation_id].update(kwargs)
         return type("Invocation", (), {"id": invocation_id})()
+
+    async def append_tool_invocation(self, *args: Any, **kwargs: Any) -> None:
+        self.invalid_invocations.append({"args": args, "kwargs": kwargs})
 
 
 def _state(call: ToolCall) -> AgentState:
@@ -139,6 +143,49 @@ async def test_graph_passes_persisted_invocation_id_and_returns_server_owned_pro
     assert "awaiting_approval" in message.content
     assert "succeeded" not in message.content
     assert message.tool_call_id == call.id
+    await commerce._http_client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stage6_prevalidation_accepts_provider_json_uuid_strings_without_execution() -> None:
+    service = ProposalServiceSpy()
+    conversation_service = RecordingConversationService()
+    commerce = CommerceClient(
+        CommerceSettings(base_url="http://commerce.test", service_token=SecretStr("safe")),
+        httpx.AsyncClient(
+            transport=httpx.MockTransport(
+                lambda _request: (_ for _ in ()).throw(
+                    AssertionError("prevalidation must not call Commerce")
+                )
+            )
+        ),
+    )
+    context = AgentContext(
+        conversation_id=uuid4(),
+        agent_run_id=uuid4(),
+        trusted_context=TrustedContext(
+            principal_id=uuid4(),
+            tenant_id=uuid4(),
+            customer_id=uuid4(),
+            roles=frozenset({Role.CUSTOMER}),
+        ),
+        llm_client=cast(ScriptedLLMClient, object()),
+        commerce_client=commerce,
+        tool_registry=build_stage6_tool_registry(service),
+        conversation_service=cast(ConversationService, conversation_service),
+    )
+    call = ToolCall(
+        id="provider-call-json-uuid",
+        name="propose_cancel_order",
+        arguments={"order_id": str(uuid4())},
+    )
+
+    result = await validate_tool_calls(_state(call), type("Runtime", (), {"context": context})())
+
+    assert result["validation_repair_count"] == 0
+    assert result["last_tool_results"] == []
+    assert conversation_service.invalid_invocations == []
+    assert service.calls == []
     await commerce._http_client.aclose()
 
 

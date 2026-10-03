@@ -208,6 +208,7 @@ class CommerceSettings(BaseModel):
     )
 
     base_url: str = "http://localhost:8010"
+    tenant_id: UUID = UUID("10000000-0000-0000-0000-000000000002")
     service_token: SecretStr = SecretStr("local-development-token")
     timeout_seconds: PositiveFloat = 15.0
 

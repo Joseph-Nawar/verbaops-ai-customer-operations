@@ -20,7 +20,8 @@ pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.contrac
 
 
 class FixedCommerce:
-    def __init__(self, customer_id: UUID, order_id: UUID) -> None:
+    def __init__(self, tenant_id: UUID, customer_id: UUID, order_id: UUID) -> None:
+        self.tenant_id = tenant_id
         self.order = OrderResponse(
             id=order_id,
             customer_id=customer_id,
@@ -57,7 +58,7 @@ async def test_proposal_origin_is_the_durable_invocation_and_changed_replay_fail
     order_id = uuid4()
     customer_id = context.trusted_context.customer_id
     assert customer_id is not None
-    commerce = FixedCommerce(customer_id, order_id)
+    commerce = FixedCommerce(context.trusted_context.tenant_id, customer_id, order_id)
     factory = async_sessionmaker(postgres_engine, expire_on_commit=False)
     proposal_service = ActionProposalService(
         commerce,  # type: ignore[arg-type]

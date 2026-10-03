@@ -135,6 +135,26 @@ def test_each_proposal_tool_has_only_its_typed_action_fields(tool_name: str, pro
         )
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "proposal"),
+    [
+        ("propose_return", _proposals()[2][1]),
+        ("propose_refund", _proposals()[4][1]),
+    ],
+)
+def test_commerce_reason_limits_are_enforced_at_model_tool_boundary(
+    tool_name: str, proposal: Any
+) -> None:
+    import json
+
+    definition = build_stage6_tool_registry(ProposalServiceSpy()).get(tool_name)
+    raw_input = proposal.model_dump(mode="json")
+    raw_input["reason"] = "x" * 501
+
+    with pytest.raises(ValidationError):
+        definition.input_model.model_validate_json(json.dumps(raw_input))
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tool_name,proposal", _proposals())
 async def test_proposal_handler_injects_authenticated_scope_and_durable_invocation(

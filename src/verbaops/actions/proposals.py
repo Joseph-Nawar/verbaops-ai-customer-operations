@@ -106,6 +106,8 @@ class ActionProposalService:
             ),
         ):
             raise TypeError("proposal must be validated action data")
+        if trusted_context.tenant_id != self._commerce.tenant_id:
+            raise CommerceNotFoundError()
         customer_id = trusted_context.customer_id
         if customer_id is None:
             raise MissingTrustedCustomerContextError()

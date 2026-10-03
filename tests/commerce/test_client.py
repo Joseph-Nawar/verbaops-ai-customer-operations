@@ -49,6 +49,18 @@ def make_client(handler: Callable[[httpx.Request], httpx.Response]) -> CommerceC
     )
 
 
+def test_client_exposes_its_configured_commerce_tenant() -> None:
+    tenant_id = uuid4()
+    client = CommerceClient(
+        CommerceSettings(tenant_id=tenant_id),
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _request: httpx.Response(200))
+        ),
+    )
+
+    assert client.tenant_id == tenant_id
+
+
 def assert_safe(value: object) -> None:
     rendered = f"{value!s} {value!r}"
     for forbidden in (

@@ -41,6 +41,12 @@ class CommerceClient:
 
         return f"{type(self).__name__}(...)"
 
+    @property
+    def tenant_id(self) -> UUID:
+        """Return the one tenant this Commerce connection is configured to serve."""
+
+        return self._settings.tenant_id
+
     async def get_order(self, order_id: UUID, customer_id: UUID) -> OrderResponse:
         """Fetch one customer-scoped order."""
 

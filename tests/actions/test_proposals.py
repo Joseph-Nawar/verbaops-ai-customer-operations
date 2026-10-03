@@ -104,6 +104,7 @@ def _shipment(
 
 class FakeCommerce:
     def __init__(self) -> None:
+        self.tenant_id = TENANT_ID
         self.order = _order()
         self.shipment: ShipmentResponse | None = _shipment()
         self.slots = [
@@ -356,6 +357,20 @@ async def test_support_customer_scope_role_matrix_uses_frozen_policy() -> None:
             ActionState.POLICY_DENIED,
             "proposal_role_not_allowed",
         )
+
+
+@pytest.mark.asyncio
+async def test_tenant_mismatch_is_rejected_before_commerce_or_action_persistence() -> None:
+    commerce = FakeCommerce()
+    service, repository, transitions = _service(commerce)
+    other_tenant = _context().model_copy(update={"tenant_id": uuid4()})
+
+    with pytest.raises(CommerceNotFoundError):
+        await _propose(service, CancelOrderProposal(order_id=ORDER_ID), context=other_tenant)
+
+    assert commerce.calls == []
+    assert repository.calls == []
+    assert transitions.calls == []
 
 
 @pytest.mark.asyncio

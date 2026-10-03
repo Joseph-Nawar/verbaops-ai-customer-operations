@@ -59,7 +59,7 @@ class ReturnToolInput(Stage6ToolModel):
     action_type: Literal[ActionType.INITIATE_RETURN] = ActionType.INITIATE_RETURN
     order_id: UUID
     items: tuple[ReturnItemToolInput, ...] = Field(min_length=1)
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
     @model_validator(mode="after")
     def require_distinct_items(self) -> "ReturnToolInput":
@@ -83,7 +83,7 @@ class RefundToolInput(Stage6ToolModel):
     action_type: Literal[ActionType.REQUEST_REFUND] = ActionType.REQUEST_REFUND
     order_id: UUID
     amount: Annotated[Decimal, Field(gt=0)]
-    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 
 
 class Stage6RiskLevel(StrEnum):

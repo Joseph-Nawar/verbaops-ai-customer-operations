@@ -25,6 +25,13 @@ from verbaops.tools.stage6_models import Stage6RiskLevel, Stage6ToolExecutionCon
 class Stage6ToolRegistry(ToolRegistry):
     """Strict JSON-boundary executor for the M6C registry."""
 
+    def validate_input(self, name: str, raw_input: Mapping[str, Any]) -> Any:
+        """Validate provider-decoded JSON before any durable invocation is created."""
+
+        definition = self.get(name)
+        serialized = json.dumps(raw_input, ensure_ascii=False, separators=(",", ":"), default=str)
+        return definition.input_model.model_validate_json(serialized)
+
     async def execute(
         self,
         name: str,
@@ -33,9 +40,7 @@ class Stage6ToolRegistry(ToolRegistry):
         client: CommerceClient,
     ) -> Any:
         definition = self.get(name)
-        input_data = definition.input_model.model_validate_json(
-            json.dumps(raw_input, ensure_ascii=False, separators=(",", ":"), default=str)
-        )
+        input_data = self.validate_input(name, raw_input)
         if not isinstance(context, Stage6ToolExecutionContext):
             raise TypeError("Stage 6 tool execution requires authenticated context")
         output = await definition.handler(
