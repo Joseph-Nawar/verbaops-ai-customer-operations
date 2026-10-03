@@ -89,6 +89,7 @@ def _environment(port: str, password: str, token: str, acceptance_as_of: str) ->
             f"{password}@commerce-postgres:5432/commerce_acceptance"
         ),
         "NOVACOMMERCE_SERVICE_TOKEN": token,
+        "NOVACOMMERCE_TENANT_CURRENCY": "USD",
     }
 
 

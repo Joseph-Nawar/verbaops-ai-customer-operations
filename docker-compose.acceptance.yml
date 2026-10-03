@@ -63,6 +63,7 @@ services:
       NOVACOMMERCE_ENVIRONMENT: test
       NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
       NOVACOMMERCE_SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
+      NOVACOMMERCE_TENANT_CURRENCY: ${NOVACOMMERCE_TENANT_CURRENCY}
     depends_on:
       commerce-fixtures:
         condition: service_completed_successfully
