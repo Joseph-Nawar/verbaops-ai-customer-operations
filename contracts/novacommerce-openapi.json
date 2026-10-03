@@ -1634,6 +1634,51 @@
         ]
       }
     },
+    "/v1/returns/{return_id}": {
+      "get": {
+        "operationId": "get_return_v1_returns__return_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "return_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Return Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "reads"
+        ]
+      }
+    },
     "/v1/support-tickets": {
       "post": {
         "operationId": "create_ticket_route_v1_support_tickets_post",
@@ -1696,6 +1741,51 @@
         ],
         "tags": [
           "writes"
+        ]
+      }
+    },
+    "/v1/support-tickets/{ticket_id}": {
+      "get": {
+        "operationId": "get_support_ticket_v1_support_tickets__ticket_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Ticket Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "reads"
         ]
       }
     }

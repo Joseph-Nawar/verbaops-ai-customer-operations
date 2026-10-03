@@ -1687,3 +1687,74 @@ async def test_m6b_ticket_category_round_trips_through_database_response_and_eve
             )
             == expected_category
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_m6b_exact_return_and_ticket_reads_are_customer_scoped(
+    live_app: Any,
+    engine: AsyncEngine,
+) -> None:
+    config = SeedConfig()
+    primary = scenario_uuid(config, "customer_primary")
+    other = scenario_uuid(config, "customer_other")
+    delivered_order = scenario_uuid(config, "order_delivered_29d")
+    item_id, _, _ = await prepare_return_scenario(
+        engine,
+        delivered_order,
+        delivered_days_ago=1,
+    )
+    created_return = await request(
+        live_app,
+        "POST",
+        "/v1/returns",
+        customer_id=primary,
+        key="m6b-exact-read-return-create",
+        body={
+            "order_id": str(delivered_order),
+            "reason": "Exact read-back",
+            "items": [{"order_item_id": str(item_id), "quantity": 1}],
+        },
+    )
+    assert created_return.status_code == 201
+    return_id = created_return.json()["id"]
+
+    created_ticket = await request(
+        live_app,
+        "POST",
+        "/v1/support-tickets",
+        customer_id=primary,
+        key="m6b-exact-read-ticket-create",
+        body={
+            "subject": "Exact read-back",
+            "description": "Verify this ticket only.",
+            "category": "warranty",
+        },
+    )
+    assert created_ticket.status_code == 201
+    ticket_id = created_ticket.json()["id"]
+
+    before_reads = await counts(engine)
+    owner_return = await request(live_app, "GET", f"/v1/returns/{return_id}", customer_id=primary)
+    other_return = await request(live_app, "GET", f"/v1/returns/{return_id}", customer_id=other)
+    missing_return = await request(live_app, "GET", f"/v1/returns/{uuid4()}", customer_id=primary)
+    owner_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{ticket_id}", customer_id=primary
+    )
+    other_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{ticket_id}", customer_id=other
+    )
+    missing_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{uuid4()}", customer_id=primary
+    )
+
+    assert owner_return.status_code == 200
+    assert owner_return.json() == created_return.json()
+    assert owner_ticket.status_code == 200
+    assert owner_ticket.json() == created_ticket.json()
+    assert owner_ticket.json()["category"] == "warranty"
+    assert other_return.status_code == missing_return.status_code == 404
+    assert other_return.json() == missing_return.json()
+    assert other_ticket.status_code == missing_ticket.status_code == 404
+    assert other_ticket.json() == missing_ticket.json()
+    assert await counts(engine) == before_reads
