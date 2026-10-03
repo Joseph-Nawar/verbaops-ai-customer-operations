@@ -10,7 +10,11 @@ from novacommerce.db.models.product import Product
 from novacommerce.db.models.refund import Refund, RefundStatus
 from novacommerce.db.models.return_ import Return, ReturnItem, ReturnStatus
 from novacommerce.db.models.shipment import Shipment, ShipmentStatus
-from novacommerce.db.models.support_ticket import SupportTicket, SupportTicketStatus
+from novacommerce.db.models.support_ticket import (
+    SupportTicket,
+    SupportTicketCategory,
+    SupportTicketStatus,
+)
 
 __all__ = [
     "CommerceEvent",
@@ -30,5 +34,6 @@ __all__ = [
     "Shipment",
     "ShipmentStatus",
     "SupportTicket",
+    "SupportTicketCategory",
     "SupportTicketStatus",
 ]

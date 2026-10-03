@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from novacommerce.db.models.refund import RefundStatus
 from novacommerce.db.models.return_ import ReturnStatus
-from novacommerce.db.models.support_ticket import SupportTicketStatus
+from novacommerce.db.models.support_ticket import SupportTicketCategory, SupportTicketStatus
 from novacommerce.schemas.common import ResponseModel
 from novacommerce.schemas.orders import OrderResponse
 from novacommerce.schemas.shipments import ShipmentResponse
@@ -79,6 +79,7 @@ class RefundCreateRequest(WriteRequest):
 
 class SupportTicketCreateRequest(WriteRequest):
     order_id: UUID | None = None
+    category: SupportTicketCategory = SupportTicketCategory.OTHER
     subject: str = Field(max_length=300)
     description: str = Field(max_length=5000)
 
@@ -121,6 +122,7 @@ class SupportTicketResponse(ResponseModel):
     id: UUID
     customer_id: UUID
     order_id: UUID | None
+    category: SupportTicketCategory
     subject: str
     description: str
     status: SupportTicketStatus

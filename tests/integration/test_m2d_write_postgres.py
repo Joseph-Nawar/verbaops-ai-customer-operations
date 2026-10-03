@@ -1632,3 +1632,58 @@ async def test_m2d_postgres_duplicate_ticket_same_key_creates_once(
     assert after["support_tickets"] - before["support_tickets"] == 1
     assert after["commerce_events"] - before["commerce_events"] == 1
     assert after["idempotency_records"] - before["idempotency_records"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_m6b_ticket_category_round_trips_through_database_response_and_event(
+    live_app: Any,
+    engine: AsyncEngine,
+) -> None:
+    primary = scenario_uuid(SeedConfig(), "customer_primary")
+    requests = (
+        (
+            "m6b-ticket-legacy-default",
+            {"subject": "Legacy", "description": "No category."},
+            "other",
+        ),
+        (
+            "m6b-ticket-returns-category",
+            {
+                "subject": "Return",
+                "description": "Wrong item.",
+                "category": "returns_refunds",
+            },
+            "returns_refunds",
+        ),
+    )
+
+    for key, body, expected_category in requests:
+        response = await request(
+            live_app,
+            "POST",
+            "/v1/support-tickets",
+            customer_id=primary,
+            key=key,
+            body=body,
+        )
+        assert response.status_code == 201
+        ticket_id = response.json()["id"]
+        assert response.json()["category"] == expected_category
+        assert (
+            await scalar(
+                engine,
+                "SELECT category FROM support_tickets WHERE id = :ticket_id",
+                ticket_id=ticket_id,
+            )
+            == expected_category
+        )
+        assert (
+            await scalar(
+                engine,
+                "SELECT payload->>'category' FROM commerce_events "
+                "WHERE aggregate_id = :ticket_id AND event_type = 'support_ticket.created'",
+                ticket_id=ticket_id,
+            )
+            == expected_category
+        )

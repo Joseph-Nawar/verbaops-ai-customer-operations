@@ -700,9 +700,27 @@
         "title": "ShipmentStatus",
         "type": "string"
       },
+      "SupportTicketCategory": {
+        "enum": [
+          "order",
+          "delivery",
+          "returns_refunds",
+          "product",
+          "warranty",
+          "payment",
+          "account",
+          "other"
+        ],
+        "title": "SupportTicketCategory",
+        "type": "string"
+      },
       "SupportTicketCreateRequest": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SupportTicketCategory",
+            "default": "other"
+          },
           "description": {
             "maxLength": 5000,
             "title": "Description",
@@ -736,6 +754,9 @@
       "SupportTicketResponse": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SupportTicketCategory"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -784,6 +805,7 @@
           "id",
           "customer_id",
           "order_id",
+          "category",
           "subject",
           "description",
           "status",
