@@ -6,7 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from novacommerce.db.models.order import Order
-from novacommerce.db.models.support_ticket import SupportTicket, SupportTicketStatus
+from novacommerce.db.models.support_ticket import (
+    SupportTicket,
+    SupportTicketStatus,
+)
 from novacommerce.idempotency import WriteOutcome
 from novacommerce.schemas.writes import SupportTicketCreateRequest, SupportTicketResponse
 from novacommerce.services.writes.common import append_event
@@ -35,6 +38,7 @@ async def create_ticket(
         id=uuid4(),
         customer_id=customer_id,
         order_id=request.order_id,
+        category=request.category,
         subject=request.subject,
         description=request.description,
         status=SupportTicketStatus.OPEN,
@@ -51,12 +55,14 @@ async def create_ticket(
         payload={
             "ticket_id": str(ticket.id),
             "order_id": str(request.order_id) if request.order_id else None,
+            "category": ticket.category.value,
         },
     )
     body = SupportTicketResponse(
         id=ticket.id,
         customer_id=ticket.customer_id,
         order_id=ticket.order_id,
+        category=ticket.category,
         subject=ticket.subject,
         description=ticket.description,
         status=ticket.status,

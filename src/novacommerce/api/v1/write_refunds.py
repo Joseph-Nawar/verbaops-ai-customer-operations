@@ -6,7 +6,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 
-from novacommerce.api.v1.dependencies import DatabaseSession, customer_dependency
+from novacommerce.api.v1.dependencies import (
+    DatabaseSession,
+    customer_dependency,
+    tenant_currency_dependency,
+)
 from novacommerce.api.v1.metadata import write_openapi_extra
 from novacommerce.api.v1.write_orders import require_customer
 from novacommerce.auth.context import TrustedCustomerContext
@@ -33,6 +37,7 @@ async def create_refund_route(
     request: RefundCreateRequest,
     session: DatabaseSession,
     context: Annotated[TrustedCustomerContext, Depends(customer_dependency)],
+    tenant_currency: Annotated[str, Depends(tenant_currency_dependency)],
     idempotency_key: Annotated[
         str | None, Header(alias="Idempotency-Key", include_in_schema=False)
     ] = None,
@@ -40,7 +45,10 @@ async def create_refund_route(
     key = validate_idempotency_key(idempotency_key)
     await require_customer(session, context)
     fingerprint = request_fingerprint(
-        "refund.request", context.customer_id, target_ids=(order_id,), body=request
+        "refund.request",
+        context.customer_id,
+        target_ids=(order_id,),
+        body=request.model_dump(mode="json", exclude_none=True),
     )
     execution = await execute_idempotent_write(
         session,
@@ -54,6 +62,8 @@ async def create_refund_route(
             order_id=order_id,
             request=request,
             idempotency_key=key,
+            tenant_currency=tenant_currency,
+            approval_reference=request.approval_reference,
         ),
     )
     return write_response(execution)

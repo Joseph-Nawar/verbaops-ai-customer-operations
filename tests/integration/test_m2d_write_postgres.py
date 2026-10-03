@@ -114,6 +114,7 @@ async def live_app(database_url: str, engine: AsyncEngine) -> AsyncIterator[Any]
         environment=Environment.TEST,
         database=DatabaseSettings(url=SecretStr(database_url)),
         service_token=SecretStr(TOKEN),
+        tenant_currency="USD",
     )
     await seed_database(settings, SeedConfig())
     await arrange_future_delivery_slots(engine)
@@ -527,6 +528,7 @@ async def test_m2d_postgres_transactional_writes_and_replay(
         key="m2d-refund-500-001",
         body={"amount": "500.00", "reason": "threshold test"},
     )
+    before_unapproved_refund = await counts(engine)
     refund_501_response = await request(
         live_app,
         "POST",
@@ -535,10 +537,17 @@ async def test_m2d_postgres_transactional_writes_and_replay(
         key="m2d-refund-501-001",
         body={"amount": "500.01", "reason": "manual threshold test"},
     )
-    assert refund_500_response.status_code == refund_501_response.status_code == 201
+    after_unapproved_refund = await counts(engine)
+    assert refund_500_response.status_code == 201
     assert refund_500_response.json()["requires_manual_approval"] is False
-    assert refund_501_response.json()["requires_manual_approval"] is True
-    assert refund_501_response.json()["status"] == "pending_manual_approval"
+    assert refund_501_response.status_code == 409
+    assert refund_501_response.json()["error"]["code"] == "refund_approval_required"
+    assert after_unapproved_refund["refunds"] == before_unapproved_refund["refunds"]
+    assert after_unapproved_refund["commerce_events"] == before_unapproved_refund["commerce_events"]
+    assert (
+        after_unapproved_refund["idempotency_records"]
+        == before_unapproved_refund["idempotency_records"] + 1
+    )
 
     ticket = await request(
         live_app,
@@ -1632,3 +1641,322 @@ async def test_m2d_postgres_duplicate_ticket_same_key_creates_once(
     assert after["support_tickets"] - before["support_tickets"] == 1
     assert after["commerce_events"] - before["commerce_events"] == 1
     assert after["idempotency_records"] - before["idempotency_records"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_m6b_ticket_category_round_trips_through_database_response_and_event(
+    live_app: Any,
+    engine: AsyncEngine,
+) -> None:
+    primary = scenario_uuid(SeedConfig(), "customer_primary")
+    requests = (
+        (
+            "m6b-ticket-legacy-default",
+            {"subject": "Legacy", "description": "No category."},
+            "other",
+        ),
+        (
+            "m6b-ticket-returns-category",
+            {
+                "subject": "Return",
+                "description": "Wrong item.",
+                "category": "returns_refunds",
+            },
+            "returns_refunds",
+        ),
+    )
+
+    for key, body, expected_category in requests:
+        response = await request(
+            live_app,
+            "POST",
+            "/v1/support-tickets",
+            customer_id=primary,
+            key=key,
+            body=body,
+        )
+        assert response.status_code == 201
+        ticket_id = response.json()["id"]
+        assert response.json()["category"] == expected_category
+        assert (
+            await scalar(
+                engine,
+                "SELECT category FROM support_tickets WHERE id = :ticket_id",
+                ticket_id=ticket_id,
+            )
+            == expected_category
+        )
+        assert (
+            await scalar(
+                engine,
+                "SELECT payload->>'category' FROM commerce_events "
+                "WHERE aggregate_id = :ticket_id AND event_type = 'support_ticket.created'",
+                ticket_id=ticket_id,
+            )
+            == expected_category
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_m6b_exact_return_and_ticket_reads_are_customer_scoped(
+    live_app: Any,
+    engine: AsyncEngine,
+) -> None:
+    config = SeedConfig()
+    primary = scenario_uuid(config, "customer_primary")
+    other = scenario_uuid(config, "customer_other")
+    delivered_order = scenario_uuid(config, "order_delivered_29d")
+    item_id, _, _ = await prepare_return_scenario(
+        engine,
+        delivered_order,
+        delivered_days_ago=1,
+    )
+    created_return = await request(
+        live_app,
+        "POST",
+        "/v1/returns",
+        customer_id=primary,
+        key="m6b-exact-read-return-create",
+        body={
+            "order_id": str(delivered_order),
+            "reason": "Exact read-back",
+            "items": [{"order_item_id": str(item_id), "quantity": 1}],
+        },
+    )
+    assert created_return.status_code == 201
+    return_id = created_return.json()["id"]
+
+    created_ticket = await request(
+        live_app,
+        "POST",
+        "/v1/support-tickets",
+        customer_id=primary,
+        key="m6b-exact-read-ticket-create",
+        body={
+            "subject": "Exact read-back",
+            "description": "Verify this ticket only.",
+            "category": "warranty",
+        },
+    )
+    assert created_ticket.status_code == 201
+    ticket_id = created_ticket.json()["id"]
+
+    before_reads = await counts(engine)
+    owner_return = await request(live_app, "GET", f"/v1/returns/{return_id}", customer_id=primary)
+    other_return = await request(live_app, "GET", f"/v1/returns/{return_id}", customer_id=other)
+    missing_return = await request(live_app, "GET", f"/v1/returns/{uuid4()}", customer_id=primary)
+    owner_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{ticket_id}", customer_id=primary
+    )
+    other_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{ticket_id}", customer_id=other
+    )
+    missing_ticket = await request(
+        live_app, "GET", f"/v1/support-tickets/{uuid4()}", customer_id=primary
+    )
+
+    assert owner_return.status_code == 200
+    assert owner_return.json() == created_return.json()
+    assert owner_ticket.status_code == 200
+    assert owner_ticket.json() == created_ticket.json()
+    assert owner_ticket.json()["category"] == "warranty"
+    assert other_return.status_code == missing_return.status_code == 404
+    assert other_return.json() == missing_return.json()
+    assert other_ticket.status_code == missing_ticket.status_code == 404
+    assert other_ticket.json() == missing_ticket.json()
+    assert await counts(engine) == before_reads
+
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_m6b_refund_threshold_approval_reference_and_idempotency(
+    live_app: Any,
+    engine: AsyncEngine,
+) -> None:
+    config = SeedConfig()
+    primary = scenario_uuid(config, "customer_primary")
+    low_order = scenario_uuid(config, "order_refund_499_99")
+    threshold_order = scenario_uuid(config, "order_refund_500_00")
+    high_order = scenario_uuid(config, "order_refund_501_00")
+    ineligible_order = scenario_uuid(config, "order_already_shipped")
+    reference_a = {
+        "action_request_id": "00000000-0000-0000-0000-0000000000a1",
+        "proposal_fingerprint": "a" * 64,
+    }
+    reference_b = {
+        "action_request_id": "00000000-0000-0000-0000-0000000000b2",
+        "proposal_fingerprint": "b" * 64,
+    }
+
+    low = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{low_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-499-99",
+        body={"amount": "499.99", "reason": "below threshold"},
+    )
+    threshold = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{threshold_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-500-00",
+        body={"amount": "500.00", "reason": "at threshold"},
+    )
+    assert low.status_code == threshold.status_code == 201
+    assert low.json()["status"] == threshold.json()["status"] == "approved"
+    assert low.json()["requires_manual_approval"] is False
+    assert threshold.json()["requires_manual_approval"] is False
+
+    missing_body = {"amount": "500.01", "reason": "requires approval"}
+    before_missing = await counts(engine)
+    missing = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-missing-reference",
+        body=missing_body,
+    )
+    after_missing = await counts(engine)
+    assert missing.status_code == 409
+    assert missing.json()["error"]["code"] == "refund_approval_required"
+    assert after_missing["refunds"] == before_missing["refunds"]
+    assert after_missing["commerce_events"] == before_missing["commerce_events"]
+    assert after_missing["idempotency_records"] == before_missing["idempotency_records"] + 1
+    missing_replay = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-missing-reference",
+        body=missing_body,
+    )
+    assert missing_replay.status_code == 409
+    assert missing_replay.headers["X-Idempotent-Replay"] == "true"
+    changed_missing_replay = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-missing-reference",
+        body={**missing_body, "approval_reference": reference_a},
+    )
+    assert changed_missing_replay.status_code == 409
+    assert changed_missing_replay.json()["error"]["code"] == "idempotency_key_reused"
+
+    before_malformed = await counts(engine)
+    malformed = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-malformed-reference",
+        body={
+            **missing_body,
+            "approval_reference": {
+                "action_request_id": reference_a["action_request_id"],
+                "proposal_fingerprint": "A" * 64,
+            },
+        },
+    )
+    assert malformed.status_code == 422
+    assert "A" * 64 not in malformed.text
+    assert await counts(engine) == before_malformed
+
+    approved_body = {**missing_body, "approval_reference": reference_a}
+    approved = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-approved-reference",
+        body=approved_body,
+    )
+    assert approved.status_code == 201
+    assert approved.json()["status"] == "approved"
+    assert approved.json()["requires_manual_approval"] is True
+    assert approved.json()["status"] != "completed"
+    refund_id = approved.json()["id"]
+    assert (
+        await scalar(
+            engine,
+            "SELECT status FROM refunds WHERE id = :refund_id",
+            refund_id=refund_id,
+        )
+        == "approved"
+    )
+    event = await scalar(
+        engine,
+        "SELECT payload FROM commerce_events WHERE aggregate_id = :refund_id "
+        "AND event_type = 'refund.requested'",
+        refund_id=refund_id,
+    )
+    assert event["action_request_id"] == reference_a["action_request_id"]
+    assert event["proposal_fingerprint"] == reference_a["proposal_fingerprint"]
+    assert event["requires_manual_approval"] is True
+    assert set(event) == {
+        "refund_id",
+        "order_id",
+        "amount",
+        "action_request_id",
+        "proposal_fingerprint",
+        "requires_manual_approval",
+    }
+
+    before_replay = await counts(engine)
+    replay = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-approved-reference",
+        body=approved_body,
+    )
+    assert replay.status_code == 201
+    assert replay.json() == approved.json()
+    assert replay.headers["X-Idempotent-Replay"] == "true"
+    changed_reference = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-approved-reference",
+        body={**missing_body, "approval_reference": reference_b},
+    )
+    assert changed_reference.status_code == 409
+    assert changed_reference.json()["error"]["code"] == "idempotency_key_reused"
+    assert await counts(engine) == before_replay
+
+    before_remaining = await counts(engine)
+    remaining_denied = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{high_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-remaining-denied",
+        body={"amount": "1.00", "reason": "exceeds remaining"},
+    )
+    assert remaining_denied.status_code == 409
+    assert remaining_denied.json()["error"]["code"] == "refund_amount_exceeds_remaining"
+    after_remaining = await counts(engine)
+    assert after_remaining["refunds"] == before_remaining["refunds"]
+    assert after_remaining["commerce_events"] == before_remaining["commerce_events"]
+
+    before_ineligible = await counts(engine)
+    ineligible = await request(
+        live_app,
+        "POST",
+        f"/v1/orders/{ineligible_order}/refunds",
+        customer_id=primary,
+        key="m6b-refund-ineligible",
+        body={**missing_body, "approval_reference": reference_b},
+    )
+    assert ineligible.status_code == 409
+    assert ineligible.json()["error"]["code"] == "refund_not_allowed"
+    after_ineligible = await counts(engine)
+    assert after_ineligible["refunds"] == before_ineligible["refunds"]
+    assert after_ineligible["commerce_events"] == before_ineligible["commerce_events"]

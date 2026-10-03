@@ -27,6 +27,7 @@ def test_default_settings_are_development_without_database(monkeypatch: pytest.M
     assert settings.environment is Environment.DEVELOPMENT
     assert settings.database.url is None
     assert settings.observability.log_level is LogLevel.INFO
+    assert settings.tenant_currency is None
 
 
 def test_nested_prefixed_environment_variables_load_as_secret(
@@ -36,10 +37,12 @@ def test_nested_prefixed_environment_variables_load_as_secret(
     monkeypatch.setenv("NOVACOMMERCE_ENVIRONMENT", "test")
     monkeypatch.setenv("NOVACOMMERCE_DATABASE__URL", "postgresql+asyncpg://user:secret@db/commerce")
     monkeypatch.setenv("NOVACOMMERCE_OBSERVABILITY__LOG_LEVEL", "DEBUG")
+    monkeypatch.setenv("NOVACOMMERCE_TENANT_CURRENCY", "USD")
     settings = make_settings()
     assert settings.database.url is not None
     assert settings.database.url.get_secret_value().endswith("/commerce")
     assert settings.observability.log_level is LogLevel.DEBUG
+    assert settings.tenant_currency == "USD"
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
@@ -69,3 +72,14 @@ def test_settings_are_immutable(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = make_settings()
     with pytest.raises(ValidationError):
         settings.environment = Environment.TEST
+
+
+@pytest.mark.parametrize("currency", ["usd", "US", "USDD", "U1D", " USD"])
+def test_tenant_currency_rejects_noncanonical_values(
+    monkeypatch: pytest.MonkeyPatch,
+    currency: str,
+) -> None:
+    clear_environment(monkeypatch)
+    monkeypatch.setenv("NOVACOMMERCE_TENANT_CURRENCY", currency)
+    with pytest.raises(ValidationError):
+        make_settings()

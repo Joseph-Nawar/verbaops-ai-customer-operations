@@ -96,15 +96,27 @@ def test_return_refunds_ticket_and_business_rejections(
     )
     assert returned.status_code == 201
 
-    for name, amount, status, manual in (
-        ("order_refund_499_99", "499.99", "approved", False),
-        ("order_refund_500_00", "500.00", "approved", False),
-        ("order_refund_501_00", "501.00", "pending_manual_approval", True),
+    for name, amount, status, manual, approval_reference in (
+        ("order_refund_499_99", "499.99", "approved", False, None),
+        ("order_refund_500_00", "500.00", "approved", False, None),
+        (
+            "order_refund_501_00",
+            "501.00",
+            "approved",
+            True,
+            {
+                "action_request_id": "00000000-0000-0000-0000-0000000000a1",
+                "proposal_fingerprint": "a" * 64,
+            },
+        ),
     ):
+        body: dict[str, object] = {"amount": amount, "reason": "Acceptance test"}
+        if approval_reference is not None:
+            body["approval_reference"] = approval_reference
         response = client.post(
             f"/v1/orders/{scenario_id(manifest, name)}/refunds",
             headers={**primary_headers, "Idempotency-Key": f"{idempotency_key}-{name}"},
-            json={"amount": amount, "reason": "Acceptance test"},
+            json=body,
         )
         assert response.status_code == 201
         assert response.json()["status"] == status

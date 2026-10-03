@@ -13,6 +13,9 @@ EXPECTED_BUSINESS_ROUTES = {
     ("GET", "/v1/orders/{order_id}/refunds"),
     ("GET", "/v1/products/search"),
     ("GET", "/v1/delivery-slots"),
+    ("GET", "/v1/returns/{return_id}"),
+    ("GET", "/v1/support-tickets/{ticket_id}"),
+    ("GET", "/v1/tenant-config/currency"),
     ("POST", "/v1/orders"),
     ("POST", "/v1/orders/{order_id}/cancel"),
     ("POST", "/v1/orders/{order_id}/reschedule"),
@@ -32,7 +35,7 @@ def business_route_set(app: FastAPI) -> set[tuple[str, str]]:
     }
 
 
-def test_m2e_business_route_set_is_exactly_the_reviewed_twelve_operations() -> None:
+def test_m2e_business_route_set_is_exactly_the_reviewed_fifteen_operations() -> None:
     app = create_app(
         settings=Settings(
             environment=Environment.TEST,

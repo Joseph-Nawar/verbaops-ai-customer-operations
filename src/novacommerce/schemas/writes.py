@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from novacommerce.db.models.refund import RefundStatus
 from novacommerce.db.models.return_ import ReturnStatus
-from novacommerce.db.models.support_ticket import SupportTicketStatus
+from novacommerce.db.models.support_ticket import SupportTicketCategory, SupportTicketStatus
 from novacommerce.schemas.common import ResponseModel
 from novacommerce.schemas.orders import OrderResponse
 from novacommerce.schemas.shipments import ShipmentResponse
@@ -64,9 +64,15 @@ class ReturnCreateRequest(WriteRequest):
         return self
 
 
+class RefundApprovalReference(WriteRequest):
+    action_request_id: UUID
+    proposal_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class RefundCreateRequest(WriteRequest):
     amount: Decimal = Field(gt=Decimal("0.00"))
     reason: str = Field(max_length=500)
+    approval_reference: RefundApprovalReference | None = None
 
     @field_validator("reason")
     @classmethod
@@ -79,6 +85,7 @@ class RefundCreateRequest(WriteRequest):
 
 class SupportTicketCreateRequest(WriteRequest):
     order_id: UUID | None = None
+    category: SupportTicketCategory = SupportTicketCategory.OTHER
     subject: str = Field(max_length=300)
     description: str = Field(max_length=5000)
 
@@ -121,11 +128,16 @@ class SupportTicketResponse(ResponseModel):
     id: UUID
     customer_id: UUID
     order_id: UUID | None
+    category: SupportTicketCategory
     subject: str
     description: str
     status: SupportTicketStatus
     created_at: datetime
     updated_at: datetime
+
+
+class TenantCurrencyResponse(ResponseModel):
+    currency_code: str
 
 
 class WriteRefundResponse(ResponseModel):

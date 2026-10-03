@@ -22,12 +22,12 @@ def test_openapi_is_exact_locked_contract(client: httpx.Client) -> None:
     expected_path = Path(__file__).parents[3] / "contracts" / "novacommerce-openapi.json"
     expected = expected_path.read_bytes()
     assert hashlib.sha256(actual).hexdigest().upper() == (
-        "4EC1D8CDB34C797F45015EE0074DF1BF7D376DC866E7E3FF43EE7D43902A9F9E"
+        "3BF079B4222725FC507DB67B3BCC6009DF0941FAC201A0370D2F15F1FC6AE487"
     )
     assert actual == expected
 
 
-def test_openapi_has_exactly_six_get_and_six_post_business_routes(client: httpx.Client) -> None:
+def test_openapi_has_exactly_nine_get_and_six_post_business_routes(client: httpx.Client) -> None:
     paths = client.get("/openapi.json").json()["paths"]
     expected = {
         ("GET", "/v1/customers/{customer_id}"),
@@ -36,6 +36,9 @@ def test_openapi_has_exactly_six_get_and_six_post_business_routes(client: httpx.
         ("GET", "/v1/orders/{order_id}/refunds"),
         ("GET", "/v1/products/search"),
         ("GET", "/v1/delivery-slots"),
+        ("GET", "/v1/returns/{return_id}"),
+        ("GET", "/v1/support-tickets/{ticket_id}"),
+        ("GET", "/v1/tenant-config/currency"),
         ("POST", "/v1/orders"),
         ("POST", "/v1/orders/{order_id}/cancel"),
         ("POST", "/v1/orders/{order_id}/reschedule"),

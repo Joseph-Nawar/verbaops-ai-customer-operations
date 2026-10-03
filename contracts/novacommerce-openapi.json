@@ -371,6 +371,27 @@
         "title": "ProductSearchResponse",
         "type": "object"
       },
+      "RefundApprovalReference": {
+        "additionalProperties": false,
+        "properties": {
+          "action_request_id": {
+            "format": "uuid",
+            "title": "Action Request Id",
+            "type": "string"
+          },
+          "proposal_fingerprint": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Proposal Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_request_id",
+          "proposal_fingerprint"
+        ],
+        "title": "RefundApprovalReference",
+        "type": "object"
+      },
       "RefundCreateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -386,6 +407,16 @@
               }
             ],
             "title": "Amount"
+          },
+          "approval_reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RefundApprovalReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "reason": {
             "maxLength": 500,
@@ -700,9 +731,27 @@
         "title": "ShipmentStatus",
         "type": "string"
       },
+      "SupportTicketCategory": {
+        "enum": [
+          "order",
+          "delivery",
+          "returns_refunds",
+          "product",
+          "warranty",
+          "payment",
+          "account",
+          "other"
+        ],
+        "title": "SupportTicketCategory",
+        "type": "string"
+      },
       "SupportTicketCreateRequest": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SupportTicketCategory",
+            "default": "other"
+          },
           "description": {
             "maxLength": 5000,
             "title": "Description",
@@ -736,6 +785,9 @@
       "SupportTicketResponse": {
         "additionalProperties": false,
         "properties": {
+          "category": {
+            "$ref": "#/components/schemas/SupportTicketCategory"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -784,6 +836,7 @@
           "id",
           "customer_id",
           "order_id",
+          "category",
           "subject",
           "description",
           "status",
@@ -801,6 +854,20 @@
         ],
         "title": "SupportTicketStatus",
         "type": "string"
+      },
+      "TenantCurrencyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency_code": {
+            "title": "Currency Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency_code"
+        ],
+        "title": "TenantCurrencyResponse",
+        "type": "object"
       },
       "ValidationError": {
         "properties": {
@@ -1612,6 +1679,51 @@
         ]
       }
     },
+    "/v1/returns/{return_id}": {
+      "get": {
+        "operationId": "get_return_v1_returns__return_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "return_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Return Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReturnResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "reads"
+        ]
+      }
+    },
     "/v1/support-tickets": {
       "post": {
         "operationId": "create_ticket_route_v1_support_tickets_post",
@@ -1674,6 +1786,75 @@
         ],
         "tags": [
           "writes"
+        ]
+      }
+    },
+    "/v1/support-tickets/{ticket_id}": {
+      "get": {
+        "operationId": "get_support_ticket_v1_support_tickets__ticket_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ticket_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Ticket Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupportTicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "reads"
+        ]
+      }
+    },
+    "/v1/tenant-config/currency": {
+      "get": {
+        "operationId": "get_tenant_currency_v1_tenant_config_currency_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantCurrencyResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "tenant-config"
         ]
       }
     }
