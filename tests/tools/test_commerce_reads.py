@@ -1,6 +1,7 @@
 """Tests for normalized read handlers and trusted execution context."""
 
 from datetime import date
+from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -10,21 +11,22 @@ from pydantic import SecretStr
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
-from verbaops.tools.commerce_reads import (
-    get_order_status,
-    get_refund_status,
-    get_shipment_status,
-    list_delivery_slots,
-    search_products,
-)
+from verbaops.tools.commerce_reads import list_delivery_slots, search_products
 from verbaops.tools.models import (
     GetOrderStatusInput,
     GetRefundStatusInput,
     GetShipmentStatusInput,
     ListDeliverySlotsInput,
-    MissingTrustedCustomerContextError,
     SearchProductsInput,
-    ToolExecutionContext,
+)
+from verbaops.tools.stage6_commerce_reads import (
+    get_order_status,
+    get_refund_status,
+    get_shipment_status,
+)
+from verbaops.tools.stage6_models import (
+    MissingTrustedCustomerContextError,
+    Stage6ToolExecutionContext,
 )
 
 
@@ -38,8 +40,8 @@ def make_client(handler: object) -> CommerceClient:
     )
 
 
-def execution_context(customer_id: UUID | None) -> ToolExecutionContext:
-    return ToolExecutionContext(
+def execution_context(customer_id: UUID | None) -> Any:
+    return Stage6ToolExecutionContext(
         trusted_context=TrustedContext(
             tenant_id=uuid4(),
             principal_id=uuid4(),

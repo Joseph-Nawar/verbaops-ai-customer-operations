@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
@@ -52,8 +52,12 @@ from verbaops.llm.models import (
 )
 from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK, CitationFinalizer
 from verbaops.retrieval.models import RetrievalEvidence, RetrievalStatus
-from verbaops.tools.models import MissingTrustedCustomerContextError, ToolExecutionContext
+from verbaops.tools.models import ToolExecutionContext
 from verbaops.tools.registry import UnknownToolError
+from verbaops.tools.stage6_models import (
+    MissingTrustedCustomerContextError,
+    Stage6ToolExecutionContext,
+)
 
 
 def build_agent_graph() -> Any:
@@ -239,11 +243,14 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
             result = await context.tool_registry.execute(
                 call.name,
                 call.arguments,
-                ToolExecutionContext(
-                    trusted_context=context.trusted_context,
-                    conversation_id=context.conversation_id,
-                    agent_run_id=context.agent_run_id,
-                    tool_invocation_id=invocation.id,
+                cast(
+                    ToolExecutionContext,
+                    Stage6ToolExecutionContext(
+                        trusted_context=context.trusted_context,
+                        conversation_id=context.conversation_id,
+                        agent_run_id=context.agent_run_id,
+                        tool_invocation_id=invocation.id,
+                    ),
                 ),
                 context.commerce_client,
             )
@@ -503,7 +510,12 @@ def _request_messages(state: AgentState, context: AgentContext | None = None) ->
     prompt_version = (
         context.evaluation_profile.prompt_version
         if context is not None and context.evaluation_profile is not None
-        else "v2"
+        else (
+            "stage6"
+            if context is not None
+            and any(name.startswith("propose_") for name in context.tool_registry.names)
+            else "v2"
+        )
     )
     messages = [ChatMessage(role="system", content=load_system_prompt(prompt_version))]
     if evidence:

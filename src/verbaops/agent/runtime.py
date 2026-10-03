@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 from uuid import UUID
 
+from verbaops.actions.proposals import ActionProposalService
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import (
     AgentBusyError,
@@ -15,6 +16,10 @@ from verbaops.agent.errors import (
 )
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
+from verbaops.agent.stage6_versions import (
+    STAGE6_PROMPT_VERSION,
+    STAGE6_TOOL_SCHEMA_VERSION,
+)
 from verbaops.agent.state import AgentState
 from verbaops.agent.versions import (
     GRAPH_RECURSION_LIMIT,
@@ -39,7 +44,11 @@ from verbaops.llm.client import LLMClient
 from verbaops.llm.models import ChatMessage
 from verbaops.retrieval.grounding import CitationFinalizer
 from verbaops.retrieval.service import RetrievalService
-from verbaops.tools.registry import ToolRegistry, build_commerce_read_registry
+from verbaops.tools.registry import (
+    ToolRegistry,
+    build_commerce_read_registry,
+)
+from verbaops.tools.stage6_registry import build_stage6_tool_registry
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +73,7 @@ class AgentRuntime:
         conversation_service: ConversationService,
         llm_client: LLMClient,
         commerce_client: CommerceClient,
+        action_proposal_service: ActionProposalService | None = None,
         tool_registry: ToolRegistry | None = None,
         graph: Any | None = None,
         retrieval_service: RetrievalService | None = None,
@@ -87,10 +97,32 @@ class AgentRuntime:
             raise ValueError("P4 runtime requires an explicitly configured P4 trace store")
         if is_p5 != (p5_trace_store is not None):
             raise ValueError("P5 runtime requires an explicitly configured P5 trace store")
+        if (
+            evaluation_profile is not None
+            and tool_registry is not None
+            and any(name.startswith("propose_") for name in tool_registry.names)
+        ):
+            raise ValueError("evaluation profiles cannot expose Stage 6 proposal tools")
         self._conversation_service = conversation_service
         self._llm_client = llm_client
         self._commerce_client = commerce_client
-        self._tool_registry = tool_registry or build_commerce_read_registry()
+        if tool_registry is not None:
+            self._tool_registry = tool_registry
+        elif evaluation_profile is None and action_proposal_service is not None:
+            self._tool_registry = build_stage6_tool_registry(action_proposal_service)
+        else:
+            self._tool_registry = build_commerce_read_registry()
+        has_proposal_tools = any(name.startswith("propose_") for name in self._tool_registry.names)
+        self._tool_schema_version = (
+            STAGE6_TOOL_SCHEMA_VERSION
+            if evaluation_profile is None and has_proposal_tools
+            else TOOL_SCHEMA_VERSION
+        )
+        self._prompt_version = (
+            STAGE6_PROMPT_VERSION
+            if evaluation_profile is None and has_proposal_tools
+            else PROMPT_VERSION
+        )
         self._graph = graph or build_agent_graph()
         self._retrieval_service = retrieval_service
         self._citation_finalizer = citation_finalizer
@@ -125,9 +157,9 @@ class AgentRuntime:
                 prompt_version=(
                     f"text-agent-system-{self._evaluation_profile.prompt_version}"
                     if self._evaluation_profile is not None
-                    else PROMPT_VERSION
+                    else self._prompt_version
                 ),
-                tool_schema_version=TOOL_SCHEMA_VERSION,
+                tool_schema_version=self._tool_schema_version,
             )
         except ConversationBusyError:
             raise AgentBusyError() from None

@@ -12,9 +12,9 @@ from verbaops.tools.models import (
     GetShipmentStatusInput,
     ListDeliverySlotsInput,
     SearchProductsInput,
-    ToolExecutionContext,
 )
 from verbaops.tools.registry import build_commerce_read_registry
+from verbaops.tools.stage6_models import Stage6ToolExecutionContext
 
 
 def test_customer_scoped_inputs_accept_only_resource_identifiers() -> None:
@@ -77,7 +77,7 @@ def test_delivery_slots_require_ordered_bounded_dates() -> None:
 
 
 def test_execution_context_is_frozen_and_carries_durable_trusted_scope() -> None:
-    context = ToolExecutionContext(
+    context = Stage6ToolExecutionContext(
         trusted_context=TrustedContext(
             tenant_id=uuid4(),
             principal_id=uuid4(),
@@ -96,7 +96,7 @@ def test_execution_context_is_frozen_and_carries_durable_trusted_scope() -> None
         "tool_invocation_id",
     }
     with pytest.raises(ValidationError):
-        ToolExecutionContext.model_validate(
+        Stage6ToolExecutionContext.model_validate(
             {
                 **context.model_dump(mode="json"),
                 "customer_id": str(uuid4()),
