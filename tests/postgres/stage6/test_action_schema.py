@@ -6,7 +6,12 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from tests.postgres.stage6.conftest import Stage6ActionContext, seed_stage6_action_context
+
+from verbaops.actions.models import CancelOrderProposal
+from verbaops.actions.repository import ActionRepository
+from verbaops.actions.transitions import ActionRequestRecord
 
 pytestmark = [pytest.mark.integration, pytest.mark.postgres, pytest.mark.contract]
 
@@ -100,6 +105,26 @@ EXPECTED_INDEXES = {
 }
 
 
+async def _create_action_row(
+    postgres_engine: AsyncEngine,
+) -> tuple[Stage6ActionContext, ActionRequestRecord]:
+    context = await seed_stage6_action_context(postgres_engine, tool_invocation_count=1)
+    proposal = CancelOrderProposal(order_id=uuid4())
+    action, created = await ActionRepository(
+        async_sessionmaker(postgres_engine, expire_on_commit=False)
+    ).create_or_get(
+        trusted_context=context.trusted_context,
+        conversation_id=context.conversation_id,
+        agent_run_id=context.agent_run_id,
+        tool_invocation_id=context.tool_invocation_ids[0],
+        proposal=proposal,
+        proposal_fingerprint="a" * 64,
+        expires_at=datetime.now(UTC) + timedelta(hours=24),
+    )
+    assert created is True
+    return context, action
+
+
 @pytest.mark.asyncio
 async def test_action_tables_have_exact_columns_constraints_and_scoped_indexes(
     postgres_engine: AsyncEngine,
@@ -152,6 +177,188 @@ async def test_action_tables_have_exact_columns_constraints_and_scoped_indexes(
     assert "unresolved" in active_index
     assert "succeeded" not in active_index
     assert set(trigger_rows.scalars()) >= {"trg_action_events_append_only"}
+
+
+@pytest.mark.asyncio
+async def test_confirmation_decision_with_null_fingerprint_is_rejected(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+
+    async with postgres_engine.connect() as connection, connection.begin():
+        with pytest.raises(DBAPIError):
+            async with connection.begin_nested():
+                await connection.execute(
+                    text(
+                        "UPDATE action_requests SET confirmation_required = TRUE, "
+                        "customer_confirmation_decision = 'confirmed', "
+                        "customer_confirmation_actor_id = :actor_id, "
+                        "customer_confirmation_at = :decided_at, "
+                        "customer_confirmation_fingerprint = NULL WHERE id = :action_id"
+                    ),
+                    {
+                        "actor_id": context.trusted_context.principal_id,
+                        "decided_at": datetime.now(UTC),
+                        "action_id": action.id,
+                    },
+                )
+
+
+@pytest.mark.asyncio
+async def test_fully_bound_confirmation_decision_is_accepted(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+    decided_at = datetime.now(UTC)
+
+    async with postgres_engine.begin() as connection:
+        await connection.execute(
+            text(
+                "UPDATE action_requests SET confirmation_required = TRUE, "
+                "customer_confirmation_decision = 'confirmed', "
+                "customer_confirmation_actor_id = :actor_id, "
+                "customer_confirmation_at = :decided_at, "
+                "customer_confirmation_fingerprint = :fingerprint WHERE id = :action_id"
+            ),
+            {
+                "actor_id": context.trusted_context.principal_id,
+                "decided_at": decided_at,
+                "fingerprint": action.proposal_fingerprint,
+                "action_id": action.id,
+            },
+        )
+        decision = (
+            await connection.execute(
+                text(
+                    "SELECT customer_confirmation_decision, customer_confirmation_actor_id, "
+                    "customer_confirmation_at, customer_confirmation_fingerprint "
+                    "FROM action_requests WHERE id = :action_id"
+                ),
+                {"action_id": action.id},
+            )
+        ).one()
+
+    assert decision.customer_confirmation_decision == "confirmed"
+    assert decision.customer_confirmation_actor_id == context.trusted_context.principal_id
+    assert decision.customer_confirmation_at == decided_at
+    assert decision.customer_confirmation_fingerprint == action.proposal_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_confirmation_decision_with_different_valid_fingerprint_is_rejected(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+
+    async with postgres_engine.connect() as connection, connection.begin():
+        with pytest.raises(DBAPIError):
+            async with connection.begin_nested():
+                await connection.execute(
+                    text(
+                        "UPDATE action_requests SET confirmation_required = TRUE, "
+                        "customer_confirmation_decision = 'confirmed', "
+                        "customer_confirmation_actor_id = :actor_id, "
+                        "customer_confirmation_at = :decided_at, "
+                        "customer_confirmation_fingerprint = :fingerprint WHERE id = :action_id"
+                    ),
+                    {
+                        "actor_id": context.trusted_context.principal_id,
+                        "decided_at": datetime.now(UTC),
+                        "fingerprint": "b" * 64,
+                        "action_id": action.id,
+                    },
+                )
+
+
+@pytest.mark.asyncio
+async def test_approval_decision_with_null_fingerprint_is_rejected(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+
+    async with postgres_engine.connect() as connection, connection.begin():
+        with pytest.raises(DBAPIError):
+            async with connection.begin_nested():
+                await connection.execute(
+                    text(
+                        "UPDATE action_requests SET approval_required = TRUE, "
+                        "supervisor_approval_decision = 'approved', "
+                        "supervisor_approval_actor_id = :actor_id, "
+                        "supervisor_approval_at = :decided_at, "
+                        "supervisor_approval_fingerprint = NULL WHERE id = :action_id"
+                    ),
+                    {
+                        "actor_id": context.trusted_context.principal_id,
+                        "decided_at": datetime.now(UTC),
+                        "action_id": action.id,
+                    },
+                )
+
+
+@pytest.mark.asyncio
+async def test_fully_bound_approval_decision_is_accepted(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+    decided_at = datetime.now(UTC)
+
+    async with postgres_engine.begin() as connection:
+        await connection.execute(
+            text(
+                "UPDATE action_requests SET approval_required = TRUE, "
+                "supervisor_approval_decision = 'approved', "
+                "supervisor_approval_actor_id = :actor_id, "
+                "supervisor_approval_at = :decided_at, "
+                "supervisor_approval_fingerprint = :fingerprint WHERE id = :action_id"
+            ),
+            {
+                "actor_id": context.trusted_context.principal_id,
+                "decided_at": decided_at,
+                "fingerprint": action.proposal_fingerprint,
+                "action_id": action.id,
+            },
+        )
+        decision = (
+            await connection.execute(
+                text(
+                    "SELECT supervisor_approval_decision, supervisor_approval_actor_id, "
+                    "supervisor_approval_at, supervisor_approval_fingerprint "
+                    "FROM action_requests WHERE id = :action_id"
+                ),
+                {"action_id": action.id},
+            )
+        ).one()
+
+    assert decision.supervisor_approval_decision == "approved"
+    assert decision.supervisor_approval_actor_id == context.trusted_context.principal_id
+    assert decision.supervisor_approval_at == decided_at
+    assert decision.supervisor_approval_fingerprint == action.proposal_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_approval_decision_with_different_valid_fingerprint_is_rejected(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context, action = await _create_action_row(postgres_engine)
+
+    async with postgres_engine.connect() as connection, connection.begin():
+        with pytest.raises(DBAPIError):
+            async with connection.begin_nested():
+                await connection.execute(
+                    text(
+                        "UPDATE action_requests SET approval_required = TRUE, "
+                        "supervisor_approval_decision = 'approved', "
+                        "supervisor_approval_actor_id = :actor_id, "
+                        "supervisor_approval_at = :decided_at, "
+                        "supervisor_approval_fingerprint = :fingerprint WHERE id = :action_id"
+                    ),
+                    {
+                        "actor_id": context.trusted_context.principal_id,
+                        "decided_at": datetime.now(UTC),
+                        "fingerprint": "b" * 64,
+                        "action_id": action.id,
+                    },
+                )
 
 
 @pytest.mark.asyncio

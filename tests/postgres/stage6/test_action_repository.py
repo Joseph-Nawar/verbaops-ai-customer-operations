@@ -12,7 +12,12 @@ from tests.postgres.stage6.conftest import Stage6ActionContext, seed_stage6_acti
 from verbaops.actions.models import ActionState, CancelOrderProposal, RefundProposal
 from verbaops.actions.persistence import ActionEvent, ActionRequest
 from verbaops.actions.policy import PolicyDecision
-from verbaops.actions.repository import ActionInFlightError, ActionRepository, ActionRequestRecord
+from verbaops.actions.repository import (
+    ActionInFlightError,
+    ActionOriginConflictError,
+    ActionRepository,
+    ActionRequestRecord,
+)
 from verbaops.actions.transitions import (
     ActionEventType,
     ActionExpiredError,
@@ -213,17 +218,33 @@ async def test_durable_tool_invocation_cannot_create_a_second_changed_action(
         order_id=uuid4(),
         fingerprint="3" * 64,
     )
-    replay, replay_created = await _create(
-        repository,
-        context,
-        invocation_index=0,
-        order_id=uuid4(),
-        fingerprint="4" * 64,
-    )
+    with pytest.raises(ActionOriginConflictError, match="different action material"):
+        await _create(
+            repository,
+            context,
+            invocation_index=0,
+            order_id=uuid4(),
+            fingerprint="4" * 64,
+        )
 
     assert created is True
-    assert replay_created is False
-    assert replay.id == original.id
+    async with postgres_engine.connect() as connection:
+        assert (
+            await connection.scalar(
+                select(func.count())
+                .select_from(ActionRequest)
+                .where(ActionRequest.conversation_id == context.conversation_id)
+            )
+            == 1
+        )
+        events = (
+            await connection.execute(
+                select(ActionEvent.sequence, ActionEvent.event_type).where(
+                    ActionEvent.action_request_id == original.id
+                )
+            )
+        ).all()
+    assert [(event.sequence, event.event_type) for event in events] == [(1, "created")]
 
 
 @pytest.mark.asyncio

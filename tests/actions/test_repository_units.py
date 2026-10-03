@@ -72,11 +72,13 @@ async def test_origin_replay_returns_existing_action_without_second_insert() -> 
     conversation_id = uuid4()
     agent_run_id = uuid4()
     invocation_id = uuid4()
+    proposal = CancelOrderProposal(order_id=uuid4())
     existing = action_request(
         trusted_context=context,
         conversation_id=conversation_id,
         agent_run_id=agent_run_id,
         tool_invocation_id=invocation_id,
+        order_id=proposal.order_id,
         proposal_fingerprint="b" * 64,
     )
     session = FakeActionSession(scalar_values=[object(), agent_run_id, invocation_id, existing])
@@ -86,13 +88,73 @@ async def test_origin_replay_returns_existing_action_without_second_insert() -> 
         conversation_id=conversation_id,
         agent_run_id=agent_run_id,
         tool_invocation_id=invocation_id,
-        proposal=CancelOrderProposal(order_id=uuid4()),
-        proposal_fingerprint="c" * 64,
+        proposal=proposal,
+        proposal_fingerprint="b" * 64,
         expires_at=datetime.now(UTC) + timedelta(hours=24),
     )
 
     assert created is False
     assert record.id == existing.id
+    assert session.added == []
+
+
+@pytest.mark.asyncio
+async def test_origin_replay_rejects_different_proposal_material() -> None:
+    context = action_context()
+    conversation_id = uuid4()
+    agent_run_id = uuid4()
+    invocation_id = uuid4()
+    proposal = CancelOrderProposal(order_id=uuid4())
+    existing = action_request(
+        trusted_context=context,
+        conversation_id=conversation_id,
+        agent_run_id=agent_run_id,
+        tool_invocation_id=invocation_id,
+        order_id=uuid4(),
+        proposal_fingerprint="b" * 64,
+    )
+    session = FakeActionSession(scalar_values=[object(), agent_run_id, invocation_id, existing])
+
+    with pytest.raises(ActionOriginConflictError, match="different action material"):
+        await _repository(FakeSessionFactory(session)).create_or_get(
+            trusted_context=context,
+            conversation_id=conversation_id,
+            agent_run_id=agent_run_id,
+            tool_invocation_id=invocation_id,
+            proposal=proposal,
+            proposal_fingerprint="c" * 64,
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+
+    assert session.added == []
+
+
+@pytest.mark.asyncio
+async def test_origin_replay_rejects_contradictory_payload_with_same_fingerprint() -> None:
+    context = action_context()
+    conversation_id = uuid4()
+    agent_run_id = uuid4()
+    invocation_id = uuid4()
+    existing = action_request(
+        trusted_context=context,
+        conversation_id=conversation_id,
+        agent_run_id=agent_run_id,
+        tool_invocation_id=invocation_id,
+        proposal_fingerprint="b" * 64,
+    )
+    session = FakeActionSession(scalar_values=[object(), agent_run_id, invocation_id, existing])
+
+    with pytest.raises(ActionOriginConflictError, match="different action material"):
+        await _repository(FakeSessionFactory(session)).create_or_get(
+            trusted_context=context,
+            conversation_id=conversation_id,
+            agent_run_id=agent_run_id,
+            tool_invocation_id=invocation_id,
+            proposal=CancelOrderProposal(order_id=uuid4()),
+            proposal_fingerprint="b" * 64,
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
+
     assert session.added == []
 
 
@@ -287,6 +349,41 @@ async def test_unique_conflict_loads_scoped_winner_after_rollback() -> None:
 
     assert created is False
     assert record.id == winner.id
+
+
+@pytest.mark.asyncio
+async def test_unique_conflict_origin_winner_rejects_different_proposal() -> None:
+    context = action_context()
+    conversation_id = uuid4()
+    agent_run_id = uuid4()
+    invocation_id = uuid4()
+    proposal = CancelOrderProposal(order_id=uuid4())
+    fingerprint = "5" * 64
+    winner = action_request(
+        trusted_context=context,
+        conversation_id=conversation_id,
+        agent_run_id=agent_run_id,
+        tool_invocation_id=invocation_id,
+        proposal_fingerprint="6" * 64,
+    )
+    insert_session = FakeActionSession(
+        scalar_values=[object(), agent_run_id, invocation_id, None, None],
+        scalar_rows=[[]],
+        fail_flush_at=1,
+    )
+    winner_session = FakeActionSession(scalar_values=[winner])
+    repository = _repository(FakeSessionFactory(insert_session, winner_session))
+
+    with pytest.raises(ActionOriginConflictError, match="different action material"):
+        await repository.create_or_get(
+            trusted_context=context,
+            conversation_id=conversation_id,
+            agent_run_id=agent_run_id,
+            tool_invocation_id=invocation_id,
+            proposal=proposal,
+            proposal_fingerprint=fingerprint,
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
+        )
 
 
 def test_same_fingerprint_cannot_hide_changed_payload_material() -> None:

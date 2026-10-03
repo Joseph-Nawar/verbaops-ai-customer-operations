@@ -57,7 +57,7 @@ class ActionScopeError(ActionRepositoryError):
 
 
 class ActionOriginConflictError(ActionRepositoryError):
-    """The durable invocation already belongs to an action in another scope."""
+    """The durable invocation is bound to another scope or different action material."""
 
 
 class ActionInFlightError(ActionRepositoryError):
@@ -189,6 +189,13 @@ class ActionRepository:
                         trusted_context=trusted_context,
                         conversation_id=conversation_id,
                         agent_run_id=agent_run_id,
+                    )
+                    self._validate_origin_material(
+                        origin_request,
+                        action_type=action_type,
+                        payload=payload,
+                        target_ids=target_values,
+                        fingerprint=proposal_fingerprint,
                     )
                     return action_request_record(origin_request), False
 
@@ -331,6 +338,29 @@ class ActionRepository:
                 "durable tool invocation is already attached to an action in another scope"
             )
 
+    @staticmethod
+    def _validate_origin_material(
+        request: ActionRequest,
+        *,
+        action_type: str,
+        payload: dict[str, Any],
+        target_ids: list[str],
+        fingerprint: str,
+    ) -> None:
+        message = "durable tool invocation is already attached to different action material"
+        try:
+            same_proposal = _same_proposal(
+                request,
+                action_type=action_type,
+                payload=payload,
+                target_ids=target_ids,
+                fingerprint=fingerprint,
+            )
+        except ProposalFingerprintCollisionError as error:
+            raise ActionOriginConflictError(message) from error
+        if not same_proposal:
+            raise ActionOriginConflictError(message)
+
     async def _load_unique_winner(
         self,
         *,
@@ -357,6 +387,13 @@ class ActionRepository:
                     trusted_context=trusted_context,
                     conversation_id=conversation_id,
                     agent_run_id=agent_run_id,
+                )
+                self._validate_origin_material(
+                    origin_request,
+                    action_type=action_type,
+                    payload=payload,
+                    target_ids=target_ids,
+                    fingerprint=fingerprint,
                 )
                 return action_request_record(origin_request)
 

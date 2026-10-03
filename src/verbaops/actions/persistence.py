@@ -86,17 +86,25 @@ class ActionRequest(Base):
         CheckConstraint(
             "(customer_confirmation_decision IS NULL AND customer_confirmation_actor_id IS NULL "
             "AND customer_confirmation_at IS NULL AND customer_confirmation_fingerprint IS NULL) "
-            "OR (confirmation_required AND customer_confirmation_decision IN ('confirmed', 'rejected') "
+            "OR (confirmation_required IS TRUE "
+            "AND customer_confirmation_decision IS NOT NULL "
+            "AND customer_confirmation_decision IN ('confirmed', 'rejected') "
             "AND customer_confirmation_actor_id IS NOT NULL AND customer_confirmation_at IS NOT NULL "
-            "AND customer_confirmation_fingerprint ~ '^[0-9a-f]{64}$')",
+            "AND customer_confirmation_fingerprint IS NOT NULL "
+            "AND customer_confirmation_fingerprint ~ '^[0-9a-f]{64}$' "
+            "AND customer_confirmation_fingerprint = proposal_fingerprint)",
             name="action_request_confirmation_decision_consistent",
         ),
         CheckConstraint(
             "(supervisor_approval_decision IS NULL AND supervisor_approval_actor_id IS NULL "
             "AND supervisor_approval_at IS NULL AND supervisor_approval_fingerprint IS NULL) "
-            "OR (approval_required AND supervisor_approval_decision IN ('approved', 'rejected') "
+            "OR (approval_required IS TRUE "
+            "AND supervisor_approval_decision IS NOT NULL "
+            "AND supervisor_approval_decision IN ('approved', 'rejected') "
             "AND supervisor_approval_actor_id IS NOT NULL AND supervisor_approval_at IS NOT NULL "
-            "AND supervisor_approval_fingerprint ~ '^[0-9a-f]{64}$')",
+            "AND supervisor_approval_fingerprint IS NOT NULL "
+            "AND supervisor_approval_fingerprint ~ '^[0-9a-f]{64}$' "
+            "AND supervisor_approval_fingerprint = proposal_fingerprint)",
             name="action_request_approval_decision_consistent",
         ),
         CheckConstraint(
