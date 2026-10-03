@@ -64,9 +64,15 @@ class ReturnCreateRequest(WriteRequest):
         return self
 
 
+class RefundApprovalReference(WriteRequest):
+    action_request_id: UUID
+    proposal_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class RefundCreateRequest(WriteRequest):
     amount: Decimal = Field(gt=Decimal("0.00"))
     reason: str = Field(max_length=500)
+    approval_reference: RefundApprovalReference | None = None
 
     @field_validator("reason")
     @classmethod
@@ -128,6 +134,10 @@ class SupportTicketResponse(ResponseModel):
     status: SupportTicketStatus
     created_at: datetime
     updated_at: datetime
+
+
+class TenantCurrencyResponse(ResponseModel):
+    currency_code: str
 
 
 class WriteRefundResponse(ResponseModel):

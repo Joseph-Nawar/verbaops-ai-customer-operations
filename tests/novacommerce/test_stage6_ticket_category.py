@@ -54,8 +54,13 @@ def test_ticket_category_is_in_runtime_openapi_request_and_response_contracts() 
 
 def test_unknown_ticket_category_is_rejected_by_request_schema() -> None:
     with pytest.raises(ValidationError):
-        SupportTicketCreateRequest(
-            subject="Delivery",
-            description="Where is my order?",
-            category="billing",
+        SupportTicketCreateRequest.model_validate(
+            cast(
+                Any,
+                {
+                    "subject": "Delivery",
+                    "description": "Where is my order?",
+                    "category": "billing",
+                },
+            )
         )

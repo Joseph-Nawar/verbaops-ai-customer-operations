@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from novacommerce.db.models.order import Order, OrderStatus
 from novacommerce.db.models.refund import Refund, RefundStatus
 from novacommerce.idempotency import WriteOutcome
-from novacommerce.schemas.writes import RefundCreateRequest, WriteRefundResponse
+from novacommerce.schemas.writes import (
+    RefundApprovalReference,
+    RefundCreateRequest,
+    WriteRefundResponse,
+)
 from novacommerce.services.writes.common import append_event
 from novacommerce.services.writes.rules import refund_decision, remaining_refundable
 
@@ -24,7 +28,19 @@ async def create_refund(
     order_id: UUID,
     request: RefundCreateRequest,
     idempotency_key: str,
+    tenant_currency: str | None,
+    approval_reference: RefundApprovalReference | None = None,
 ) -> WriteOutcome:
+    if tenant_currency is None:
+        return WriteOutcome(
+            503,
+            {
+                "error": {
+                    "code": "tenant_currency_unavailable",
+                    "message": "Tenant currency is unavailable.",
+                }
+            },
+        )
     order = (
         await session.execute(
             select(Order)
@@ -58,7 +74,14 @@ async def create_refund(
             "refund_amount_exceeds_remaining",
             "Refund amount exceeds the remaining refundable amount.",
         )
-    status, manual = refund_decision(request.amount)
+    status, manual = refund_decision(
+        request.amount, approval_satisfied=approval_reference is not None
+    )
+    if status is None:
+        return _error(
+            "refund_approval_required",
+            "Supervisor approval is required for this refund.",
+        )
     refund = Refund(
         id=uuid4(),
         order_id=order.id,
@@ -69,6 +92,19 @@ async def create_refund(
     )
     session.add(refund)
     await session.flush()
+    event_payload = {
+        "refund_id": str(refund.id),
+        "order_id": str(order.id),
+        "amount": format(refund.amount, ".2f"),
+        "requires_manual_approval": manual,
+    }
+    if manual and approval_reference is not None:
+        event_payload.update(
+            {
+                "action_request_id": str(approval_reference.action_request_id),
+                "proposal_fingerprint": approval_reference.proposal_fingerprint,
+            }
+        )
     await append_event(
         session,
         event_type="refund.requested",
@@ -76,11 +112,7 @@ async def create_refund(
         aggregate_id=refund.id,
         customer_id=customer_id,
         idempotency_key=idempotency_key,
-        payload={
-            "refund_id": str(refund.id),
-            "order_id": str(order.id),
-            "amount": format(refund.amount, ".2f"),
-        },
+        payload=event_payload,
     )
     body = WriteRefundResponse(
         id=refund.id,

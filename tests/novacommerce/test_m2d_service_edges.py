@@ -139,6 +139,7 @@ async def test_return_refund_and_ticket_commands_hide_missing_owned_rows() -> No
         order_id=ORDER,
         request=RefundCreateRequest(amount=Decimal("1.00"), reason="reason"),
         idempotency_key="m2d-edge-refund-1",
+        tenant_currency="USD",
     )
     assert refund.status_code == 404
 
@@ -159,6 +160,7 @@ async def test_return_refund_and_ticket_commands_hide_missing_owned_rows() -> No
         order_id=ORDER,
         request=RefundCreateRequest(amount=Decimal("1.00"), reason="reason"),
         idempotency_key="m2d-edge-refund-2",
+        tenant_currency="USD",
     )
     assert refund_pending.body["error"]["code"] == "refund_not_allowed"
 

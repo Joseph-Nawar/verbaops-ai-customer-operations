@@ -88,8 +88,9 @@ def test_return_window_is_inclusive_at_exactly_30_days() -> None:
 def test_refund_threshold_and_remaining_amount() -> None:
     assert refund_decision(Decimal("499.99")) == (RefundStatus.APPROVED, False)
     assert refund_decision(Decimal("500.00")) == (RefundStatus.APPROVED, False)
-    assert refund_decision(Decimal("500.01")) == (
-        RefundStatus.PENDING_MANUAL_APPROVAL,
+    assert refund_decision(Decimal("500.01")) == (None, True)
+    assert refund_decision(Decimal("500.01"), approval_satisfied=True) == (
+        RefundStatus.APPROVED,
         True,
     )
     assert remaining_refundable(

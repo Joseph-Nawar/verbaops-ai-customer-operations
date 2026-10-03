@@ -371,6 +371,27 @@
         "title": "ProductSearchResponse",
         "type": "object"
       },
+      "RefundApprovalReference": {
+        "additionalProperties": false,
+        "properties": {
+          "action_request_id": {
+            "format": "uuid",
+            "title": "Action Request Id",
+            "type": "string"
+          },
+          "proposal_fingerprint": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Proposal Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action_request_id",
+          "proposal_fingerprint"
+        ],
+        "title": "RefundApprovalReference",
+        "type": "object"
+      },
       "RefundCreateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -386,6 +407,16 @@
               }
             ],
             "title": "Amount"
+          },
+          "approval_reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RefundApprovalReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "reason": {
             "maxLength": 500,
@@ -823,6 +854,20 @@
         ],
         "title": "SupportTicketStatus",
         "type": "string"
+      },
+      "TenantCurrencyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "currency_code": {
+            "title": "Currency Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency_code"
+        ],
+        "title": "TenantCurrencyResponse",
+        "type": "object"
       },
       "ValidationError": {
         "properties": {
@@ -1786,6 +1831,30 @@
         ],
         "tags": [
           "reads"
+        ]
+      }
+    },
+    "/v1/tenant-config/currency": {
+      "get": {
+        "operationId": "get_tenant_currency_v1_tenant_config_currency_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantCurrencyResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NovaCommerceServiceBearer": []
+          }
+        ],
+        "tags": [
+          "tenant-config"
         ]
       }
     }

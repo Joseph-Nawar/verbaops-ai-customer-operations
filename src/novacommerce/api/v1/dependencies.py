@@ -7,6 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from novacommerce.api.dependencies import get_database_session
+from novacommerce.api.errors import APIError
 from novacommerce.auth.context import TrustedCustomerContext, parse_customer_context
 from novacommerce.auth.service import authenticate_service_token, service_bearer
 from novacommerce.config.settings import Settings
@@ -24,6 +25,22 @@ async def service_dependency(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(service_bearer)],
 ) -> str:
     return authenticate_service_token(_settings(request), credentials)
+
+
+def tenant_currency_dependency(
+    request: Request,
+    _: Annotated[str, Depends(service_dependency)],
+) -> str:
+    """Return trusted tenant currency only to an authenticated internal service."""
+
+    currency = _settings(request).tenant_currency
+    if currency is None:
+        raise APIError(
+            503,
+            "tenant_currency_unavailable",
+            "Tenant currency is unavailable.",
+        )
+    return currency
 
 
 async def customer_dependency(

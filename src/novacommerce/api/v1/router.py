@@ -8,6 +8,7 @@ from novacommerce.api.v1.orders import router as orders_router
 from novacommerce.api.v1.products import router as products_router
 from novacommerce.api.v1.read_returns import router as read_returns_router
 from novacommerce.api.v1.read_tickets import router as read_tickets_router
+from novacommerce.api.v1.tenant_currency import router as tenant_currency_router
 from novacommerce.api.v1.write_orders import router as write_orders_router
 from novacommerce.api.v1.write_refunds import router as write_refunds_router
 from novacommerce.api.v1.write_reschedule import router as write_reschedule_router
@@ -20,6 +21,7 @@ router.include_router(orders_router)
 router.include_router(products_router)
 router.include_router(read_returns_router)
 router.include_router(read_tickets_router)
+router.include_router(tenant_currency_router)
 router.include_router(delivery_slots_router)
 router.include_router(write_orders_router)
 router.include_router(write_reschedule_router)

@@ -187,7 +187,10 @@ async def test_query_validation_is_normalized_and_openapi_has_locked_read_write_
         "/v1/orders/{order_id}/cancel",
         "/v1/orders/{order_id}/reschedule",
         "/v1/returns",
+        "/v1/returns/{return_id}",
         "/v1/support-tickets",
+        "/v1/support-tickets/{ticket_id}",
+        "/v1/tenant-config/currency",
     }
     read_paths = {
         "/v1/customers/{customer_id}",
@@ -196,6 +199,9 @@ async def test_query_validation_is_normalized_and_openapi_has_locked_read_write_
         "/v1/orders/{order_id}/refunds",
         "/v1/products/search",
         "/v1/delivery-slots",
+        "/v1/returns/{return_id}",
+        "/v1/support-tickets/{ticket_id}",
+        "/v1/tenant-config/currency",
     }
     write_paths = {
         "/v1/orders",

@@ -1,5 +1,6 @@
 """Independent, immutable NovaCommerce configuration."""
 
+import re
 from enum import StrEnum
 from typing import Any, ClassVar, Self, cast
 
@@ -58,6 +59,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     service_token: SecretStr | None = None
+    tenant_currency: str | None = None
 
     @classmethod
     def settings_customise_sources(
@@ -98,6 +100,17 @@ class Settings(BaseSettings):
         ):
             raise ValueError("service token is required in staging and production")
         return self
+
+    @field_validator("tenant_currency")
+    @classmethod
+    def validate_tenant_currency(cls, value: str | None) -> str | None:
+        """Accept only an explicitly configured uppercase three-letter code."""
+
+        if value is None:
+            return None
+        if re.fullmatch(r"[A-Z]{3}", value) is None:
+            raise ValueError("tenant currency must be an uppercase three-letter code")
+        return value
 
     @field_validator("service_token")
     @classmethod

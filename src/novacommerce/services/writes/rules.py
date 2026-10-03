@@ -20,12 +20,13 @@ def return_window_open(delivered_at: datetime, current_time: datetime) -> bool:
     return current_time <= delivered_at + timedelta(days=30)
 
 
-def refund_decision(amount: Decimal) -> tuple[RefundStatus, bool]:
+def refund_decision(
+    amount: Decimal, *, approval_satisfied: bool = False
+) -> tuple[RefundStatus | None, bool]:
     manual = amount > Decimal("500.00")
-    return (
-        RefundStatus.PENDING_MANUAL_APPROVAL if manual else RefundStatus.APPROVED,
-        manual,
-    )
+    if manual and not approval_satisfied:
+        return None, True
+    return RefundStatus.APPROVED, manual
 
 
 def remaining_refundable(total: Decimal, committed_amounts: list[Decimal]) -> Decimal:
