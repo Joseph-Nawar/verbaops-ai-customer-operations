@@ -125,6 +125,8 @@ def test_refund_amount_is_a_positive_canonical_currency_decimal() -> None:
     assert RefundProposal.model_validate({**base, "amount": Decimal("500.00")}).amount == Decimal(
         "500.00"
     )
+    scaled = RefundProposal.model_validate({**base, "amount": Decimal("500.0")})
+    assert scaled.model_dump(mode="json")["amount"] == "500.00"
     with pytest.raises(ValidationError):
         RefundProposal.model_validate({**base, "amount": Decimal("0.00")})
     with pytest.raises(ValidationError):

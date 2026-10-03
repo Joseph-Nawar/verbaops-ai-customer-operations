@@ -262,3 +262,32 @@ async def test_transition_requires_policy_gates_and_verified_success_evidence() 
     assert succeeded.verification_status == "verified"
     assert succeeded.verified_resource_id == resource_id
     assert succeeded.verified_at is not None
+
+
+@pytest.mark.asyncio
+async def test_allowed_policy_cannot_skip_customer_confirmation() -> None:
+    context = action_context()
+    request = action_request(trusted_context=context)
+    session = FakeActionSession(scalar_values=[request], record=request)
+    decision = PolicyDecision.model_construct(
+        allowed=True,
+        reason_code="allowed",
+        confirmation_required=False,
+        approval_required=False,
+        policy_version="stage6-policy-v1",
+    )
+
+    with pytest.raises(InvalidActionTransitionError, match="customer confirmation"):
+        await _service(FakeSessionFactory(session)).transition(
+            request.id,
+            context.tenant_id,
+            request.proposal_fingerprint,
+            ActionState.READY_TO_EXECUTE,
+            context.principal_id,
+            ActionEventType.POLICY_ALLOWED,
+            "allowed",
+            policy_decision=decision,
+        )
+
+    assert request.state == ActionState.PROPOSED.value
+    assert session.added == []

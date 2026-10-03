@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -8,7 +9,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from tests.postgres.stage6.conftest import Stage6ActionContext, seed_stage6_action_context
 
-from verbaops.actions.models import ActionState, CancelOrderProposal
+from verbaops.actions.models import ActionState, CancelOrderProposal, RefundProposal
 from verbaops.actions.persistence import ActionEvent, ActionRequest
 from verbaops.actions.policy import PolicyDecision
 from verbaops.actions.repository import ActionInFlightError, ActionRepository, ActionRequestRecord
@@ -159,6 +160,39 @@ async def test_identical_active_proposal_deduplicates_across_tool_invocations(
     )
     duplicate, duplicate_created = await _create(
         repository, context, invocation_index=1, order_id=order_id, fingerprint="c" * 64
+    )
+
+    assert first_created is True
+    assert duplicate_created is False
+    assert duplicate.id == first.id
+
+
+@pytest.mark.asyncio
+async def test_equivalent_refund_scales_resolve_to_one_active_action(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context = await seed_stage6_action_context(postgres_engine)
+    repository = _repository(postgres_engine)
+    order_id = uuid4()
+    fingerprint = "7" * 64
+
+    first, first_created = await repository.create_or_get(
+        trusted_context=context.trusted_context,
+        conversation_id=context.conversation_id,
+        agent_run_id=context.agent_run_id,
+        tool_invocation_id=context.tool_invocation_ids[0],
+        proposal=RefundProposal(order_id=order_id, amount=Decimal("500.0"), reason="Duplicate"),
+        proposal_fingerprint=fingerprint,
+        expires_at=datetime.now(UTC) + timedelta(hours=24),
+    )
+    duplicate, duplicate_created = await repository.create_or_get(
+        trusted_context=context.trusted_context,
+        conversation_id=context.conversation_id,
+        agent_run_id=context.agent_run_id,
+        tool_invocation_id=context.tool_invocation_ids[1],
+        proposal=RefundProposal(order_id=order_id, amount=Decimal("500.00"), reason="Duplicate"),
+        proposal_fingerprint=fingerprint,
+        expires_at=datetime.now(UTC) + timedelta(hours=24),
     )
 
     assert first_created is True

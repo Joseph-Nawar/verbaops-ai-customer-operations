@@ -139,9 +139,10 @@ class RefundProposal(ActionModel):
     @field_validator("amount")
     @classmethod
     def require_cent_precision(cls, value: Decimal) -> Decimal:
-        if value.quantize(Decimal("0.01")) != value:
+        normalized = value.quantize(Decimal("0.01"))
+        if normalized != value:
             raise ValueError("refund amount must use at most two decimal places")
-        return value
+        return normalized
 
 
 type ActionProposal = Annotated[

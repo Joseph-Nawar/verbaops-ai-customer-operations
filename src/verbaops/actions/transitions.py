@@ -314,6 +314,8 @@ async def _transition_locked(
         if not policy_decision.allowed and target_state is not ActionState.POLICY_DENIED:
             raise ValueError("denied policy must select policy_denied")
         if policy_decision.allowed:
+            if not policy_decision.confirmation_required:
+                raise InvalidActionTransitionError("allowed actions require customer confirmation")
             if policy_decision.approval_required:
                 expected_state = ActionState.AWAITING_APPROVAL
             elif policy_decision.confirmation_required:

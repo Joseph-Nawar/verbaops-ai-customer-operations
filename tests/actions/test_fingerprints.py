@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from verbaops.actions.fingerprints import fingerprint_proposal
-from verbaops.actions.models import ActionType, TicketCategory
+from verbaops.actions.models import ActionType, RefundProposal, TicketCategory
 
 TENANT_ID = UUID("10000000-0000-4000-8000-000000000001")
 CUSTOMER_ID = UUID("20000000-0000-4000-8000-000000000002")
@@ -87,3 +87,19 @@ def test_fingerprint_excludes_action_identity_prompts_secrets_and_gate_decisions
     )
 
     assert excluded == original
+
+
+def test_refund_fingerprint_uses_fixed_scale_model_serialization() -> None:
+    def refund_fingerprint(amount: Decimal) -> str:
+        proposal = RefundProposal(order_id=ORDER_ID, amount=amount, reason="Duplicate charge")
+        return fingerprint_proposal(
+            tenant_id=TENANT_ID,
+            customer_id=CUSTOMER_ID,
+            action_type=ActionType.REQUEST_REFUND,
+            schema_version="action-proposal-v1",
+            target_ids=(ORDER_ID,),
+            normalized_payload=proposal.model_dump(mode="json"),
+            material_snapshot={"order_status": "confirmed"},
+        )
+
+    assert refund_fingerprint(Decimal("500.0")) == refund_fingerprint(Decimal("500.00"))
