@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import httpx
@@ -23,6 +23,12 @@ from verbaops.actions.models import (
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
+from verbaops.tools.stage6_commerce_reads import (
+    list_delivery_slots as stage6_list_delivery_slots,
+)
+from verbaops.tools.stage6_commerce_reads import (
+    search_products as stage6_search_products,
+)
 from verbaops.tools.stage6_models import Stage6ToolExecutionContext
 from verbaops.tools.stage6_registry import build_stage6_tool_registry
 
@@ -192,7 +198,8 @@ async def test_proposal_handler_injects_authenticated_scope_and_durable_invocati
 
 
 def test_stage6_registry_is_the_explicit_five_read_plus_five_proposal_allowlist() -> None:
-    names = set(build_stage6_tool_registry(ProposalServiceSpy()).names)
+    registry = build_stage6_tool_registry(ProposalServiceSpy())
+    names = set(registry.names)
     assert names == {
         "get_order_status",
         "get_shipment_status",
@@ -210,3 +217,7 @@ def test_stage6_registry_is_the_explicit_five_read_plus_five_proposal_allowlist(
         for name in names
         for marker in ("execute", "confirm", "approve", "arbitrary_http")
     )
+    search_handler = cast(object, registry.get("search_products").handler)
+    slots_handler = cast(object, registry.get("list_delivery_slots").handler)
+    assert search_handler is stage6_search_products
+    assert slots_handler is stage6_list_delivery_slots

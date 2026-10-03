@@ -18,6 +18,8 @@ from verbaops.tools.stage6_commerce_reads import (
     get_order_status,
     get_refund_status,
     get_shipment_status,
+    list_delivery_slots,
+    search_products,
 )
 from verbaops.tools.stage6_models import Stage6RiskLevel, Stage6ToolExecutionContext
 
@@ -58,6 +60,8 @@ def build_stage6_tool_registry(action_proposal_service: Any) -> Stage6ToolRegist
         "get_order_status": get_order_status,
         "get_shipment_status": get_shipment_status,
         "get_refund_status": get_refund_status,
+        "search_products": search_products,
+        "list_delivery_slots": list_delivery_slots,
     }
     definitions = [
         replace(definition, handler=cast(Any, stage6_read_handlers[definition.name]))
