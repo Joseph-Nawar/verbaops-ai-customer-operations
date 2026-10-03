@@ -1,5 +1,7 @@
 """The five explicit, read-only NovaCommerce tool handlers."""
 
+from uuid import UUID
+
 from verbaops.commerce.client import CommerceClient
 from verbaops.tools.models import (
     DeliverySlotSummary,
@@ -11,12 +13,20 @@ from verbaops.tools.models import (
     GetShipmentStatusOutput,
     ListDeliverySlotsInput,
     ListDeliverySlotsOutput,
+    MissingTrustedCustomerContextError,
     ProductSummary,
     RefundSummary,
     SearchProductsInput,
     SearchProductsOutput,
     ToolExecutionContext,
 )
+
+
+def _customer_id(context: ToolExecutionContext) -> UUID:
+    customer_id = context.trusted_context.customer_id
+    if customer_id is None:
+        raise MissingTrustedCustomerContextError()
+    return customer_id
 
 
 async def get_order_status(
@@ -26,7 +36,7 @@ async def get_order_status(
 ) -> GetOrderStatusOutput:
     """Return the trusted customer's concise order status."""
 
-    order = await client.get_order(input_data.order_id, context.customer_id)
+    order = await client.get_order(input_data.order_id, _customer_id(context))
     return GetOrderStatusOutput(
         order_id=order.id,
         status=order.status,
@@ -43,7 +53,7 @@ async def get_shipment_status(
 ) -> GetShipmentStatusOutput:
     """Return the trusted customer's concise shipment status."""
 
-    shipment = await client.get_shipment(input_data.order_id, context.customer_id)
+    shipment = await client.get_shipment(input_data.order_id, _customer_id(context))
     return GetShipmentStatusOutput(
         order_id=shipment.order_id,
         shipment_id=shipment.id,
@@ -63,7 +73,7 @@ async def get_refund_status(
 ) -> GetRefundStatusOutput:
     """Return the trusted customer's concise refund status."""
 
-    refunds = await client.get_refunds(input_data.order_id, context.customer_id)
+    refunds = await client.get_refunds(input_data.order_id, _customer_id(context))
     return GetRefundStatusOutput(
         order_id=input_data.order_id,
         refunds=tuple(

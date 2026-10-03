@@ -9,8 +9,8 @@ import pytest
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.context import AgentContext
 from verbaops.agent.graph import build_agent_graph
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
-from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.models import CapabilityAlias, ChatMessage, GenerateResponse, ResponseMetadata
 from verbaops.retrieval.grounding import CitationFinalizer
@@ -66,8 +66,12 @@ def context(llm: ScriptedLLMClient, retrieval: Any) -> AgentContext:
     return AgentContext(
         conversation_id=uuid4(),
         agent_run_id=uuid4(),
-        scope=ConversationScope(uuid4(), uuid4()),
-        customer_id=uuid4(),
+        trusted_context=TrustedContext(
+            tenant_id=uuid4(),
+            principal_id=uuid4(),
+            customer_id=uuid4(),
+            roles=frozenset({Role.CUSTOMER}),
+        ),
         llm_client=llm,
         commerce_client=cast(CommerceClient, object()),
         tool_registry=build_commerce_read_registry(),
@@ -116,7 +120,7 @@ async def test_retrieval_runs_before_model_and_untrusted_evidence_is_context_onl
     original_state = state("What is the return window?")
     agent_context = context(llm, retrieval)
     trusted_scope = agent_context.scope
-    trusted_customer_id = agent_context.customer_id
+    trusted_customer_id = agent_context.trusted_context.customer_id
     original_messages = cast(list[ChatMessage], original_state["messages"])
     original_message = original_messages[0]
     result = cast(
@@ -147,7 +151,7 @@ async def test_retrieval_runs_before_model_and_untrusted_evidence_is_context_onl
     assert original_message.content == "What is the return window?"
     assert all("service token" not in (message.content or "") for message in result["messages"])
     assert agent_context.scope == trusted_scope
-    assert agent_context.customer_id == trusted_customer_id
+    assert agent_context.trusted_context.customer_id == trusted_customer_id
     assert [tool.name for tool in llm.requests[0].tools or ()] == [
         "get_order_status",
         "get_shipment_status",

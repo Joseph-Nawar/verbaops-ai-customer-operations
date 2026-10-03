@@ -24,6 +24,7 @@ from verbaops.agent.versions import (
     PROMPT_VERSION,
     TOOL_SCHEMA_VERSION,
 )
+from verbaops.auth.context import TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import (
     AgentRunRecord,
@@ -100,14 +101,17 @@ class AgentRuntime:
 
     async def run_turn(
         self,
-        scope: ConversationScope,
+        trusted_context: TrustedContext,
         conversation_id: UUID,
-        customer_id: UUID,
         content: str,
     ) -> AgentTurnResult:
         """Run one validated turn without holding a transaction over external work."""
 
         self._validate_content(content)
+        scope = ConversationScope(
+            tenant_id=trusted_context.tenant_id,
+            principal_id=trusted_context.principal_id,
+        )
         try:
             turn_start = await self._conversation_service.start_turn(
                 scope,
@@ -133,8 +137,7 @@ class AgentRuntime:
             context = AgentContext(
                 conversation_id=conversation_id,
                 agent_run_id=turn_start.agent_run.id,
-                scope=scope,
-                customer_id=customer_id,
+                trusted_context=trusted_context,
                 llm_client=self._llm_client,
                 commerce_client=self._commerce_client,
                 tool_registry=self._tool_registry,

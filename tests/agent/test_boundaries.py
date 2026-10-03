@@ -26,6 +26,7 @@ from verbaops.agent.versions import (
     TOOL_SCHEMA_VERSION,
     TURN_DEADLINE_SECONDS,
 )
+from verbaops.auth.context import Role, TrustedContext
 
 
 def test_m5b_versions_and_budgets_are_exact() -> None:
@@ -65,8 +66,12 @@ def test_agent_context_is_frozen_and_keeps_trusted_dependencies_outside_state() 
     context = AgentContext(
         conversation_id=uuid4(),
         agent_run_id=uuid4(),
-        scope=object(),  # type: ignore[arg-type]
-        customer_id=uuid4(),
+        trusted_context=TrustedContext(
+            tenant_id=uuid4(),
+            principal_id=uuid4(),
+            customer_id=uuid4(),
+            roles=frozenset({Role.CUSTOMER}),
+        ),
         llm_client=object(),  # type: ignore[arg-type]
         commerce_client=object(),  # type: ignore[arg-type]
         tool_registry=object(),  # type: ignore[arg-type]
@@ -74,7 +79,7 @@ def test_agent_context_is_frozen_and_keeps_trusted_dependencies_outside_state() 
     )
 
     with pytest.raises(FrozenInstanceError):
-        context.customer_id = uuid4()  # type: ignore[misc]
+        context.trusted_context = context.trusted_context.model_copy()  # type: ignore[misc]
 
     assert "tenant_id" not in get_type_hints(AgentState)
     assert "principal_id" not in get_type_hints(AgentState)

@@ -1,9 +1,11 @@
 """Direct LangGraph topology for the bounded read-only text agent."""
 
+import asyncio
 import json
 import re
 from time import perf_counter
 from typing import Any
+from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
@@ -35,6 +37,7 @@ from verbaops.commerce.errors import (
     CommerceTimeoutError,
     CommerceUnavailableError,
 )
+from verbaops.conversations.domain import ToolInvocationRecord
 from verbaops.evaluation.p5_trace import project_p5_diagnostics
 from verbaops.llm.errors import LLMError
 from verbaops.llm.models import (
@@ -49,7 +52,7 @@ from verbaops.llm.models import (
 )
 from verbaops.retrieval.grounding import SAFE_GROUNDING_FALLBACK, CitationFinalizer
 from verbaops.retrieval.models import RetrievalEvidence, RetrievalStatus
-from verbaops.tools.models import ToolExecutionContext
+from verbaops.tools.models import MissingTrustedCustomerContextError, ToolExecutionContext
 from verbaops.tools.registry import UnknownToolError
 
 
@@ -226,17 +229,48 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
             continue
         tool_path_entered = True
         definition = context.tool_registry.get(call.name)
+        invocation = await _begin_tool_invocation(
+            context,
+            call,
+            definition.risk_level.value,
+        )
         started_at = perf_counter()
         try:
             result = await context.tool_registry.execute(
                 call.name,
                 call.arguments,
-                ToolExecutionContext(customer_id=context.customer_id),
+                ToolExecutionContext(
+                    trusted_context=context.trusted_context,
+                    conversation_id=context.conversation_id,
+                    agent_run_id=context.agent_run_id,
+                    tool_invocation_id=invocation.id,
+                ),
                 context.commerce_client,
             )
         except CommerceNotFoundError:
             result_json = {"status": "not_found"}
-            await _persist_tool_failure(context, call, "commerce_not_found", result_json)
+            await _persist_tool_failure(
+                context,
+                call,
+                "commerce_not_found",
+                result_json,
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
+            )
+            tool_messages.append(_tool_message(call, result_json))
+            continue
+        except MissingTrustedCustomerContextError:
+            result_json = {"status": "unavailable"}
+            await _persist_tool_failure(
+                context,
+                call,
+                "customer_context_required",
+                result_json,
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
+            )
             tool_messages.append(_tool_message(call, result_json))
             continue
         except (
@@ -247,29 +281,65 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
         ) as error:
             error_code = _commerce_error_code(error)
             result_json = {"status": "unavailable"}
-            await _persist_tool_failure(context, call, error_code, result_json)
+            await _persist_tool_failure(
+                context,
+                call,
+                error_code,
+                result_json,
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
+            )
             raise AgentUnavailableError() from None
         except CommerceError:
             await _persist_tool_failure(
-                context, call, "commerce_unavailable", {"status": "unavailable"}
+                context,
+                call,
+                "commerce_unavailable",
+                {"status": "unavailable"},
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
             )
             raise AgentUnavailableError() from None
         except ValidationError:
             await _persist_tool_failure(
-                context, call, "invalid_tool_output", {"status": "invalid_tool_output"}
+                context,
+                call,
+                "invalid_tool_output",
+                {"status": "invalid_tool_output"},
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
             )
             raise AgentProtocolError() from None
+        except asyncio.CancelledError:
+            await _persist_tool_failure(
+                context,
+                call,
+                "tool_execution_cancelled",
+                {"status": "unavailable"},
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
+            )
+            raise
         except Exception:
             await _persist_tool_failure(
-                context, call, "commerce_unavailable", {"status": "unavailable"}
+                context,
+                call,
+                "commerce_unavailable",
+                {"status": "unavailable"},
+                invocation_id=invocation.id,
+                risk_level=definition.risk_level.value,
+                latency_ms=(perf_counter() - started_at) * 1000,
             )
             raise AgentUnavailableError() from None
 
         result_json = _model_json(result)
         await _persist_tool_success(
             context,
-            call,
-            definition.risk_level.value,
+            invocation.id,
             result_json,
             (perf_counter() - started_at) * 1000,
         )
@@ -587,20 +657,16 @@ def _tool_message(call: Any, result: Any) -> ChatMessage:
 
 async def _persist_tool_success(
     context: AgentContext,
-    call: Any,
-    risk_level: str,
+    invocation_id: UUID,
     result: Any,
     latency_ms: float,
 ) -> None:
     try:
-        await context.conversation_service.append_tool_invocation(
+        await context.conversation_service.complete_tool_invocation(
             context.scope,
             context.conversation_id,
             context.agent_run_id,
-            tool_call_id=call.id,
-            tool_name=call.name,
-            risk_level=risk_level,
-            arguments=call.arguments,
+            invocation_id,
             status="succeeded",
             result=result,
             latency_ms=max(0.0, latency_ms),
@@ -614,19 +680,54 @@ async def _persist_tool_failure(
     call: Any,
     error_code: str,
     result: Any,
+    *,
+    invocation_id: UUID | None = None,
+    risk_level: str = "read_only",
+    latency_ms: float = 0.0,
 ) -> None:
     try:
-        await context.conversation_service.append_tool_invocation(
+        if invocation_id is None:
+            await context.conversation_service.append_tool_invocation(
+                context.scope,
+                context.conversation_id,
+                context.agent_run_id,
+                tool_call_id=call.id,
+                tool_name=call.name,
+                risk_level=risk_level,
+                arguments=call.arguments,
+                status="failed",
+                result=result,
+                error_code=error_code,
+            )
+        else:
+            await context.conversation_service.complete_tool_invocation(
+                context.scope,
+                context.conversation_id,
+                context.agent_run_id,
+                invocation_id,
+                status="failed",
+                result=result,
+                latency_ms=max(0.0, latency_ms),
+                error_code=error_code,
+            )
+    except Exception:
+        raise AgentUnavailableError() from None
+
+
+async def _begin_tool_invocation(
+    context: AgentContext,
+    call: Any,
+    risk_level: str,
+) -> ToolInvocationRecord:
+    try:
+        return await context.conversation_service.begin_tool_invocation(
             context.scope,
             context.conversation_id,
             context.agent_run_id,
             tool_call_id=call.id,
             tool_name=call.name,
-            risk_level="read_only",
+            risk_level=risk_level,
             arguments=call.arguments,
-            status="failed",
-            result=result,
-            error_code=error_code,
         )
     except Exception:
         raise AgentUnavailableError() from None

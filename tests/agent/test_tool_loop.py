@@ -1,6 +1,8 @@
 """RED tests for explicit validation and sequential read-only tool execution."""
 
-from dataclasses import dataclass, field
+import asyncio
+from dataclasses import dataclass, field, replace
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -18,9 +20,9 @@ from verbaops.agent.errors import (
 )
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
-from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.models import (
     CapabilityAlias,
@@ -37,12 +39,33 @@ from verbaops.tools.registry import build_commerce_read_registry
 class RecordingConversationService:
     model_calls: list[dict[str, Any]] = field(default_factory=list)
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    tool_events: list[tuple[str, UUID]] = field(default_factory=list)
 
     async def append_model_call(self, *args: Any, **kwargs: Any) -> None:
         self.model_calls.append({"args": args, "kwargs": kwargs})
 
     async def append_tool_invocation(self, *args: Any, **kwargs: Any) -> None:
         self.tool_calls.append({"args": args, "kwargs": kwargs})
+
+    async def begin_tool_invocation(self, *args: Any, **kwargs: Any) -> Any:
+        invocation_id = uuid4()
+        record = {"id": invocation_id, "args": args, "kwargs": {**kwargs, "status": "proposed"}}
+        self.tool_calls.append(record)
+        self.tool_events.append(("begin", invocation_id))
+        return SimpleNamespace(id=invocation_id)
+
+    async def complete_tool_invocation(
+        self,
+        _scope: Any,
+        _conversation_id: UUID,
+        _agent_run_id: UUID,
+        invocation_id: UUID,
+        **kwargs: Any,
+    ) -> Any:
+        record = next(item for item in self.tool_calls if item.get("id") == invocation_id)
+        record["kwargs"].update(kwargs)
+        self.tool_events.append(("complete", invocation_id))
+        return SimpleNamespace(id=invocation_id)
 
 
 @dataclass
@@ -107,11 +130,16 @@ def make_context(
         ),
         http_client=http_client,
     )
+    trusted_context = TrustedContext(
+        principal_id=uuid4(),
+        tenant_id=uuid4(),
+        customer_id=uuid4(),
+        roles=frozenset({Role.CUSTOMER}),
+    )
     return AgentContext(
         conversation_id=uuid4(),
         agent_run_id=uuid4(),
-        scope=ConversationScope(tenant_id=uuid4(), principal_id=uuid4()),
-        customer_id=uuid4(),
+        trusted_context=trusted_context,
         llm_client=llm,
         commerce_client=commerce_client,
         tool_registry=build_commerce_read_registry(),
@@ -119,6 +147,78 @@ def make_context(
         retrieval_service=retrieval_service,
         evaluation_profile=evaluation_profile,
     )
+
+
+@pytest.mark.asyncio
+async def test_validated_tool_has_durable_origin_before_handler_and_finalizes_same_row() -> None:
+    from pydantic import BaseModel
+
+    from verbaops.tools.models import RetryPolicy, RiskLevel, ToolDefinition
+    from verbaops.tools.registry import ToolRegistry
+
+    class InputModel(BaseModel):
+        value: str
+
+    class OutputModel(BaseModel):
+        result: str
+
+    llm = ScriptedLLMClient(
+        [
+            model_response(
+                None, ToolCall(id="provider-call-1", name="inspect", arguments={"value": "ok"})
+            ),
+            model_response("Done."),
+        ]
+    )
+    service = RecordingConversationService()
+    context = make_context(llm, service, lambda _request: httpx.Response(500))
+    durable_id = uuid4()
+    captured: list[Any] = []
+
+    async def handler(input_data: Any, tool_context: Any, _client: Any) -> OutputModel:
+        assert input_data.value == "ok"
+        assert service.tool_events == [("begin", durable_id)]
+        captured.append(tool_context)
+        return OutputModel(result="safe")
+
+    async def begin(*args: Any, **kwargs: Any) -> Any:
+        record = await RecordingConversationService.begin_tool_invocation(service, *args, **kwargs)
+        record.id = durable_id
+        service.tool_calls[-1]["id"] = durable_id
+        service.tool_events[-1] = ("begin", durable_id)
+        return record
+
+    service.begin_tool_invocation = begin  # type: ignore[method-assign]
+    context = __import__("dataclasses").replace(
+        context,
+        tool_registry=ToolRegistry(
+            (
+                ToolDefinition(
+                    name="inspect",
+                    description="Inspect safe data.",
+                    input_model=InputModel,
+                    output_model=OutputModel,
+                    risk_level=RiskLevel.READ_ONLY,
+                    timeout_seconds=1.0,
+                    retry_policy=RetryPolicy.commerce_read(),
+                    handler=handler,
+                ),
+            )
+        ),
+    )
+
+    result = await build_agent_graph().ainvoke(make_state(), context=context)
+
+    assert result["final_response"] == "Done."
+    assert len(service.tool_calls) == 1
+    assert service.tool_calls[0]["kwargs"]["status"] == "succeeded"
+    assert service.tool_calls[0]["kwargs"]["tool_call_id"] == "provider-call-1"
+    assert service.tool_events == [("begin", durable_id), ("complete", durable_id)]
+    assert len(captured) == 1
+    assert captured[0].trusted_context == context.trusted_context
+    assert captured[0].conversation_id == context.conversation_id
+    assert captured[0].agent_run_id == context.agent_run_id
+    assert captured[0].tool_invocation_id == durable_id
 
 
 def shipment_call(order_id: UUID, call_id: str = "shipment-1") -> ToolCall:
@@ -155,6 +255,94 @@ async def test_successful_tool_loop_persists_trace_and_returns_grounded_answer()
     assert service.tool_calls[0]["kwargs"]["status"] == "succeeded"
     assert service.tool_calls[0]["kwargs"]["tool_name"] == "get_shipment_status"
     assert requests[0].method == "GET"
+
+
+@pytest.mark.asyncio
+async def test_customer_read_without_trusted_binding_fails_closed_before_commerce() -> None:
+    llm = ScriptedLLMClient(
+        [
+            model_response(None, shipment_call(uuid4())),
+            model_response("I cannot access that order."),
+        ]
+    )
+    service = RecordingConversationService()
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200)
+
+    context = make_context(
+        llm,
+        service,
+        handler,
+    )
+    context = replace(
+        context,
+        trusted_context=context.trusted_context.model_copy(update={"customer_id": None}),
+    )
+
+    result = await build_agent_graph().ainvoke(make_state(), context=context)
+
+    assert result["final_response"] == "I cannot access that order."
+    assert requests == []
+    assert service.tool_calls[0]["kwargs"]["status"] == "failed"
+    assert service.tool_calls[0]["kwargs"]["error_code"] == "customer_context_required"
+
+
+@pytest.mark.asyncio
+async def test_cancelled_tool_execution_finalizes_the_durable_row_as_failed() -> None:
+    from pydantic import BaseModel
+
+    from verbaops.tools.models import RetryPolicy, RiskLevel, ToolDefinition
+    from verbaops.tools.registry import ToolRegistry
+
+    class InputModel(BaseModel):
+        value: str
+
+    class OutputModel(BaseModel):
+        result: str
+
+    llm = ScriptedLLMClient(
+        [model_response(None, ToolCall(id="slow-call", name="slow", arguments={"value": "x"}))]
+    )
+    service = RecordingConversationService()
+    context = make_context(llm, service, lambda _request: httpx.Response(500))
+
+    async def slow_handler(_input_data: Any, _context: Any, _client: Any) -> OutputModel:
+        await asyncio.sleep(60)
+        return OutputModel(result="too late")
+
+    context = replace(
+        context,
+        tool_registry=ToolRegistry(
+            (
+                ToolDefinition(
+                    name="slow",
+                    description="A slow test handler.",
+                    input_model=InputModel,
+                    output_model=OutputModel,
+                    risk_level=RiskLevel.READ_ONLY,
+                    timeout_seconds=1.0,
+                    retry_policy=RetryPolicy.commerce_read(),
+                    handler=slow_handler,
+                ),
+            )
+        ),
+    )
+
+    with pytest.raises(TimeoutError):
+        await asyncio.wait_for(
+            build_agent_graph().ainvoke(make_state(), context=context),
+            timeout=0.05,
+        )
+
+    assert service.tool_calls[0]["kwargs"]["status"] == "failed"
+    assert service.tool_calls[0]["kwargs"]["error_code"] == "tool_execution_cancelled"
+    assert service.tool_events == [
+        ("begin", service.tool_calls[0]["id"]),
+        ("complete", service.tool_calls[0]["id"]),
+    ]
 
 
 @pytest.mark.asyncio

@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from verbaops.auth.context import TrustedContext
 from verbaops.commerce.models import (
     OrderStatus,
     RefundStatus,
@@ -70,7 +71,14 @@ class ListDeliverySlotsInput(ToolModel):
 class ToolExecutionContext(ToolModel):
     """Trusted server-side context kept separate from model-visible inputs."""
 
-    customer_id: UUID
+    trusted_context: TrustedContext
+    conversation_id: UUID
+    agent_run_id: UUID
+    tool_invocation_id: UUID
+
+
+class MissingTrustedCustomerContextError(RuntimeError):
+    """Raised when a customer-scoped tool has no server-bound customer."""
 
 
 class GetOrderStatusOutput(ToolModel):

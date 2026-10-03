@@ -1,12 +1,13 @@
 """Tests for normalized read handlers and trusted execution context."""
 
 from datetime import date
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from pydantic import SecretStr
 
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
 from verbaops.tools.commerce_reads import (
@@ -21,6 +22,7 @@ from verbaops.tools.models import (
     GetRefundStatusInput,
     GetShipmentStatusInput,
     ListDeliverySlotsInput,
+    MissingTrustedCustomerContextError,
     SearchProductsInput,
     ToolExecutionContext,
 )
@@ -33,6 +35,20 @@ def make_client(handler: object) -> CommerceClient:
             service_token=SecretStr("trusted-service-token"),
         ),
         httpx.AsyncClient(transport=httpx.MockTransport(handler)),  # type: ignore[arg-type]
+    )
+
+
+def execution_context(customer_id: UUID | None) -> ToolExecutionContext:
+    return ToolExecutionContext(
+        trusted_context=TrustedContext(
+            tenant_id=uuid4(),
+            principal_id=uuid4(),
+            customer_id=customer_id,
+            roles=frozenset({Role.CUSTOMER}),
+        ),
+        conversation_id=uuid4(),
+        agent_run_id=uuid4(),
+        tool_invocation_id=uuid4(),
     )
 
 
@@ -58,7 +74,7 @@ async def test_order_handler_uses_trusted_customer_context_and_normalizes_output
 
     result = await get_order_status(
         GetOrderStatusInput(order_id=order_id),
-        ToolExecutionContext(customer_id=customer_id),
+        execution_context(customer_id),
         make_client(handler),
     )
 
@@ -122,7 +138,7 @@ async def test_other_read_handlers_return_typed_normalized_outputs() -> None:
         )
 
     client = make_client(handler)
-    context = ToolExecutionContext(customer_id=uuid4())
+    context = execution_context(uuid4())
     shipment = await get_shipment_status(GetShipmentStatusInput(order_id=order_id), context, client)
     refunds = await get_refund_status(GetRefundStatusInput(order_id=order_id), context, client)
     products = await search_products(SearchProductsInput(query="phone", limit=1), context, client)
@@ -139,3 +155,21 @@ async def test_other_read_handlers_return_typed_normalized_outputs() -> None:
     assert refunds.refunds[0].amount == "0004.500"
     assert products.items == ()
     assert slots.slots[0].available is True
+
+
+@pytest.mark.asyncio
+async def test_customer_read_fails_closed_without_trusted_customer_binding() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={})
+
+    with pytest.raises(MissingTrustedCustomerContextError):
+        await get_order_status(
+            GetOrderStatusInput(order_id=uuid4()),
+            execution_context(None),
+            make_client(handler),
+        )
+
+    assert requests == []

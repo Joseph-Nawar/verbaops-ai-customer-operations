@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -202,6 +202,75 @@ class ConversationRepository:
             completed_at=completed_at,
         )
         self._session.add(invocation)
+        await self._session.flush()
+        return _tool_invocation_record(invocation)
+
+    async def begin_tool_invocation(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        *,
+        tool_call_id: str,
+        tool_name: str,
+        risk_level: str,
+        arguments: dict[str, Any],
+    ) -> ToolInvocationRecord:
+        """Commit one proposed origin row before an executable handler starts."""
+
+        run = await self._run(scope, conversation_id, agent_run_id, for_update=True)
+        _require_running(run)
+        invocation = ToolInvocation(
+            agent_run_id=agent_run_id,
+            sequence=await self._next_trace_sequence(ToolInvocation, agent_run_id),
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            risk_level=risk_level,
+            arguments_json=arguments,
+            result_json=None,
+            status="proposed",
+            latency_ms=None,
+            error_code=None,
+            created_at=utc_now(),
+            completed_at=None,
+        )
+        self._session.add(invocation)
+        await self._session.flush()
+        return _tool_invocation_record(invocation)
+
+    async def complete_tool_invocation(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        invocation_id: UUID,
+        *,
+        status: Literal["succeeded", "failed"],
+        result: Any,
+        latency_ms: float,
+        error_code: str | None = None,
+    ) -> ToolInvocationRecord:
+        """Finalize only the exact proposed invocation in its trusted run scope."""
+
+        run = await self._run(scope, conversation_id, agent_run_id, for_update=True)
+        _require_running(run)
+        invocation = await self._session.scalar(
+            select(ToolInvocation)
+            .where(
+                ToolInvocation.id == invocation_id,
+                ToolInvocation.agent_run_id == agent_run_id,
+            )
+            .with_for_update()
+        )
+        if invocation is None:
+            raise ConversationNotFoundError()
+        if invocation.status != "proposed":
+            raise ConversationLifecycleError("tool invocation is not proposed")
+        invocation.result_json = result
+        invocation.status = status
+        invocation.latency_ms = latency_ms
+        invocation.error_code = error_code
+        invocation.completed_at = utc_now()
         await self._session.flush()
         return _tool_invocation_record(invocation)
 
