@@ -64,7 +64,7 @@ async def test_proposal_origin_is_the_durable_invocation_and_changed_replay_fail
         commerce,  # type: ignore[arg-type]
         ActionRepository(factory),
         ActionTransitionService(factory),
-        now=lambda: datetime(2026, 10, 3, 12, tzinfo=UTC),
+        now=lambda: datetime.now(UTC),
     )
     proposal = CancelOrderProposal(order_id=order_id)
 

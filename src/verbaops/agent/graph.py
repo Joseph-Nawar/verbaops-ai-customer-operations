@@ -190,26 +190,42 @@ async def validate_tool_calls(
         raise AgentBudgetExceededError()
 
     invalid_messages: list[ChatMessage] = []
-    invalid_calls: list[tuple[Any, str, str]] = []
+    invalid_calls: list[tuple[Any, str, str, str]] = []
     for call in calls:
+        risk_level = "read_only"
         try:
+            definition = context.tool_registry.get(call.name)
+            risk_level = definition.risk_level.value
             if isinstance(context.tool_registry, Stage6ToolRegistry):
                 context.tool_registry.validate_input(call.name, call.arguments)
             else:
-                definition = context.tool_registry.get(call.name)
                 definition.input_model.model_validate(call.arguments)
         except UnknownToolError:
-            invalid_calls.append((call, "unknown_tool", "unknown read-only tool"))
+            invalid_calls.append((call, "unknown_tool", "unknown read-only tool", risk_level))
         except ValidationError:
-            invalid_calls.append((call, "invalid_tool_arguments", "tool arguments are invalid"))
+            invalid_calls.append(
+                (call, "invalid_tool_arguments", "tool arguments are invalid", risk_level)
+            )
 
     if invalid_calls and state["validation_repair_count"] >= MAX_VALIDATION_REPAIRS:
-        for call, error_code, _message in invalid_calls:
-            await _persist_tool_failure(context, call, error_code, {"status": "invalid_tool_call"})
+        for call, error_code, _message, risk_level in invalid_calls:
+            await _persist_tool_failure(
+                context,
+                call,
+                error_code,
+                {"status": "invalid_tool_call"},
+                risk_level=risk_level,
+            )
         raise AgentProtocolError()
 
-    for call, error_code, message in invalid_calls:
-        await _persist_tool_failure(context, call, error_code, {"status": "invalid_tool_call"})
+    for call, error_code, message, risk_level in invalid_calls:
+        await _persist_tool_failure(
+            context,
+            call,
+            error_code,
+            {"status": "invalid_tool_call"},
+            risk_level=risk_level,
+        )
         invalid_messages.append(
             _tool_message(
                 call,

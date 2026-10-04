@@ -189,6 +189,78 @@ async def test_stage6_prevalidation_accepts_provider_json_uuid_strings_without_e
     await commerce._http_client.aclose()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "expected_risk_level"),
+    [
+        (
+            "propose_refund",
+            {"order_id": str(uuid4()), "amount": "600.00"},
+            "proposal",
+        ),
+        ("get_order_status", {"order_id": "not-a-uuid"}, "read_only"),
+        (
+            "propose_refund",
+            {
+                "order_id": str(uuid4()),
+                "amount": "500.001",
+                "reason": "Duplicate charge",
+            },
+            "proposal",
+        ),
+    ],
+)
+async def test_invalid_known_stage6_tool_is_failed_with_definition_risk_before_execution(
+    tool_name: str,
+    arguments: dict[str, Any],
+    expected_risk_level: str,
+) -> None:
+    service = ProposalServiceSpy()
+    conversation_service = RecordingConversationService()
+    commerce_requests: list[httpx.Request] = []
+
+    def record_commerce_request(request: httpx.Request) -> httpx.Response:
+        commerce_requests.append(request)
+        return httpx.Response(200, json={})
+
+    commerce = CommerceClient(
+        CommerceSettings(base_url="http://commerce.test", service_token=SecretStr("safe")),
+        httpx.AsyncClient(transport=httpx.MockTransport(record_commerce_request)),
+    )
+    context = AgentContext(
+        conversation_id=uuid4(),
+        agent_run_id=uuid4(),
+        trusted_context=TrustedContext(
+            principal_id=uuid4(),
+            tenant_id=uuid4(),
+            customer_id=uuid4(),
+            roles=frozenset({Role.CUSTOMER}),
+        ),
+        llm_client=cast(ScriptedLLMClient, object()),
+        commerce_client=commerce,
+        tool_registry=build_stage6_tool_registry(service),
+        conversation_service=cast(ConversationService, conversation_service),
+    )
+    call = ToolCall(id="invalid-known-call", name=tool_name, arguments=arguments)
+
+    result = await validate_tool_calls(_state(call), type("Runtime", (), {"context": context})())
+
+    assert result["validation_repair_count"] == 1
+    invalid_messages = cast(list[ChatMessage], result["last_tool_results"])
+    assert len(invalid_messages) == 1
+    assert invalid_messages[0].tool_call_id == call.id
+    assert "invalid_tool_call" in (invalid_messages[0].content or "")
+    assert len(conversation_service.invalid_invocations) == 1
+    failure = conversation_service.invalid_invocations[0]["kwargs"]
+    assert failure["risk_level"] == expected_risk_level
+    assert failure["status"] == "failed"
+    assert failure["error_code"] == "invalid_tool_arguments"
+    assert conversation_service.invocations == {}
+    assert service.calls == []
+    assert commerce_requests == []
+    await commerce._http_client.aclose()
+
+
 def test_evaluation_read_registry_remains_the_frozen_five_tool_contract() -> None:
     assert build_commerce_read_registry().names == (
         "get_order_status",

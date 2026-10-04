@@ -155,6 +155,19 @@ type ActionProposal = Annotated[
 ]
 
 
+def proposal_target_ids(proposal: ActionProposal) -> tuple[UUID, ...]:
+    """Return stable business-resource IDs; proposal alternatives remain material data."""
+
+    if isinstance(
+        proposal,
+        (RescheduleDeliveryProposal, CancelOrderProposal, ReturnProposal, RefundProposal),
+    ):
+        return (proposal.order_id,)
+    if isinstance(proposal, SupportTicketProposal):
+        return (proposal.order_id,) if proposal.order_id is not None else ()
+    raise TypeError("proposal must be a supported action proposal")
+
+
 class CommerceSnapshot(ActionModel):
     """Typed, server-fetched facts used by deterministic action policy."""
 

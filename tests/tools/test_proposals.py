@@ -221,3 +221,22 @@ def test_stage6_registry_is_the_explicit_five_read_plus_five_proposal_allowlist(
     slots_handler = cast(object, registry.get("list_delivery_slots").handler)
     assert search_handler is stage6_search_products
     assert slots_handler is stage6_list_delivery_slots
+
+
+def test_refund_tool_rejects_fractional_cents_at_validation_boundary() -> None:
+    registry = build_stage6_tool_registry(ProposalServiceSpy())
+    amount_schema = registry.get("propose_refund").input_model.model_json_schema()["properties"][
+        "amount"
+    ]
+    amount_variants = amount_schema.get("anyOf", [])
+    assert any(r"\d{0,2}0*$" in variant.get("pattern", "") for variant in amount_variants)
+
+    with pytest.raises(ValidationError):
+        registry.validate_input(
+            "propose_refund",
+            {
+                "order_id": str(ORDER_ID),
+                "amount": "500.001",
+                "reason": "Duplicate charge",
+            },
+        )

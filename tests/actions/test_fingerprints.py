@@ -4,8 +4,17 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from verbaops.actions import models as action_models
 from verbaops.actions.fingerprints import fingerprint_proposal
-from verbaops.actions.models import ActionType, RefundProposal, TicketCategory
+from verbaops.actions.models import (
+    ActionType,
+    RefundProposal,
+    RescheduleDeliveryProposal,
+    ReturnItemProposal,
+    ReturnProposal,
+    SupportTicketProposal,
+    TicketCategory,
+)
 
 TENANT_ID = UUID("10000000-0000-4000-8000-000000000001")
 CUSTOMER_ID = UUID("20000000-0000-4000-8000-000000000002")
@@ -103,3 +112,68 @@ def test_refund_fingerprint_uses_fixed_scale_model_serialization() -> None:
         )
 
     assert refund_fingerprint(Decimal("500.0")) == refund_fingerprint(Decimal("500.00"))
+
+
+def test_material_changes_change_fingerprint_with_stable_business_targets() -> None:
+    other_order_item_id = UUID("70000000-0000-4000-8000-000000000007")
+    other_slot_id = UUID("80000000-0000-4000-8000-000000000008")
+    material_pairs = (
+        (
+            RescheduleDeliveryProposal(order_id=ORDER_ID, delivery_slot_id=SLOT_ID),
+            RescheduleDeliveryProposal(order_id=ORDER_ID, delivery_slot_id=other_slot_id),
+        ),
+        (
+            ReturnProposal(
+                order_id=ORDER_ID,
+                items=(ReturnItemProposal(order_item_id=SLOT_ID, quantity=1),),
+                reason="Wrong size",
+            ),
+            ReturnProposal(
+                order_id=ORDER_ID,
+                items=(ReturnItemProposal(order_item_id=other_order_item_id, quantity=1),),
+                reason="Wrong size",
+            ),
+        ),
+        (
+            RefundProposal(order_id=ORDER_ID, amount=Decimal("10.00"), reason="Duplicate"),
+            RefundProposal(order_id=ORDER_ID, amount=Decimal("20.00"), reason="Duplicate"),
+        ),
+        (
+            SupportTicketProposal(
+                order_id=ORDER_ID,
+                category=TicketCategory.ORDER,
+                subject="Question",
+                description="First description",
+            ),
+            SupportTicketProposal(
+                order_id=ORDER_ID,
+                category=TicketCategory.DELIVERY,
+                subject="Updated question",
+                description="Corrected description",
+            ),
+        ),
+    )
+
+    for first, corrected in material_pairs:
+        first_targets = action_models.proposal_target_ids(first)
+        corrected_targets = action_models.proposal_target_ids(corrected)
+        assert first_targets == corrected_targets == (ORDER_ID,)
+        first_fingerprint = fingerprint_proposal(
+            tenant_id=TENANT_ID,
+            customer_id=CUSTOMER_ID,
+            action_type=first.action_type,
+            schema_version="action-proposal-v1",
+            target_ids=first_targets,
+            normalized_payload=first.model_dump(mode="json"),
+            material_snapshot={"order_status": "confirmed"},
+        )
+        corrected_fingerprint = fingerprint_proposal(
+            tenant_id=TENANT_ID,
+            customer_id=CUSTOMER_ID,
+            action_type=corrected.action_type,
+            schema_version="action-proposal-v1",
+            target_ids=corrected_targets,
+            normalized_payload=corrected.model_dump(mode="json"),
+            material_snapshot={"order_status": "confirmed"},
+        )
+        assert corrected_fingerprint != first_fingerprint

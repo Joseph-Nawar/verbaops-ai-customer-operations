@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from verbaops.actions.models import ActionProposal, ActionState
+from verbaops.actions.models import ActionProposal, ActionState, proposal_target_ids
 from verbaops.actions.persistence import ActionEvent, ActionRequest
 from verbaops.actions.transitions import (
     ActionEventType,
@@ -78,23 +78,6 @@ def _proposal_payload(proposal: ActionProposal) -> dict[str, Any]:
     return proposal.model_dump(mode="json")
 
 
-def _target_ids(value: Any) -> tuple[UUID, ...]:
-    found: set[UUID] = set()
-
-    def visit(item: Any) -> None:
-        if isinstance(item, UUID):
-            found.add(item)
-        elif isinstance(item, dict):
-            for child in item.values():
-                visit(child)
-        elif isinstance(item, (tuple, list)):
-            for child in item:
-                visit(child)
-
-    visit(value.model_dump(mode="python"))
-    return tuple(sorted(found, key=str))
-
-
 def _same_proposal(
     request: ActionRequest,
     *,
@@ -140,7 +123,7 @@ class ActionRepository:
         if not _FINGERPRINT.fullmatch(proposal_fingerprint):
             raise ValueError("proposal fingerprint must be lowercase SHA-256 hex")
         payload = _proposal_payload(proposal)
-        target_ids = _target_ids(proposal)
+        target_ids = proposal_target_ids(proposal)
         target_values = [str(target_id) for target_id in target_ids]
         action_type = str(payload["action_type"])
 

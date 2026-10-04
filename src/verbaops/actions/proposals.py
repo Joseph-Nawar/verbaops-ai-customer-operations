@@ -20,6 +20,7 @@ from verbaops.actions.models import (
     RescheduleDeliveryProposal,
     ReturnProposal,
     SupportTicketProposal,
+    proposal_target_ids,
 )
 from verbaops.actions.policy import evaluate_action_policy
 from verbaops.actions.repository import ActionRepository
@@ -133,7 +134,7 @@ class ActionProposalService:
             customer_id=customer_id,
             action_type=action_type,
             schema_version=ACTION_PROPOSAL_SCHEMA_VERSION,
-            target_ids=_target_ids(payload),
+            target_ids=proposal_target_ids(proposal),
             normalized_payload=payload,
             material_snapshot=material_values,
         )
@@ -442,23 +443,6 @@ class ActionProposalService:
             observed_at=observed_at,
             material_values=material_values,
         )
-
-
-def _target_ids(payload: dict[str, Any]) -> tuple[UUID, ...]:
-    found: set[UUID] = set()
-
-    def visit(value: Any) -> None:
-        if isinstance(value, UUID):
-            found.add(value)
-        elif isinstance(value, dict):
-            for child in value.values():
-                visit(child)
-        elif isinstance(value, (tuple, list)):
-            for child in value:
-                visit(child)
-
-    visit(payload)
-    return tuple(sorted(found, key=str))
 
 
 def _commerce_money(value: str) -> Decimal:

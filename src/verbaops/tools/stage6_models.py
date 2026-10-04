@@ -5,7 +5,14 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from verbaops.actions.models import ActionType, TicketCategory
 from verbaops.auth.context import TrustedContext
@@ -82,8 +89,16 @@ class SupportTicketToolInput(Stage6ToolModel):
 class RefundToolInput(Stage6ToolModel):
     action_type: Literal[ActionType.REQUEST_REFUND] = ActionType.REQUEST_REFUND
     order_id: UUID
-    amount: Annotated[Decimal, Field(gt=0)]
+    amount: Annotated[Decimal, Field(gt=0, decimal_places=2)]
     reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+    @field_validator("amount")
+    @classmethod
+    def require_cent_precision(cls, value: Decimal) -> Decimal:
+        normalized = value.quantize(Decimal("0.01"))
+        if normalized != value:
+            raise ValueError("refund amount must use at most two decimal places")
+        return normalized
 
 
 class Stage6RiskLevel(StrEnum):
