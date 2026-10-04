@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from tests.postgres.stage6.conftest import Stage6ActionContext, seed_stage6_action_context
 
@@ -29,7 +30,8 @@ from verbaops.actions.transitions import (
     ActionRequestRecord,
     ActionTransitionService,
 )
-from verbaops.commerce.client import CommerceWriteResult
+from verbaops.commerce.client import CommerceClient, CommerceWriteResult
+from verbaops.commerce.errors import CommerceNotFoundError
 from verbaops.commerce.models import (
     CancelOrderResponse,
     OrderResponse,
@@ -113,6 +115,25 @@ class BlockingTicketCommerce:
 
     async def get_support_ticket(self, *_args: object) -> SupportTicketResponse:
         return self.response
+
+
+class ReadBackOnlyCancelCommerce:
+    def __init__(self, order: OrderResponse) -> None:
+        self.order = order
+        self.reads: list[str] = []
+        self.writes = 0
+
+    async def get_order(self, *_args: object) -> OrderResponse:
+        self.reads.append("get_order")
+        return self.order
+
+    async def get_shipment(self, *_args: object) -> None:
+        self.reads.append("get_shipment")
+        raise CommerceNotFoundError()
+
+    async def cancel_order(self, *_args: object) -> CommerceWriteResult[CancelOrderResponse]:
+        self.writes += 1
+        raise AssertionError("known cancellation target must be read back before any replay")
 
 
 async def _create_and_confirm(
@@ -320,3 +341,85 @@ async def test_two_reconciliation_workers_cannot_dispatch_separate_same_key_repl
     assert stored.idempotency_key == action.idempotency_key
     assert event_types.count(ActionEventType.UNRESOLVED.value) == 2
     assert event_types.count(ActionEventType.VERIFICATION_SUCCEEDED.value) == 1
+
+
+@pytest.mark.asyncio
+async def test_expired_execution_lease_recovers_through_readback_without_new_write(
+    postgres_engine: AsyncEngine,
+    clean_stage6_action_tables: None,
+) -> None:
+    del clean_stage6_action_tables
+    context = await seed_stage6_action_context(postgres_engine)
+    order_id = uuid4()
+    fingerprint = "b" * 64
+    action, transitions = await _create_and_confirm(
+        postgres_engine,
+        context=context,
+        proposal=CancelOrderProposal(order_id=order_id),
+        fingerprint=fingerprint,
+    )
+    claim = await transitions.claim_execution(
+        action.id,
+        action.tenant_id,
+        action.proposal_fingerprint,
+    )
+    assert claim.claimed and claim.lease_owner is not None
+    customer_id = context.trusted_context.customer_id
+    assert customer_id is not None
+    commerce = ReadBackOnlyCancelCommerce(
+        OrderResponse(
+            id=order_id,
+            customer_id=customer_id,
+            status=OrderStatus.CANCELLED,
+            total="50.00",
+            created_at=NOW,
+            updated_at=NOW,
+            items=[],
+        )
+    )
+    reconciler = ActionReconciler(
+        commerce_client=cast(CommerceClient, commerce),
+        transition_service=transitions,
+    )
+    active_lease_result = await reconciler.reconcile(action.id, context.trusted_context)
+    assert ActionState(active_lease_result.state) is ActionState.EXECUTING
+    assert commerce.reads == []
+    assert commerce.writes == 0
+    async with (
+        async_sessionmaker(postgres_engine, expire_on_commit=False)() as session,
+        session.begin(),
+    ):
+        await session.execute(
+            update(ActionRequest)
+            .where(ActionRequest.id == action.id)
+            .values(execution_lease_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+
+    result = await reconciler.reconcile(action.id, context.trusted_context)
+
+    assert ActionState(result.state) is ActionState.SUCCEEDED
+    assert commerce.reads == ["get_order", "get_shipment"]
+    assert commerce.writes == 0
+    async with postgres_engine.connect() as connection:
+        events = (
+            await connection.execute(
+                select(ActionEvent.event_type, ActionEvent.reason_code)
+                .where(ActionEvent.action_request_id == action.id)
+                .order_by(ActionEvent.sequence)
+            )
+        ).all()
+        stored = (
+            await connection.execute(
+                select(
+                    ActionRequest.state,
+                    ActionRequest.idempotency_key,
+                    ActionRequest.execution_lease_owner,
+                    ActionRequest.verification_status,
+                ).where(ActionRequest.id == action.id)
+            )
+        ).one()
+    assert (ActionEventType.UNRESOLVED.value, "execution_lease_expired") in events
+    assert stored.state == ActionState.SUCCEEDED.value
+    assert stored.idempotency_key == action.idempotency_key
+    assert stored.execution_lease_owner is None
+    assert stored.verification_status == "verified"

@@ -41,6 +41,8 @@ async def test_lifespan_installs_and_cleans_runtime_resources(
     async with lifespan(app):
         assert app.state.verbaops_runtime_resources.database is database
         assert app.state.verbaops_runtime_resources.redis is redis
+        assert app.state.verbaops_runtime_resources.action_decision_service is not None
+        assert app.state.verbaops_runtime_resources.action_reconciler is not None
     assert app.state.verbaops_runtime_resources is None
     close.assert_awaited_once_with(redis)
     dispose.assert_awaited_once_with(database)

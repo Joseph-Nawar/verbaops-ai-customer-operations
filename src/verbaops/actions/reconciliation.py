@@ -64,13 +64,23 @@ class ActionReconciler:
     async def reconcile(
         self, action_request_id: UUID, trusted_context: TrustedContext
     ) -> ActionRequestRecord:
-        """Claim a scoped unresolved action, then read or replay with its stored key."""
+        """Recover an expired execution lease, then read or replay an unresolved action."""
 
-        if Role.CUSTOMER not in trusted_context.roles or trusted_context.customer_id is None:
+        if (
+            trusted_context.roles != frozenset({Role.CUSTOMER})
+            or trusted_context.customer_id is None
+        ):
             raise ActionReconciliationForbiddenError("customer action authority is required")
         record = await self._transitions.get_scoped(
             action_request_id, trusted_context.tenant_id, trusted_context.customer_id
         )
+        if record.state is ActionState.EXECUTING:
+            record = await self._transitions.recover_expired_execution(
+                record.id,
+                record.tenant_id,
+                record.customer_id,
+                record.proposal_fingerprint,
+            )
         if record.state is not ActionState.UNRESOLVED:
             return record
         proposal = _parse_proposal(record)
@@ -123,6 +133,7 @@ class ActionReconciler:
                     ActionType.REQUEST_REFUND,
                 }
                 and record.commerce_resource_id is not None
+                and verification.status is VerificationStatus.MISMATCHED
             ):
                 return await self._finish(
                     record,

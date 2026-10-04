@@ -12,7 +12,7 @@ from tests.actions._fake_sessions import (
     action_request,
 )
 from verbaops.actions.models import ActionState
-from verbaops.actions.persistence import ActionEvent
+from verbaops.actions.persistence import ActionEvent, ActionRequest
 from verbaops.actions.policy import PolicyDecision
 from verbaops.actions.transitions import (
     ActionEventType,
@@ -25,6 +25,7 @@ from verbaops.actions.transitions import (
     ProposalFingerprintMismatchError,
     validate_action_transition,
 )
+from verbaops.auth.context import TrustedContext
 
 
 @pytest.mark.parametrize(
@@ -80,7 +81,9 @@ def test_unapproved_lifecycle_edges_are_rejected(current: ActionState, target: A
         validate_action_transition(current, target)
 
 
-def _confirmed_action_request(state: ActionState = ActionState.READY_TO_EXECUTE):
+def _confirmed_action_request(
+    state: ActionState = ActionState.READY_TO_EXECUTE,
+) -> tuple[TrustedContext, ActionRequest]:
     context = action_context()
     request = action_request(
         trusted_context=context,
@@ -234,6 +237,73 @@ async def test_transition_persists_supervisor_then_customer_fingerprint_decision
     assert confirmation.customer_confirmation_decision == "confirmed"
     assert confirmation.customer_confirmation_actor_id == context.principal_id
     assert confirmation.customer_confirmation_fingerprint == request.proposal_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_customer_can_withdraw_while_awaiting_approval_without_supervisor_rejection() -> None:
+    context = action_context()
+    request = action_request(
+        trusted_context=context,
+        state=ActionState.AWAITING_APPROVAL,
+        confirmation_required=True,
+        approval_required=True,
+    )
+    request.policy_allowed = True
+    request.policy_reason_code = "allowed"
+    request.policy_version = "stage6-policy-v1"
+    request.policy_observed_at = datetime.now(UTC)
+    session = FakeActionSession(scalar_values=[request], record=request)
+
+    result = await _service(FakeSessionFactory(session)).transition(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+        ActionState.REJECTED,
+        context.principal_id,
+        ActionEventType.CUSTOMER_REJECTED,
+        "customer_withdrew",
+    )
+
+    assert result.state is ActionState.REJECTED
+    assert result.customer_confirmation_decision == "rejected"
+    assert result.customer_confirmation_actor_id == context.principal_id
+    assert result.customer_confirmation_fingerprint == request.proposal_fingerprint
+    assert result.supervisor_approval_decision is None
+    assert result.supervisor_approval_actor_id is None
+    events = [event for event in session.added if isinstance(event, ActionEvent)]
+    assert len(events) == 1
+    assert events[0].event_type == ActionEventType.CUSTOMER_REJECTED.value
+
+
+@pytest.mark.asyncio
+async def test_supervisor_rejection_keeps_distinct_decision_fields() -> None:
+    context = action_context()
+    request = action_request(
+        trusted_context=context,
+        state=ActionState.AWAITING_APPROVAL,
+        confirmation_required=True,
+        approval_required=True,
+    )
+    request.policy_allowed = True
+    request.policy_reason_code = "allowed"
+    request.policy_version = "stage6-policy-v1"
+    request.policy_observed_at = datetime.now(UTC)
+    session = FakeActionSession(scalar_values=[request], record=request)
+
+    result = await _service(FakeSessionFactory(session)).transition(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+        ActionState.REJECTED,
+        context.principal_id,
+        ActionEventType.SUPERVISOR_REJECTED,
+        "supervisor_rejected",
+    )
+
+    assert result.state is ActionState.REJECTED
+    assert result.supervisor_approval_decision == "rejected"
+    assert result.supervisor_approval_actor_id == context.principal_id
+    assert result.customer_confirmation_decision is None
 
 
 @pytest.mark.asyncio

@@ -158,18 +158,28 @@ def _verify_return(
     if not isinstance(read_back, ReturnResponse):
         return _unavailable()
     expected_resource_id = action.commerce_resource_id
+    expected_items = {item.order_item_id: item.quantity for item in proposal.items}
     if write_result is not None:
         response = write_result.response
         if not isinstance(response, ReturnResponse):
             return _mismatched()
+        response_items = {item.order_item_id: item.quantity for item in response.items}
+        if (
+            response.order_id != proposal.order_id
+            or response.reason != proposal.reason
+            or response.status is not ReturnStatus.REQUESTED
+            or len(response.items) != len(expected_items)
+            or response_items != expected_items
+        ):
+            return _mismatched()
         expected_resource_id = response.id
-    expected_items = {item.order_item_id: item.quantity for item in proposal.items}
     observed_items = {item.order_item_id: item.quantity for item in read_back.items}
     if (
         (expected_resource_id is not None and read_back.id != expected_resource_id)
         or read_back.order_id != proposal.order_id
         or read_back.reason != proposal.reason
         or read_back.status is not ReturnStatus.REQUESTED
+        or len(read_back.items) != len(expected_items)
         or observed_items != expected_items
     ):
         return _mismatched()
@@ -188,6 +198,15 @@ def _verify_ticket(
     if write_result is not None:
         response = write_result.response
         if not isinstance(response, SupportTicketResponse):
+            return _mismatched()
+        if (
+            response.customer_id != action.customer_id
+            or response.order_id != proposal.order_id
+            or response.category.value != proposal.category.value
+            or response.subject != proposal.subject
+            or response.description != proposal.description
+            or response.status is not SupportTicketStatus.OPEN
+        ):
             return _mismatched()
         expected_resource_id = response.id
     if (

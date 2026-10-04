@@ -6,11 +6,13 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from uuid import uuid4
+from typing import Any, cast
+from uuid import UUID, uuid4
 
 import pytest
 
 from verbaops.actions.models import (
+    ActionProposal,
     ActionState,
     CancelOrderProposal,
     RefundProposal,
@@ -22,10 +24,12 @@ from verbaops.actions.models import (
     proposal_target_ids,
 )
 from verbaops.actions.reconciliation import ActionReconciler
+from verbaops.actions.transitions import ActionTransitionService
 from verbaops.auth.context import Role, TrustedContext
-from verbaops.commerce.client import CommerceWriteResult
+from verbaops.commerce.client import CommerceClient, CommerceWriteResult
 from verbaops.commerce.errors import (
     CommerceNotFoundError,
+    CommerceUnavailableError,
     CommerceWriteAmbiguousError,
     CommerceWriteRejected,
 )
@@ -52,11 +56,11 @@ class FakeTransitions:
     def __init__(self, record: SimpleNamespace) -> None:
         self.record = record
         self._claim_lock = asyncio.Lock()
-        self.lease_owner = None
+        self.lease_owner: UUID | None = None
         self.claim_count = 0
         self.finish_calls: list[dict[str, object]] = []
 
-    async def get_scoped(self, action_id, tenant_id, customer_id):
+    async def get_scoped(self, action_id: UUID, tenant_id: UUID, customer_id: UUID) -> Any:
         if (
             action_id != self.record.id
             or tenant_id != self.record.tenant_id
@@ -67,7 +71,13 @@ class FakeTransitions:
             raise ActionRequestNotFoundError("action request not found in customer scope")
         return self.record
 
-    async def claim_reconciliation(self, action_id, tenant_id, customer_id, expected_fingerprint):
+    async def claim_reconciliation(
+        self,
+        action_id: UUID,
+        tenant_id: UUID,
+        customer_id: UUID,
+        expected_fingerprint: str,
+    ) -> Any:
         async with self._claim_lock:
             self.claim_count += 1
             if (
@@ -86,9 +96,7 @@ class FakeTransitions:
                 claimed=True,
             )
 
-    async def record_reconciliation_outcome(
-        self, *_args: object, **kwargs: object
-    ) -> SimpleNamespace:
+    async def record_reconciliation_outcome(self, *_args: object, **kwargs: object) -> Any:
         self.finish_calls.append(kwargs)
         self.record.state = kwargs["target_state"]
         if "resource_id" in kwargs and kwargs["resource_id"] is not None:
@@ -111,54 +119,54 @@ class ScriptedCommerce:
         self.refunds: list[object] = []
         self.write_results: dict[str, list[object]] = {}
 
-    async def get_order(self, order_id, customer_id):
+    async def get_order(self, order_id: UUID, customer_id: UUID) -> Any:
         self.calls.append(("get_order", (order_id, customer_id)))
         outcome = self.orders.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome
         return outcome
 
-    async def get_shipment(self, order_id, customer_id):
+    async def get_shipment(self, order_id: UUID, customer_id: UUID) -> Any:
         self.calls.append(("get_shipment", (order_id, customer_id)))
         outcome = self.shipments.pop(0)
         if isinstance(outcome, BaseException):
             raise outcome
         return outcome
 
-    async def get_return(self, resource_id, customer_id):
+    async def get_return(self, resource_id: UUID, customer_id: UUID) -> Any:
         self.calls.append(("get_return", (resource_id, customer_id)))
         outcome = self.returns[resource_id]
         if isinstance(outcome, BaseException):
             raise outcome
         return outcome
 
-    async def get_support_ticket(self, resource_id, customer_id):
+    async def get_support_ticket(self, resource_id: UUID, customer_id: UUID) -> Any:
         self.calls.append(("get_support_ticket", (resource_id, customer_id)))
         outcome = self.tickets[resource_id]
         if isinstance(outcome, BaseException):
             raise outcome
         return outcome
 
-    async def get_refunds(self, order_id, customer_id):
+    async def get_refunds(self, order_id: UUID, customer_id: UUID) -> Any:
         self.calls.append(("get_refunds", (order_id, customer_id)))
         return self.refunds
 
-    async def cancel_order(self, *args):
+    async def cancel_order(self, *args: object) -> Any:
         return await self._write("cancel_order", args)
 
-    async def reschedule_delivery(self, *args):
+    async def reschedule_delivery(self, *args: object) -> Any:
         return await self._write("reschedule_delivery", args)
 
-    async def create_return(self, *args):
+    async def create_return(self, *args: object) -> Any:
         return await self._write("create_return", args)
 
-    async def create_support_ticket(self, *args):
+    async def create_support_ticket(self, *args: object) -> Any:
         return await self._write("create_support_ticket", args)
 
-    async def request_refund(self, *args):
+    async def request_refund(self, *args: object) -> Any:
         return await self._write("request_refund", args)
 
-    async def _write(self, name: str, args: tuple[object, ...]):
+    async def _write(self, name: str, args: tuple[object, ...]) -> Any:
         self.calls.append((name, args))
         outcome = self.write_results[name].pop(0)
         if isinstance(outcome, BaseException):
@@ -166,7 +174,12 @@ class ScriptedCommerce:
         return outcome
 
 
-def customer_context(*, tenant_id=None, customer_id=None, roles=None) -> TrustedContext:
+def customer_context(
+    *,
+    tenant_id: UUID | None = None,
+    customer_id: UUID | None = None,
+    roles: frozenset[Role] | None = None,
+) -> TrustedContext:
     return TrustedContext(
         principal_id=uuid4(),
         tenant_id=tenant_id or uuid4(),
@@ -175,7 +188,18 @@ def customer_context(*, tenant_id=None, customer_id=None, roles=None) -> Trusted
     )
 
 
-def action_record(proposal, context, *, resource_id=None, state=ActionState.UNRESOLVED):
+def customer_id_for(context: TrustedContext) -> UUID:
+    assert context.customer_id is not None
+    return context.customer_id
+
+
+def action_record(
+    proposal: ActionProposal,
+    context: TrustedContext,
+    *,
+    resource_id: UUID | None = None,
+    state: ActionState = ActionState.UNRESOLVED,
+) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         tenant_id=context.tenant_id,
@@ -196,7 +220,11 @@ def action_record(proposal, context, *, resource_id=None, state=ActionState.UNRE
     )
 
 
-def order_response(order_id, customer_id, status=OrderStatus.CANCELLED):
+def order_response(
+    order_id: UUID,
+    customer_id: UUID,
+    status: OrderStatus = OrderStatus.CANCELLED,
+) -> OrderResponse:
     return OrderResponse(
         id=order_id,
         customer_id=customer_id,
@@ -208,7 +236,12 @@ def order_response(order_id, customer_id, status=OrderStatus.CANCELLED):
     )
 
 
-def shipment_response(order_id, *, slot_id=None, status=ShipmentStatus.CANCELLED):
+def shipment_response(
+    order_id: UUID,
+    *,
+    slot_id: UUID | None = None,
+    status: ShipmentStatus = ShipmentStatus.CANCELLED,
+) -> ShipmentResponse:
     return ShipmentResponse(
         id=uuid4(),
         order_id=order_id,
@@ -221,7 +254,9 @@ def shipment_response(order_id, *, slot_id=None, status=ShipmentStatus.CANCELLED
     )
 
 
-def ticket_response(proposal, customer_id, ticket_id):
+def ticket_response(
+    proposal: SupportTicketProposal, customer_id: UUID, ticket_id: UUID
+) -> SupportTicketResponse:
     return SupportTicketResponse(
         id=ticket_id,
         customer_id=customer_id,
@@ -235,8 +270,15 @@ def ticket_response(proposal, customer_id, ticket_id):
     )
 
 
-def write_result(response, status_code=201):
+def write_result(response: object, status_code: int = 201) -> CommerceWriteResult[object]:
     return CommerceWriteResult(response, status_code, False)
+
+
+def reconciler_for(commerce: ScriptedCommerce, transitions: FakeTransitions) -> ActionReconciler:
+    return ActionReconciler(
+        commerce_client=cast(CommerceClient, commerce),
+        transition_service=cast(ActionTransitionService, transitions),
+    )
 
 
 @pytest.mark.asyncio
@@ -247,10 +289,13 @@ async def test_known_cancel_target_reads_exact_state_before_any_same_key_replay(
     action = action_record(proposal, context, resource_id=order_id)
     transitions = FakeTransitions(action)
     commerce = ScriptedCommerce()
-    commerce.orders = [order_response(order_id, context.customer_id)]
+    commerce.orders = [order_response(order_id, customer_id_for(context))]
     commerce.shipments = [CommerceNotFoundError()]
     commerce.write_results["cancel_order"] = []
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = ActionReconciler(
+        commerce_client=cast(CommerceClient, commerce),
+        transition_service=cast(ActionTransitionService, transitions),
+    )
 
     result = await reconciler.reconcile(action.id, context)
 
@@ -273,7 +318,7 @@ async def test_stale_reschedule_readback_precedes_identical_same_key_replay() ->
     )
     commerce.shipments = [stale_shipment, current_shipment]
     commerce.write_results["reschedule_delivery"] = [write_result(current_shipment, 200)]
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = reconciler_for(commerce, transitions)
 
     result = await reconciler.reconcile(action.id, context)
 
@@ -293,6 +338,11 @@ async def test_created_resource_without_id_replays_first_with_same_key_then_read
     kind: str,
 ) -> None:
     context = customer_context()
+    proposal: ActionProposal
+    response: object
+    return_id: UUID
+    read_method: str
+    write_method: str
     if kind == "return":
         item_id, order_id, return_id = uuid4(), uuid4(), uuid4()
         proposal = ReturnProposal(
@@ -318,7 +368,7 @@ async def test_created_resource_without_id_replays_first_with_same_key_then_read
             description="Please help",
         )
         return_id = uuid4()
-        response = ticket_response(proposal, context.customer_id, return_id)
+        response = ticket_response(proposal, customer_id_for(context), return_id)
         read_method, write_method = "get_support_ticket", "create_support_ticket"
     else:
         order_id, return_id = uuid4(), uuid4()
@@ -352,7 +402,7 @@ async def test_created_resource_without_id_replays_first_with_same_key_then_read
                 created_at=NOW,
             )
         ]
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = reconciler_for(commerce, transitions)
 
     result = await reconciler.reconcile(action.id, context)
 
@@ -378,17 +428,46 @@ async def test_known_created_resource_is_read_before_replay_and_mismatch_stays_u
     commerce = ScriptedCommerce()
     commerce.tickets[ticket_id] = ticket_response(
         proposal.model_copy(update={"description": "Different"}),
-        context.customer_id,
+        customer_id_for(context),
         ticket_id,
     )
     commerce.write_results["create_support_ticket"] = []
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = reconciler_for(commerce, transitions)
 
     result = await reconciler.reconcile(action.id, context)
 
     assert result.state is ActionState.UNRESOLVED
     assert [call[0] for call in commerce.calls] == ["get_support_ticket"]
     assert result.idempotency_key == action.idempotency_key
+
+
+@pytest.mark.asyncio
+async def test_known_created_resource_readback_outage_allows_same_key_replay() -> None:
+    context = customer_context()
+    ticket_id = uuid4()
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    action = action_record(proposal, context, resource_id=ticket_id)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    commerce.tickets[ticket_id] = CommerceUnavailableError()
+    commerce.write_results["create_support_ticket"] = [
+        CommerceWriteAmbiguousError(status_code=503, error_code="write_outcome_unknown")
+    ]
+    reconciler = reconciler_for(commerce, transitions)
+
+    result = await reconciler.reconcile(action.id, context)
+
+    assert result.state is ActionState.UNRESOLVED
+    assert [call[0] for call in commerce.calls] == [
+        "get_support_ticket",
+        "create_support_ticket",
+    ]
+    assert commerce.calls[-1][1][-1] == action.idempotency_key
 
 
 @pytest.mark.asyncio
@@ -408,7 +487,7 @@ async def test_replay_definite_rejection_fails_and_ambiguous_replay_stays_unreso
         transitions = FakeTransitions(action)
         commerce = ScriptedCommerce()
         commerce.write_results["create_return"] = [rejection]
-        reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+        reconciler = reconciler_for(commerce, transitions)
 
         result = await reconciler.reconcile(action.id, context)
 
@@ -434,7 +513,7 @@ async def test_cross_customer_reconciliation_is_not_found_and_never_calls_commer
     action = action_record(proposal, context)
     transitions = FakeTransitions(action)
     commerce = ScriptedCommerce()
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = reconciler_for(commerce, transitions)
 
     from verbaops.actions.transitions import ActionRequestNotFoundError
 
@@ -457,10 +536,10 @@ async def test_two_reconciliation_callers_can_claim_only_one_replay() -> None:
     transitions = FakeTransitions(action)
     commerce = ScriptedCommerce()
     ticket_id = uuid4()
-    response = ticket_response(proposal, context.customer_id, ticket_id)
+    response = ticket_response(proposal, customer_id_for(context), ticket_id)
     commerce.write_results["create_support_ticket"] = [write_result(response)]
     commerce.tickets[ticket_id] = response
-    reconciler = ActionReconciler(commerce_client=commerce, transition_service=transitions)
+    reconciler = reconciler_for(commerce, transitions)
 
     await asyncio.gather(
         reconciler.reconcile(action.id, context),

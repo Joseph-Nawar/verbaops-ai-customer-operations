@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -18,6 +19,7 @@ from verbaops.actions.models import (
     TicketCategory,
     proposal_target_ids,
 )
+from verbaops.actions.transitions import ActionRequestRecord
 from verbaops.actions.verification import (
     OrderShipmentReadBack,
     VerificationStatus,
@@ -49,15 +51,18 @@ def record_for(
     *,
     customer_id: UUID | None = None,
     resource_id: UUID | None = None,
-) -> SimpleNamespace:
-    return SimpleNamespace(
-        id=uuid4(),
-        tenant_id=uuid4(),
-        customer_id=customer_id or uuid4(),
-        action_type=proposal.action_type,
-        proposal_payload=proposal.model_dump(mode="json"),
-        target_ids=proposal_target_ids(proposal),
-        commerce_resource_id=resource_id,
+) -> ActionRequestRecord:
+    return cast(
+        ActionRequestRecord,
+        SimpleNamespace(
+            id=uuid4(),
+            tenant_id=uuid4(),
+            customer_id=customer_id or uuid4(),
+            action_type=proposal.action_type,
+            proposal_payload=proposal.model_dump(mode="json"),
+            target_ids=proposal_target_ids(proposal),
+            commerce_resource_id=resource_id,
+        ),
     )
 
 
@@ -209,6 +214,29 @@ def test_return_requires_exact_return_order_items_values_and_initial_status() ->
     assert mismatch.status is VerificationStatus.MISMATCHED
 
 
+def test_contradictory_return_write_response_never_verifies() -> None:
+    order_id, item_id, return_id = uuid4(), uuid4(), uuid4()
+    proposal = ReturnProposal(
+        order_id=order_id,
+        reason="damaged",
+        items=(ReturnItemProposal(order_item_id=item_id, quantity=1),),
+    )
+    response = ReturnResponse(
+        id=return_id,
+        order_id=order_id,
+        reason="different",
+        status=ReturnStatus.REQUESTED,
+        created_at=NOW,
+        updated_at=NOW,
+        items=[ReturnItemResponse(id=uuid4(), order_item_id=item_id, quantity=1)],
+    )
+    read_back = response.model_copy(update={"reason": "damaged"})
+
+    result = verify_postcondition(record_for(proposal), write_result(response, 201), read_back)
+
+    assert result.status is VerificationStatus.MISMATCHED
+
+
 def test_ticket_requires_exact_id_customer_order_and_requested_fields() -> None:
     customer_id, order_id, ticket_id = uuid4(), uuid4(), uuid4()
     proposal = SupportTicketProposal(
@@ -246,6 +274,36 @@ def test_ticket_requires_exact_id_customer_order_and_requested_fields() -> None:
     assert verified.verified_resource_id == ticket_id
     assert wrong_customer.status is VerificationStatus.MISMATCHED
     assert wrong_description.status is VerificationStatus.MISMATCHED
+
+
+def test_contradictory_ticket_write_response_never_verifies() -> None:
+    customer_id, ticket_id = uuid4(), uuid4()
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    response = SupportTicketResponse(
+        id=ticket_id,
+        customer_id=customer_id,
+        order_id=None,
+        category=SupportTicketCategory.OTHER,
+        subject=proposal.subject,
+        description="Contradictory write response",
+        status=SupportTicketStatus.OPEN,
+        created_at=NOW,
+        updated_at=NOW,
+    )
+    read_back = response.model_copy(update={"description": proposal.description})
+
+    result = verify_postcondition(
+        record_for(proposal, customer_id=customer_id),
+        write_result(response, 201),
+        read_back,
+    )
+
+    assert result.status is VerificationStatus.MISMATCHED
 
 
 def test_refund_requires_exact_refund_id_amount_reason_and_approved_request_state() -> None:

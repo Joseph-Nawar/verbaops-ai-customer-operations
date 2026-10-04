@@ -468,11 +468,21 @@ async def _transition_locked(
         )
 
     current_state = ActionState(request.state)
-    if current_state is ActionState.AWAITING_APPROVAL and target_state in {
-        ActionState.AWAITING_CONFIRMATION,
-        ActionState.READY_TO_EXECUTE,
-        ActionState.REJECTED,
-    }:
+    customer_withdrawal_while_awaiting_approval = (
+        current_state is ActionState.AWAITING_APPROVAL
+        and target_state is ActionState.REJECTED
+        and event_type is ActionEventType.CUSTOMER_REJECTED
+    )
+    if (
+        current_state is ActionState.AWAITING_APPROVAL
+        and target_state
+        in {
+            ActionState.AWAITING_CONFIRMATION,
+            ActionState.READY_TO_EXECUTE,
+            ActionState.REJECTED,
+        }
+        and not customer_withdrawal_while_awaiting_approval
+    ):
         if not request.approval_required:
             raise InvalidActionTransitionError("action has no supervisor approval gate")
         if target_state is ActionState.REJECTED:
@@ -501,18 +511,23 @@ async def _transition_locked(
             }
         )
 
-    if current_state is ActionState.AWAITING_CONFIRMATION and target_state in {
-        ActionState.READY_TO_EXECUTE,
-        ActionState.REJECTED,
-    }:
+    customer_confirmation_transition = (
+        current_state is ActionState.AWAITING_CONFIRMATION
+        and target_state in {ActionState.READY_TO_EXECUTE, ActionState.REJECTED}
+    )
+    customer_approval_withdrawal = (
+        current_state is ActionState.AWAITING_APPROVAL
+        and target_state is ActionState.REJECTED
+        and event_type is ActionEventType.CUSTOMER_REJECTED
+    )
+    if customer_confirmation_transition or customer_approval_withdrawal:
         if not request.confirmation_required:
             raise InvalidActionTransitionError("action has no customer confirmation gate")
-        expected_event = (
-            ActionEventType.CUSTOMER_CONFIRMED
-            if target_state is ActionState.READY_TO_EXECUTE
-            else ActionEventType.CUSTOMER_REJECTED
-        )
-        decision = "confirmed" if target_state is ActionState.READY_TO_EXECUTE else "rejected"
+        expected_event = ActionEventType.CUSTOMER_CONFIRMED
+        decision = "confirmed"
+        if target_state is ActionState.REJECTED:
+            expected_event = ActionEventType.CUSTOMER_REJECTED
+            decision = "rejected"
         if event_type is not expected_event or actor_id is None:
             raise InvalidActionTransitionError("customer decision requires its event and actor")
         values.update(
@@ -541,10 +556,7 @@ async def _transition_locked(
     if event_type in {
         ActionEventType.CUSTOMER_CONFIRMED,
         ActionEventType.CUSTOMER_REJECTED,
-    } and not (
-        current_state is ActionState.AWAITING_CONFIRMATION
-        and target_state in {ActionState.READY_TO_EXECUTE, ActionState.REJECTED}
-    ):
+    } and not (customer_confirmation_transition or customer_approval_withdrawal):
         raise InvalidActionTransitionError(
             "customer event is not attached to a confirmation transition"
         )
@@ -667,6 +679,54 @@ class ActionTransitionService:
         if claim is None:
             raise RuntimeError("execution claim did not produce a result")
         return claim
+
+    async def recover_expired_execution(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        customer_id: UUID,
+        expected_fingerprint: str,
+        *,
+        now: datetime | None = None,
+    ) -> ActionRequestRecord:
+        """Move an orphaned execution to unresolved after its persisted lease expires."""
+
+        observed_at = now or datetime.now(UTC)
+        record: ActionRequestRecord | None = None
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                    ActionRequest.customer_id == customer_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in customer scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if (
+                ActionState(request.state) is ActionState.EXECUTING
+                and request.execution_lease_owner is not None
+                and request.execution_lease_expires_at is not None
+                and request.execution_lease_expires_at <= observed_at
+            ):
+                request, _expired = await _transition_locked(
+                    session,
+                    request,
+                    target_state=ActionState.UNRESOLVED,
+                    actor_id=None,
+                    event_type=ActionEventType.UNRESOLVED,
+                    reason_code="execution_lease_expired",
+                    clear_execution_lease=True,
+                    now=observed_at,
+                )
+            record = action_request_record(request)
+        if record is None:
+            raise RuntimeError("expired execution recovery did not produce a request record")
+        return record
 
     async def record_execution_outcome(
         self,

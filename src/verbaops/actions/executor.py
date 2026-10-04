@@ -163,9 +163,9 @@ class ActionExecutor:
                 return await self._record_outcome(
                     record,
                     lease_owner,
-                    target_state=ActionState.READY_TO_EXECUTE,
+                    target_state=ActionState.FAILED,
                     event_type=ActionEventType.STATE_TRANSITION,
-                    reason_code="proven_non_dispatch",
+                    reason_code="pre_dispatch_retry_exhausted",
                     status_code=error.status_code,
                     error_code=error.error_code,
                     resource_id=None,

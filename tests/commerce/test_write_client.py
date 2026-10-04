@@ -299,6 +299,31 @@ async def test_known_business_rejection_is_typed_and_keeps_only_bounded_code() -
 
 
 @pytest.mark.asyncio
+async def test_unsafe_upstream_error_code_is_not_retained() -> None:
+    customer_id, order_id, key = uuid4(), uuid4(), uuid4()
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            409,
+            json={
+                "error": {
+                    "code": "bad code with\nprivate detail",
+                    "message": "do not retain",
+                }
+            },
+        )
+
+    commerce = client_for(handler)
+    async with commerce._http_client:
+        with pytest.raises(CommerceWriteRejected) as raised:
+            await commerce.cancel_order(order_id, customer_id, key)
+
+    assert raised.value.error_code is None
+    assert "private detail" not in repr(raised.value)
+    assert "do not retain" not in repr(raised.value)
+
+
+@pytest.mark.asyncio
 async def test_unknown_outcome_and_malformed_success_are_ambiguous_single_dispatches() -> None:
     customer_id, order_id, key = uuid4(), uuid4(), uuid4()
     for response in (

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from typing import cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -12,6 +13,9 @@ import pytest
 from verbaops.actions.executor import ActionExecutor
 from verbaops.actions.models import ActionState, ActionType
 from verbaops.actions.policy import PolicyDecision
+from verbaops.actions.proposals import ActionProposalService
+from verbaops.actions.transitions import ActionTransitionService
+from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import (
     CommerceWriteAmbiguousError,
     CommerceWritePreDispatchError,
@@ -20,7 +24,9 @@ from verbaops.commerce.errors import (
 from verbaops.commerce.models import (
     CancelOrderResponse,
     OrderResponse,
+    OrderStatus,
     ShipmentResponse,
+    ShipmentStatus,
 )
 
 
@@ -170,8 +176,8 @@ def action_record(
 def cancel_result(
     record: SimpleNamespace,
     *,
-    status: str = "cancelled",
-    shipment_status: str | None = None,
+    status: OrderStatus = OrderStatus.CANCELLED,
+    shipment_status: ShipmentStatus | None = None,
 ) -> SimpleNamespace:
     order_id = UUID(record.proposal_payload["order_id"])
     return SimpleNamespace(
@@ -215,9 +221,9 @@ def executor_for(
     transitions = FakeTransitions(action)
     commerce = ScriptedCommerce(transitions, outcomes)
     executor = ActionExecutor(
-        commerce_client=commerce,
-        transition_service=transitions,
-        freshness_service=freshness or FakeFreshness(),
+        commerce_client=cast(CommerceClient, commerce),
+        transition_service=cast(ActionTransitionService, transitions),
+        freshness_service=cast(ActionProposalService, freshness or FakeFreshness()),
     )
     return executor, transitions, commerce, action
 
@@ -236,6 +242,23 @@ async def test_proven_pre_dispatch_retry_reuses_the_stored_idempotency_key() -> 
     assert commerce.calls[0][1][2] == action.idempotency_key
     assert result.state is ActionState.SUCCEEDED
     assert [call[0] for call in commerce.read_calls] == ["get_order"]
+
+
+@pytest.mark.asyncio
+async def test_second_proven_pre_dispatch_failure_is_terminal() -> None:
+    action = action_record()
+    executor, _transitions, commerce, _ = executor_for(
+        [CommerceWritePreDispatchError(), CommerceWritePreDispatchError()], record=action
+    )
+
+    result = await executor.execute_ready(action.id)
+    assert result.state is ActionState.FAILED
+    retry = await executor.execute_ready(action.id)
+
+    assert retry.state is ActionState.FAILED
+    assert len(commerce.calls) == 2
+    assert commerce.calls[0][1:] == commerce.calls[1][1:]
+    assert commerce.calls[0][1][2] == action.idempotency_key
 
 
 @pytest.mark.asyncio
@@ -271,7 +294,7 @@ async def test_post_dispatch_timeout_becomes_unresolved_without_automatic_replay
 async def test_contradictory_success_response_is_unresolved_not_succeeded() -> None:
     action = action_record()
     executor, _transitions, commerce, _ = executor_for(
-        [cancel_result(action, status="confirmed")], record=action
+        [cancel_result(action, status=OrderStatus.CONFIRMED)], record=action
     )
 
     result = await executor.execute_ready(action.id)
@@ -285,7 +308,7 @@ async def test_contradictory_success_response_is_unresolved_not_succeeded() -> N
 async def test_cancel_response_with_non_cancelled_shipment_is_unresolved() -> None:
     action = action_record()
     executor, _transitions, commerce, _ = executor_for(
-        [cancel_result(action, shipment_status="in_transit")], record=action
+        [cancel_result(action, shipment_status=ShipmentStatus.IN_TRANSIT)], record=action
     )
 
     result = await executor.execute_ready(action.id)
@@ -319,7 +342,8 @@ async def test_fresh_policy_denial_prevents_dispatch() -> None:
 
     assert result.state is ActionState.POLICY_DENIED
     assert len(commerce.calls) == 0
-    assert transitions.calls[-1][1]["policy_decision"].allowed is False
+    decision = cast(PolicyDecision, transitions.calls[-1][1]["policy_decision"])
+    assert decision.allowed is False
 
 
 @pytest.mark.asyncio
