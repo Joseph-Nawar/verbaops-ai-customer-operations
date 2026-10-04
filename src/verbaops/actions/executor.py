@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -28,26 +27,25 @@ from verbaops.actions.transitions import (
     ActionRequestRecord,
     ActionTransitionService,
 )
+from verbaops.actions.verification import (
+    OrderShipmentReadBack,
+    VerificationResult,
+    VerificationStatus,
+    verify_postcondition,
+)
 from verbaops.commerce.client import CommerceClient, CommerceWriteResult
 from verbaops.commerce.errors import (
+    CommerceError,
     CommerceWriteAmbiguousError,
     CommerceWritePreDispatchError,
     CommerceWriteRejected,
 )
 from verbaops.commerce.models import (
-    CancelOrderResponse,
     RefundCreateRequest,
-    RefundStatus,
     ReturnCreateItemRequest,
     ReturnCreateRequest,
-    ReturnResponse,
-    ReturnStatus,
-    ShipmentResponse,
     SupportTicketCategory,
     SupportTicketCreateRequest,
-    SupportTicketResponse,
-    SupportTicketStatus,
-    WriteRefundResponse,
 )
 
 DispatchCallable = Callable[
@@ -195,27 +193,45 @@ class ActionExecutor:
                     resource_id=None,
                 )
 
-            if not _response_matches_proposal(record, proposal, result.response):
+            resource_id = _result_resource_id(record.action_type, result.response)
+            await self._transitions.record_execution_commerce_response(
+                record.id,
+                record.tenant_id,
+                record.proposal_fingerprint,
+                lease_owner,
+                status_code=result.status_code,
+                resource_id=resource_id,
+            )
+            try:
+                read_back = await self._read_back(record, proposal, result)
+                verification = verify_postcondition(record, result, read_back)
+            except CommerceError:
+                verification = VerificationResult(
+                    VerificationStatus.UNAVAILABLE, None, "read_back_unavailable"
+                )
+            if verification.status is VerificationStatus.VERIFIED:
                 return await self._record_outcome(
                     record,
                     lease_owner,
-                    target_state=ActionState.UNRESOLVED,
-                    event_type=ActionEventType.UNRESOLVED,
-                    reason_code="contradictory_write_response",
+                    target_state=ActionState.SUCCEEDED,
+                    event_type=ActionEventType.VERIFICATION_SUCCEEDED,
+                    reason_code="verified",
                     status_code=result.status_code,
                     error_code=None,
-                    resource_id=None,
+                    resource_id=resource_id,
+                    verified_resource_id=verification.verified_resource_id,
+                    verification_status=verification.status.value,
                 )
-            resource_id = _result_resource_id(record.action_type, result.response)
             return await self._record_outcome(
                 record,
                 lease_owner,
                 target_state=ActionState.UNRESOLVED,
                 event_type=ActionEventType.UNRESOLVED,
-                reason_code="verification_required",
+                reason_code=verification.reason_code,
                 status_code=result.status_code,
                 error_code=None,
                 resource_id=resource_id,
+                verification_status=verification.status.value,
             )
         raise RuntimeError("bounded write attempt loop ended unexpectedly")
 
@@ -230,6 +246,8 @@ class ActionExecutor:
         status_code: int | None,
         error_code: str | None,
         resource_id: UUID | None,
+        verified_resource_id: UUID | None = None,
+        verification_status: str | None = None,
     ) -> ActionRequestRecord:
         return await self._transitions.record_execution_outcome(
             record.id,
@@ -242,7 +260,31 @@ class ActionExecutor:
             status_code=status_code,
             error_code=error_code,
             resource_id=resource_id,
+            verified_resource_id=verified_resource_id,
+            verification_status=verification_status,
         )
+
+    async def _read_back(
+        self,
+        record: ActionRequestRecord,
+        proposal: ActionProposal,
+        result: CommerceWriteResult[Any],
+    ) -> object:
+        if isinstance(proposal, CancelOrderProposal):
+            order = await self._commerce.get_order(proposal.order_id, record.customer_id)
+            shipment = None
+            if result.response.shipment is not None:
+                shipment = await self._commerce.get_shipment(proposal.order_id, record.customer_id)
+            return OrderShipmentReadBack(order=order, shipment=shipment)
+        if isinstance(proposal, RescheduleDeliveryProposal):
+            return await self._commerce.get_shipment(proposal.order_id, record.customer_id)
+        if isinstance(proposal, ReturnProposal):
+            return await self._commerce.get_return(result.response.id, record.customer_id)
+        if isinstance(proposal, SupportTicketProposal):
+            return await self._commerce.get_support_ticket(result.response.id, record.customer_id)
+        if isinstance(proposal, RefundProposal):
+            return await self._commerce.get_refunds(proposal.order_id, record.customer_id)
+        raise TypeError("stored action type and proposal payload disagree")
 
     async def _cancel(
         self, record: ActionRequestRecord, proposal: ActionProposal
@@ -341,71 +383,6 @@ def _record_gates_satisfied(record: ActionRequestRecord) -> bool:
             and record.supervisor_approval_fingerprint == record.proposal_fingerprint
         )
     return True
-
-
-def _response_matches_proposal(
-    record: ActionRequestRecord,
-    proposal: ActionProposal,
-    response: object,
-) -> bool:
-    if isinstance(proposal, CancelOrderProposal):
-        return (
-            isinstance(response, CancelOrderResponse)
-            and response.order.id == proposal.order_id
-            and response.order.customer_id == record.customer_id
-            and response.order.status.value == "cancelled"
-            and (
-                response.shipment is None
-                or (
-                    response.shipment.order_id == proposal.order_id
-                    and response.shipment.status.value == "cancelled"
-                )
-            )
-        )
-    if isinstance(proposal, RescheduleDeliveryProposal):
-        return (
-            isinstance(response, ShipmentResponse)
-            and isinstance(response.id, UUID)
-            and response.order_id == proposal.order_id
-            and response.delivery_slot_id == proposal.delivery_slot_id
-        )
-    if isinstance(proposal, ReturnProposal):
-        if not isinstance(response, ReturnResponse):
-            return False
-        expected = {item.order_item_id: item.quantity for item in proposal.items}
-        actual = {item.order_item_id: item.quantity for item in response.items}
-        return (
-            isinstance(response.id, UUID)
-            and response.order_id == proposal.order_id
-            and response.reason == proposal.reason
-            and response.status.value == ReturnStatus.REQUESTED.value
-            and actual == expected
-        )
-    if isinstance(proposal, SupportTicketProposal):
-        if not isinstance(response, SupportTicketResponse):
-            return False
-        return (
-            isinstance(response.id, UUID)
-            and response.customer_id == record.customer_id
-            and response.order_id == proposal.order_id
-            and response.category.value == proposal.category.value
-            and response.subject == proposal.subject
-            and response.description == proposal.description
-            and response.status.value == SupportTicketStatus.OPEN.value
-        )
-    if isinstance(proposal, RefundProposal):
-        if not isinstance(response, WriteRefundResponse):
-            return False
-        amount = response.amount
-        return (
-            isinstance(response.id, UUID)
-            and isinstance(amount, Decimal)
-            and amount == proposal.amount
-            and response.reason == proposal.reason
-            and response.status is RefundStatus.APPROVED
-            and response.requires_manual_approval is False
-        )
-    return False
 
 
 def _result_resource_id(action_type: ActionType, response: object) -> UUID | None:

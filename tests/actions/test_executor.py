@@ -73,6 +73,18 @@ class FakeTransitions:
         self.record.commerce_status_code = kwargs.get("status_code")
         self.record.commerce_error_code = kwargs.get("error_code")
         self.record.commerce_resource_id = kwargs.get("resource_id")
+        self.record.verified_resource_id = kwargs.get("verified_resource_id")
+        self.record.verification_status = kwargs.get("verification_status")
+        self.network_transaction_open = False
+        return self.record
+
+    async def record_execution_commerce_response(
+        self, *_args: object, **kwargs: object
+    ) -> SimpleNamespace:
+        self.calls.append(("commerce_response", kwargs))
+        self.network_transaction_open = True
+        self.record.commerce_status_code = kwargs["status_code"]
+        self.record.commerce_resource_id = kwargs["resource_id"]
         self.network_transaction_open = False
         return self.record
 
@@ -87,6 +99,9 @@ class ScriptedCommerce:
         self.transitions = transitions
         self.outcomes = list(outcomes)
         self.calls: list[tuple[str, tuple[object, ...], dict[str, object]]] = []
+        self.read_calls: list[tuple[str, tuple[object, ...]]] = []
+        self.read_outcomes: dict[str, list[object]] = {}
+        self.last_result: object | None = None
 
     async def cancel_order(self, *args: object, **kwargs: object) -> object:
         assert not self.transitions.network_transaction_open
@@ -94,7 +109,31 @@ class ScriptedCommerce:
         result = self.outcomes.pop(0)
         if isinstance(result, BaseException):
             raise result
+        self.last_result = result
         return result
+
+    async def get_order(self, *args: object) -> object:
+        return await self._read("get_order", args, "order")
+
+    async def get_shipment(self, *args: object) -> object:
+        return await self._read("get_shipment", args, "shipment")
+
+    async def _read(self, name: str, args: tuple[object, ...], field: str) -> object:
+        assert not self.transitions.network_transaction_open
+        self.read_calls.append((name, args))
+        scripted = self.read_outcomes.get(name, [])
+        outcome = (
+            scripted.pop(0)
+            if scripted
+            else getattr(getattr(self.last_result, "response", None), field, None)
+        )
+        if isinstance(outcome, BaseException):
+            raise outcome
+        if outcome is None:
+            from verbaops.commerce.errors import CommerceNotFoundError
+
+            raise CommerceNotFoundError()
+        return outcome
 
 
 def action_record(
@@ -195,7 +234,8 @@ async def test_proven_pre_dispatch_retry_reuses_the_stored_idempotency_key() -> 
     assert len(commerce.calls) == 2
     assert commerce.calls[0][1:] == commerce.calls[1][1:]
     assert commerce.calls[0][1][2] == action.idempotency_key
-    assert result.state is ActionState.UNRESOLVED  # exact read-back is added in M6D.2
+    assert result.state is ActionState.SUCCEEDED
+    assert [call[0] for call in commerce.read_calls] == ["get_order"]
 
 
 @pytest.mark.asyncio
@@ -223,6 +263,7 @@ async def test_post_dispatch_timeout_becomes_unresolved_without_automatic_replay
 
     assert result.state is ActionState.UNRESOLVED
     assert len(commerce.calls) == 1
+    assert commerce.read_calls == []
     assert transitions.calls[-1][1]["target_state"] is ActionState.UNRESOLVED
 
 
@@ -237,18 +278,20 @@ async def test_contradictory_success_response_is_unresolved_not_succeeded() -> N
 
     assert result.state is ActionState.UNRESOLVED
     assert len(commerce.calls) == 1
+    assert [call[0] for call in commerce.read_calls] == ["get_order"]
 
 
 @pytest.mark.asyncio
 async def test_cancel_response_with_non_cancelled_shipment_is_unresolved() -> None:
     action = action_record()
-    executor, _transitions, _commerce, _ = executor_for(
+    executor, _transitions, commerce, _ = executor_for(
         [cancel_result(action, shipment_status="in_transit")], record=action
     )
 
     result = await executor.execute_ready(action.id)
 
     assert result.state is ActionState.UNRESOLVED
+    assert [call[0] for call in commerce.read_calls] == ["get_order", "get_shipment"]
 
 
 @pytest.mark.asyncio
@@ -295,12 +338,27 @@ async def test_two_execution_calls_cannot_dispatch_twice() -> None:
     action = action_record()
     executor, _transitions, commerce, _ = executor_for([cancel_result(action)], record=action)
 
-    await asyncio.gather(
+    results = await asyncio.gather(
         executor.execute_ready(action.id),
         executor.execute_ready(action.id),
     )
 
     assert len(commerce.calls) == 1
+    assert any(result.state is ActionState.SUCCEEDED for result in results)
+
+
+@pytest.mark.asyncio
+async def test_readback_unavailable_is_unresolved_and_persists_verification_status() -> None:
+    action = action_record()
+    executor, transitions, commerce, _ = executor_for([cancel_result(action)], record=action)
+    from verbaops.commerce.errors import CommerceUnavailableError
+
+    commerce.read_outcomes["get_order"] = [CommerceUnavailableError()]
+
+    result = await executor.execute_ready(action.id)
+
+    assert result.state is ActionState.UNRESOLVED
+    assert transitions.calls[-1][1]["verification_status"] == "unavailable"
 
 
 @pytest.mark.asyncio

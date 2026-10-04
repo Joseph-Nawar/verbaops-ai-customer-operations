@@ -182,6 +182,15 @@ class ActionExecutionClaim:
     claimed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ActionReconciliationClaim:
+    """Result of the locked unresolved-action reconciliation claim."""
+
+    record: ActionRequestRecord
+    lease_owner: UUID | None
+    claimed: bool
+
+
 def validate_action_transition(current: ActionState, target: ActionState) -> None:
     """Reject any lifecycle edge not explicitly approved for Stage 6."""
 
@@ -273,8 +282,10 @@ async def _transition_locked(
     policy_decision: PolicyDecision | None = None,
     verified_resource_id: UUID | None = None,
     execution_lease: tuple[UUID, datetime] | None = None,
+    reconciliation_lease: tuple[UUID, datetime] | None = None,
     clear_execution_lease: bool = False,
     commerce_outcome: tuple[int | None, str | None, UUID | None] | None = None,
+    verification_status: str | None = None,
     now: datetime | None = None,
 ) -> tuple[ActionRequest, bool]:
     """Apply the one authoritative row-and-event mutation inside a caller transaction."""
@@ -404,6 +415,20 @@ async def _transition_locked(
                 "execution_lease_expires_at": lease_expires_at,
             }
         )
+    if reconciliation_lease is not None and not expired_before_target:
+        if current is not ActionState.UNRESOLVED or target_state is not ActionState.UNRESOLVED:
+            raise InvalidActionTransitionError(
+                "reconciliation leases require an unresolved action claim"
+            )
+        lease_owner, lease_expires_at = reconciliation_lease
+        if lease_expires_at <= observed_at:
+            raise ValueError("reconciliation lease expiry must be in the future")
+        values.update(
+            {
+                "execution_lease_owner": lease_owner,
+                "execution_lease_expires_at": lease_expires_at,
+            }
+        )
     elif clear_execution_lease:
         values.update(
             {
@@ -422,6 +447,15 @@ async def _transition_locked(
                 "commerce_status_code": status_code,
                 "commerce_error_code": error_code,
                 "commerce_resource_id": resource_id,
+            }
+        )
+    if verification_status is not None:
+        if verification_status not in {"verified", "mismatched", "unavailable"}:
+            raise ValueError("verification status is outside the bounded allowlist")
+        values.update(
+            {
+                "verification_status": verification_status,
+                "verified_at": observed_at,
             }
         )
     if target_state is ActionState.SUCCEEDED:
@@ -565,6 +599,23 @@ class ActionTransitionService:
                 raise ActionRequestNotFoundError("action request not found")
             return action_request_record(request)
 
+    async def get_scoped(
+        self, action_request_id: UUID, tenant_id: UUID, customer_id: UUID
+    ) -> ActionRequestRecord:
+        """Load an action only inside its trusted tenant and customer scope."""
+
+        async with self._session_factory() as session:
+            request = await session.scalar(
+                select(ActionRequest).where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                    ActionRequest.customer_id == customer_id,
+                )
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in customer scope")
+            return action_request_record(request)
+
     async def claim_execution(
         self,
         action_request_id: UUID,
@@ -630,6 +681,8 @@ class ActionTransitionService:
         status_code: int | None,
         error_code: str | None,
         resource_id: UUID | None,
+        verified_resource_id: UUID | None = None,
+        verification_status: str | None = None,
     ) -> ActionRequestRecord:
         """Persist one bounded Commerce result through the lifecycle mutator."""
 
@@ -659,12 +712,167 @@ class ActionTransitionService:
                 actor_id=None,
                 event_type=event_type,
                 reason_code=reason_code,
+                verified_resource_id=verified_resource_id,
                 clear_execution_lease=True,
                 commerce_outcome=(status_code, error_code, resource_id),
+                verification_status=verification_status,
             )
             record = action_request_record(request)
         if record is None:
             raise RuntimeError("execution outcome did not produce a request record")
+        return record
+
+    async def record_execution_commerce_response(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        expected_fingerprint: str,
+        lease_owner: UUID,
+        *,
+        status_code: int,
+        resource_id: UUID | None,
+    ) -> ActionRequestRecord:
+        """Commit bounded write metadata while retaining the execution lease."""
+
+        record: ActionRequestRecord | None = None
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in tenant scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if (
+                ActionState(request.state) is not ActionState.EXECUTING
+                or request.execution_lease_owner != lease_owner
+            ):
+                raise ConcurrentActionUpdateError("execution lease no longer owns this action")
+            request, _expired = await _transition_locked(
+                session,
+                request,
+                target_state=ActionState.EXECUTING,
+                actor_id=None,
+                event_type=ActionEventType.COMMERCE_RESPONSE,
+                reason_code="write_response_received",
+                commerce_outcome=(status_code, None, resource_id),
+            )
+            record = action_request_record(request)
+        if record is None:
+            raise RuntimeError("Commerce response event did not produce a request record")
+        return record
+
+    async def claim_reconciliation(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        customer_id: UUID,
+        expected_fingerprint: str,
+        *,
+        lease_seconds: int = 120,
+    ) -> ActionReconciliationClaim:
+        """Claim an unresolved action under its row lock before read-back or replay."""
+
+        if lease_seconds < 1 or lease_seconds > 600:
+            raise ValueError("reconciliation lease must be between 1 and 600 seconds")
+        claim: ActionReconciliationClaim | None = None
+        now = datetime.now(UTC)
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                    ActionRequest.customer_id == customer_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in customer scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if ActionState(request.state) is not ActionState.UNRESOLVED or (
+                request.execution_lease_owner is not None
+                and request.execution_lease_expires_at is not None
+                and request.execution_lease_expires_at > now
+            ):
+                claim = ActionReconciliationClaim(action_request_record(request), None, False)
+            else:
+                lease_owner = uuid4()
+                request, _expired = await _transition_locked(
+                    session,
+                    request,
+                    target_state=ActionState.UNRESOLVED,
+                    actor_id=None,
+                    event_type=ActionEventType.UNRESOLVED,
+                    reason_code="reconciliation_claimed",
+                    reconciliation_lease=(lease_owner, now + timedelta(seconds=lease_seconds)),
+                    now=now,
+                )
+                claim = ActionReconciliationClaim(action_request_record(request), lease_owner, True)
+        if claim is None:
+            raise RuntimeError("reconciliation claim did not produce a result")
+        return claim
+
+    async def record_reconciliation_outcome(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        customer_id: UUID,
+        expected_fingerprint: str,
+        lease_owner: UUID,
+        *,
+        target_state: ActionState,
+        event_type: ActionEventType,
+        reason_code: str | None,
+        status_code: int | None,
+        error_code: str | None,
+        resource_id: UUID | None,
+        verified_resource_id: UUID | None = None,
+        verification_status: str | None = None,
+    ) -> ActionRequestRecord:
+        """Persist one claimed reconciliation result through the authoritative mutator."""
+
+        record: ActionRequestRecord | None = None
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                    ActionRequest.customer_id == customer_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in customer scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if (
+                ActionState(request.state) is not ActionState.UNRESOLVED
+                or request.execution_lease_owner != lease_owner
+            ):
+                raise ConcurrentActionUpdateError("reconciliation lease no longer owns this action")
+            request, _expired = await _transition_locked(
+                session,
+                request,
+                target_state=target_state,
+                actor_id=None,
+                event_type=event_type,
+                reason_code=reason_code,
+                verified_resource_id=verified_resource_id,
+                clear_execution_lease=True,
+                commerce_outcome=(status_code, error_code, resource_id),
+                verification_status=verification_status,
+            )
+            record = action_request_record(request)
+        if record is None:
+            raise RuntimeError("reconciliation outcome did not produce a request record")
         return record
 
     async def transition(
