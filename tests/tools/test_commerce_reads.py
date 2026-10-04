@@ -1,38 +1,61 @@
 """Tests for normalized read handlers and trusted execution context."""
 
 from datetime import date
-from uuid import uuid4
+from typing import Any
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
 from pydantic import SecretStr
 
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
+from verbaops.commerce.errors import CommerceNotFoundError
 from verbaops.config import CommerceSettings
-from verbaops.tools.commerce_reads import (
-    get_order_status,
-    get_refund_status,
-    get_shipment_status,
-    list_delivery_slots,
-    search_products,
-)
 from verbaops.tools.models import (
     GetOrderStatusInput,
     GetRefundStatusInput,
     GetShipmentStatusInput,
     ListDeliverySlotsInput,
     SearchProductsInput,
-    ToolExecutionContext,
+)
+from verbaops.tools.stage6_commerce_reads import (
+    get_order_status,
+    get_refund_status,
+    get_shipment_status,
+    list_delivery_slots,
+    search_products,
+)
+from verbaops.tools.stage6_models import (
+    MissingTrustedCustomerContextError,
+    Stage6ToolExecutionContext,
 )
 
+TENANT_ID = UUID("10000000-0000-0000-0000-000000000002")
 
-def make_client(handler: object) -> CommerceClient:
+
+def make_client(handler: object, *, tenant_id: UUID = TENANT_ID) -> CommerceClient:
     return CommerceClient(
         CommerceSettings(
             base_url="http://commerce.internal",
+            tenant_id=tenant_id,
             service_token=SecretStr("trusted-service-token"),
         ),
         httpx.AsyncClient(transport=httpx.MockTransport(handler)),  # type: ignore[arg-type]
+    )
+
+
+def execution_context(customer_id: UUID | None, *, tenant_id: UUID = TENANT_ID) -> Any:
+    return Stage6ToolExecutionContext(
+        trusted_context=TrustedContext(
+            tenant_id=tenant_id,
+            principal_id=uuid4(),
+            customer_id=customer_id,
+            roles=frozenset({Role.CUSTOMER}),
+        ),
+        conversation_id=uuid4(),
+        agent_run_id=uuid4(),
+        tool_invocation_id=uuid4(),
     )
 
 
@@ -58,7 +81,7 @@ async def test_order_handler_uses_trusted_customer_context_and_normalizes_output
 
     result = await get_order_status(
         GetOrderStatusInput(order_id=order_id),
-        ToolExecutionContext(customer_id=customer_id),
+        execution_context(customer_id),
         make_client(handler),
     )
 
@@ -122,7 +145,7 @@ async def test_other_read_handlers_return_typed_normalized_outputs() -> None:
         )
 
     client = make_client(handler)
-    context = ToolExecutionContext(customer_id=uuid4())
+    context = execution_context(uuid4())
     shipment = await get_shipment_status(GetShipmentStatusInput(order_id=order_id), context, client)
     refunds = await get_refund_status(GetRefundStatusInput(order_id=order_id), context, client)
     products = await search_products(SearchProductsInput(query="phone", limit=1), context, client)
@@ -139,3 +162,54 @@ async def test_other_read_handlers_return_typed_normalized_outputs() -> None:
     assert refunds.refunds[0].amount == "0004.500"
     assert products.items == ()
     assert slots.slots[0].available is True
+
+
+@pytest.mark.asyncio
+async def test_customer_read_fails_closed_without_trusted_customer_binding() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={})
+
+    with pytest.raises(MissingTrustedCustomerContextError):
+        await get_order_status(
+            GetOrderStatusInput(order_id=uuid4()),
+            execution_context(None),
+            make_client(handler),
+        )
+
+    assert requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("handler", "input_data"),
+    [
+        (get_order_status, GetOrderStatusInput(order_id=uuid4())),
+        (get_shipment_status, GetShipmentStatusInput(order_id=uuid4())),
+        (get_refund_status, GetRefundStatusInput(order_id=uuid4())),
+        (search_products, SearchProductsInput(query="phone", limit=1)),
+        (
+            list_delivery_slots,
+            ListDeliverySlotsInput(date_from=date(2026, 8, 25), date_to=date(2026, 8, 25)),
+        ),
+    ],
+)
+async def test_stage6_read_handlers_reject_wrong_tenant_before_commerce_request(
+    handler: Any, input_data: Any
+) -> None:
+    requests: list[httpx.Request] = []
+
+    def transport(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={})
+
+    context = execution_context(uuid4(), tenant_id=uuid4())
+    client = make_client(transport)
+
+    with pytest.raises(CommerceNotFoundError):
+        await handler(input_data, context, client)
+
+    assert requests == []
+    await client._http_client.aclose()

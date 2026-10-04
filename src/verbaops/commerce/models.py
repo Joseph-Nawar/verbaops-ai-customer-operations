@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import ClassVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class CommerceModel(BaseModel):
@@ -125,3 +125,16 @@ class DeliverySlotResponse(CommerceModel):
     reserved_count: int
     remaining_capacity: int
     available: bool
+
+
+class TenantCurrencyResponse(CommerceModel):
+    """Canonical trusted currency configured by the Commerce tenant."""
+
+    currency_code: str
+
+    @field_validator("currency_code")
+    @classmethod
+    def require_uppercase_currency_code(cls, value: str) -> str:
+        if len(value) != 3 or not value.isascii() or not value.isalpha() or value != value.upper():
+            raise ValueError("currency code must be three uppercase letters")
+        return value

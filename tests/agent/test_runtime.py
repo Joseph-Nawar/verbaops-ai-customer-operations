@@ -4,6 +4,7 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -22,6 +23,7 @@ from verbaops.agent.versions import (
     PROMPT_VERSION,
     TOOL_SCHEMA_VERSION,
 )
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.config import CommerceSettings
 from verbaops.conversations.domain import (
@@ -100,6 +102,25 @@ class RecordingConversationService:
     async def append_tool_invocation(self, *args: Any, **kwargs: Any) -> Any:
         self.tool_calls.append({"args": args, "kwargs": kwargs})
         return None
+
+    async def begin_tool_invocation(self, *args: Any, **kwargs: Any) -> Any:
+        invocation_id = uuid4()
+        self.tool_calls.append(
+            {"id": invocation_id, "args": args, "kwargs": {**kwargs, "status": "proposed"}}
+        )
+        return SimpleNamespace(id=invocation_id)
+
+    async def complete_tool_invocation(
+        self,
+        _scope: ConversationScope,
+        _conversation_id: UUID,
+        _agent_run_id: UUID,
+        invocation_id: UUID,
+        **kwargs: Any,
+    ) -> Any:
+        record = next(item for item in self.tool_calls if item.get("id") == invocation_id)
+        record["kwargs"].update(kwargs)
+        return SimpleNamespace(id=invocation_id)
 
     async def complete_turn(
         self, _scope: ConversationScope, conversation_id: UUID, agent_run_id: UUID, content: str
@@ -196,6 +217,18 @@ def scope() -> ConversationScope:
     return ConversationScope(tenant_id=uuid4(), principal_id=uuid4())
 
 
+def trusted_context(
+    value: ConversationScope | None = None, customer_id: UUID | None = None
+) -> TrustedContext:
+    current_scope = value or scope()
+    return TrustedContext(
+        tenant_id=current_scope.tenant_id,
+        principal_id=current_scope.principal_id,
+        customer_id=customer_id if customer_id is not None else uuid4(),
+        roles=frozenset({Role.CUSTOMER}),
+    )
+
+
 @pytest.mark.asyncio
 async def test_two_turn_clarification_then_shipment_lookup_persists_lifecycle() -> None:
     order_id = uuid4()
@@ -232,8 +265,10 @@ async def test_two_turn_clarification_then_shipment_lookup_persists_lifecycle() 
     conversation_id = uuid4()
     current_scope = scope()
 
-    first = await runtime.run_turn(current_scope, conversation_id, uuid4(), "Where is my order?")
-    second = await runtime.run_turn(current_scope, conversation_id, uuid4(), str(order_id))
+    first = await runtime.run_turn(
+        trusted_context(current_scope), conversation_id, "Where is my order?"
+    )
+    second = await runtime.run_turn(trusted_context(current_scope), conversation_id, str(order_id))
 
     assert isinstance(first, AgentTurnResult)
     assert first.content == "Please provide your order ID."
@@ -267,7 +302,7 @@ async def test_runtime_bounds_only_initial_persisted_visible_history() -> None:
         graph=graph,
     )
 
-    await runtime.run_turn(scope(), uuid4(), uuid4(), "current message")
+    await runtime.run_turn(trusted_context(), uuid4(), "current message")
 
     assert graph.initial_state is not None
     messages = graph.initial_state["messages"]
@@ -319,7 +354,7 @@ async def test_p4_runtime_writes_terminal_diagnostics_only_to_explicit_run_sidec
         p4_trace_store=trace_store,
     )
 
-    result = await runtime.run_turn(scope(), uuid4(), uuid4(), "What is the policy?")
+    result = await runtime.run_turn(trusted_context(), uuid4(), "What is the policy?")
 
     artifact = trace_store.read(result.agent_run_id)
     assert artifact.payload["agent_run_id"] == str(result.agent_run_id)
@@ -369,7 +404,7 @@ async def test_p5_runtime_writes_p5_projected_trace_to_explicit_run_sidecar(
         p5_trace_store=trace_store,
     )
 
-    result = await runtime.run_turn(scope(), uuid4(), uuid4(), "What is the policy?")
+    result = await runtime.run_turn(trusted_context(), uuid4(), "What is the policy?")
 
     artifact = trace_store.read(result.agent_run_id)
     assert artifact.payload["candidate"] == "P5"
@@ -384,7 +419,7 @@ async def test_run_turn_rejects_invalid_user_content_before_persistence(content:
     runtime = make_runtime(service, ScriptedLLMClient([response("unused")]))
 
     with pytest.raises(AgentInputError):
-        await runtime.run_turn(scope(), uuid4(), uuid4(), content)
+        await runtime.run_turn(trusted_context(), uuid4(), content)
 
     assert service.start_calls == []
 
@@ -395,7 +430,7 @@ async def test_busy_conversation_maps_to_agent_busy_without_failure_write() -> N
     runtime = make_runtime(service, ScriptedLLMClient([]))
 
     with pytest.raises(AgentBusyError):
-        await runtime.run_turn(scope(), uuid4(), uuid4(), "Hello")
+        await runtime.run_turn(trusted_context(), uuid4(), "Hello")
 
     assert service.failed == []
 
@@ -411,7 +446,7 @@ async def test_llm_failure_fails_run_without_fabricated_assistant_message() -> N
     runtime = make_runtime(service, FailingLLM([]))
 
     with pytest.raises(AgentUnavailableError):
-        await runtime.run_turn(scope(), uuid4(), uuid4(), "Where is my order?")
+        await runtime.run_turn(trusted_context(), uuid4(), "Where is my order?")
 
     assert service.completed == []
     assert len(service.failed) == 1
@@ -430,7 +465,7 @@ async def test_deadline_fails_run_while_external_call_is_slow() -> None:
     runtime = make_runtime(service, SlowLLM([]), deadline_seconds=0.001)
 
     with pytest.raises(AgentUnavailableError):
-        await runtime.run_turn(scope(), uuid4(), uuid4(), "Hello")
+        await runtime.run_turn(trusted_context(), uuid4(), "Hello")
 
     assert service.completed == []
     assert service.failed[0][1] == "agent_unavailable"

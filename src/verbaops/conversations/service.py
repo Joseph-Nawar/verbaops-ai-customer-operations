@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -153,6 +153,56 @@ class ConversationService:
                 latency_ms=latency_ms,
                 error_code=error_code,
                 completed_at=completed_at,
+            )
+
+    async def begin_tool_invocation(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        *,
+        tool_call_id: str,
+        tool_name: str,
+        risk_level: str,
+        arguments: dict[str, Any],
+    ) -> ToolInvocationRecord:
+        """Create the durable origin record before a validated tool executes."""
+
+        async with self._session_factory() as session, session.begin():
+            return await ConversationRepository(session).begin_tool_invocation(
+                scope,
+                conversation_id,
+                agent_run_id,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                risk_level=risk_level,
+                arguments=arguments,
+            )
+
+    async def complete_tool_invocation(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        agent_run_id: UUID,
+        invocation_id: UUID,
+        *,
+        status: Literal["succeeded", "failed"],
+        result: Any,
+        latency_ms: float,
+        error_code: str | None = None,
+    ) -> ToolInvocationRecord:
+        """Finalize the exact durable invocation after handler execution."""
+
+        async with self._session_factory() as session, session.begin():
+            return await ConversationRepository(session).complete_tool_invocation(
+                scope,
+                conversation_id,
+                agent_run_id,
+                invocation_id,
+                status=status,
+                result=result,
+                latency_ms=latency_ms,
+                error_code=error_code,
             )
 
     async def complete_turn(

@@ -10,8 +10,8 @@ from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import AgentProtocolError
 from verbaops.agent.graph import build_agent_graph
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
-from verbaops.conversations.domain import ConversationScope
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.models import (
     CapabilityAlias,
@@ -34,8 +34,12 @@ def make_context(llm_client: ScriptedLLMClient) -> AgentContext:
     return AgentContext(
         conversation_id=uuid4(),
         agent_run_id=uuid4(),
-        scope=ConversationScope(tenant_id=uuid4(), principal_id=uuid4()),
-        customer_id=uuid4(),
+        trusted_context=TrustedContext(
+            tenant_id=uuid4(),
+            principal_id=uuid4(),
+            customer_id=uuid4(),
+            roles=frozenset({Role.CUSTOMER}),
+        ),
         llm_client=llm_client,
         commerce_client=cast(CommerceClient, object()),
         tool_registry=build_commerce_read_registry(),
@@ -171,8 +175,7 @@ async def test_successful_model_call_persists_normalized_metadata() -> None:
     context = AgentContext(
         conversation_id=context.conversation_id,
         agent_run_id=context.agent_run_id,
-        scope=context.scope,
-        customer_id=context.customer_id,
+        trusted_context=context.trusted_context,
         llm_client=llm,
         commerce_client=context.commerce_client,
         tool_registry=context.tool_registry,

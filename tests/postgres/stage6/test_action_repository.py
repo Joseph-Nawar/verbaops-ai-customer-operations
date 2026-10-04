@@ -9,7 +9,17 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 from tests.postgres.stage6.conftest import Stage6ActionContext, seed_stage6_action_context
 
-from verbaops.actions.models import ActionState, CancelOrderProposal, RefundProposal
+from verbaops.actions.models import (
+    ActionProposal,
+    ActionState,
+    CancelOrderProposal,
+    RefundProposal,
+    RescheduleDeliveryProposal,
+    ReturnItemProposal,
+    ReturnProposal,
+    SupportTicketProposal,
+    TicketCategory,
+)
 from verbaops.actions.persistence import ActionEvent, ActionRequest
 from verbaops.actions.policy import PolicyDecision
 from verbaops.actions.repository import (
@@ -46,13 +56,16 @@ async def _create(
     order_id: UUID | None = None,
     fingerprint: str = "a" * 64,
     expires_at: datetime | None = None,
+    proposal: ActionProposal | None = None,
 ) -> tuple[ActionRequestRecord, bool]:
     return await repository.create_or_get(
         trusted_context=context.trusted_context,
         conversation_id=context.conversation_id,
         agent_run_id=context.agent_run_id,
         tool_invocation_id=context.tool_invocation_ids[invocation_index],
-        proposal=CancelOrderProposal(order_id=order_id or uuid4()),
+        proposal=(
+            proposal if proposal is not None else CancelOrderProposal(order_id=order_id or uuid4())
+        ),
         proposal_fingerprint=fingerprint,
         expires_at=expires_at or datetime.now(UTC) + timedelta(hours=24),
     )
@@ -303,6 +316,241 @@ async def test_changed_material_expires_only_matching_undispatched_request(
     assert changed.approval_required is False
 
 
+async def _make_confirmable(
+    service: ActionTransitionService,
+    action: ActionRequestRecord,
+    context: Stage6ActionContext,
+) -> None:
+    policy = PolicyDecision(
+        allowed=True,
+        reason_code="allowed",
+        confirmation_required=True,
+        approval_required=False,
+        policy_version="stage6-policy-v1",
+    )
+    await service.transition(
+        action.id,
+        context.trusted_context.tenant_id,
+        action.proposal_fingerprint,
+        ActionState.AWAITING_CONFIRMATION,
+        context.trusted_context.principal_id,
+        ActionEventType.POLICY_ALLOWED,
+        "allowed",
+        policy_decision=policy,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reschedule_slot_correction_supersedes_same_order_proposal(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context = await seed_stage6_action_context(postgres_engine)
+    repository = _repository(postgres_engine)
+    order_id, slot_x, slot_y = uuid4(), uuid4(), uuid4()
+    old, _ = await _create(
+        repository,
+        context,
+        invocation_index=0,
+        fingerprint="7" * 64,
+        proposal=RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_x),
+    )
+    await _make_confirmable(_service(postgres_engine), old, context)
+
+    corrected, created = await _create(
+        repository,
+        context,
+        invocation_index=1,
+        fingerprint="8" * 64,
+        proposal=RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_y),
+    )
+
+    assert created is True
+    assert corrected.id != old.id
+    assert corrected.proposal_fingerprint != old.proposal_fingerprint
+    assert corrected.target_ids == old.target_ids == (order_id,)
+    async with postgres_engine.connect() as connection:
+        old_state = await connection.scalar(
+            select(ActionRequest.state).where(ActionRequest.id == old.id)
+        )
+        old_expiry_reason = await connection.scalar(
+            select(ActionEvent.reason_code).where(
+                ActionEvent.action_request_id == old.id,
+                ActionEvent.event_type == ActionEventType.EXPIRED.value,
+            )
+        )
+        active_ids = (
+            await connection.scalars(
+                select(ActionRequest.id).where(
+                    ActionRequest.conversation_id == context.conversation_id,
+                    ActionRequest.action_type == "reschedule_delivery",
+                    ActionRequest.target_ids == [str(order_id)],
+                    ActionRequest.state.in_(
+                        [
+                            state.value
+                            for state in (
+                                ActionState.PROPOSED,
+                                ActionState.AWAITING_APPROVAL,
+                                ActionState.AWAITING_CONFIRMATION,
+                                ActionState.READY_TO_EXECUTE,
+                                ActionState.EXECUTING,
+                                ActionState.UNRESOLVED,
+                            )
+                        ]
+                    ),
+                )
+            )
+        ).all()
+    assert old_state == ActionState.EXPIRED.value
+    assert old_expiry_reason == "superseded"
+    assert active_ids == [corrected.id]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("material_change", ["return_item", "refund_amount"])
+async def test_return_and_refund_material_corrections_supersede_same_order(
+    postgres_engine: AsyncEngine,
+    material_change: str,
+) -> None:
+    context = await seed_stage6_action_context(postgres_engine)
+    repository = _repository(postgres_engine)
+    order_id, item_x, item_y = uuid4(), uuid4(), uuid4()
+    if material_change == "return_item":
+        original: ActionProposal = ReturnProposal(
+            order_id=order_id,
+            items=(ReturnItemProposal(order_item_id=item_x, quantity=1),),
+            reason="Wrong size",
+        )
+        corrected_proposal: ActionProposal = ReturnProposal(
+            order_id=order_id,
+            items=(ReturnItemProposal(order_item_id=item_y, quantity=1),),
+            reason="Wrong size",
+        )
+        expected_action_type = "initiate_return"
+    else:
+        original = RefundProposal(order_id=order_id, amount=Decimal("10.00"), reason="Duplicate")
+        corrected_proposal = RefundProposal(
+            order_id=order_id, amount=Decimal("20.00"), reason="Duplicate"
+        )
+        expected_action_type = "request_refund"
+    old, _ = await _create(
+        repository,
+        context,
+        invocation_index=0,
+        fingerprint="9" * 64,
+        proposal=original,
+    )
+    await _make_confirmable(_service(postgres_engine), old, context)
+
+    corrected, created = await _create(
+        repository,
+        context,
+        invocation_index=1,
+        fingerprint="a" * 64,
+        proposal=corrected_proposal,
+    )
+
+    assert created is True
+    assert corrected.id != old.id
+    assert corrected.target_ids == old.target_ids == (order_id,)
+    async with postgres_engine.connect() as connection:
+        old_state = await connection.scalar(
+            select(ActionRequest.state).where(ActionRequest.id == old.id)
+        )
+        expiry_reason = await connection.scalar(
+            select(ActionEvent.reason_code).where(
+                ActionEvent.action_request_id == old.id,
+                ActionEvent.event_type == ActionEventType.EXPIRED.value,
+            )
+        )
+        active_count = await connection.scalar(
+            select(func.count())
+            .select_from(ActionRequest)
+            .where(
+                ActionRequest.conversation_id == context.conversation_id,
+                ActionRequest.action_type == expected_action_type,
+                ActionRequest.target_ids == [str(order_id)],
+                ActionRequest.state.in_(
+                    [
+                        state.value
+                        for state in (
+                            ActionState.PROPOSED,
+                            ActionState.AWAITING_APPROVAL,
+                            ActionState.AWAITING_CONFIRMATION,
+                            ActionState.READY_TO_EXECUTE,
+                            ActionState.EXECUTING,
+                            ActionState.UNRESOLVED,
+                        )
+                    ]
+                ),
+            )
+        )
+    assert old_state == ActionState.EXPIRED.value
+    assert expiry_reason == "superseded"
+    assert active_count == 1
+
+
+@pytest.mark.asyncio
+async def test_changed_no_order_ticket_supersedes_prior_active_ticket(
+    postgres_engine: AsyncEngine,
+) -> None:
+    context = await seed_stage6_action_context(postgres_engine)
+    repository = _repository(postgres_engine)
+    old, _ = await _create(
+        repository,
+        context,
+        invocation_index=0,
+        fingerprint="b" * 64,
+        proposal=SupportTicketProposal(
+            order_id=None,
+            category=TicketCategory.OTHER,
+            subject="Account question",
+            description="I need help with my account.",
+        ),
+    )
+    await _make_confirmable(_service(postgres_engine), old, context)
+
+    corrected, created = await _create(
+        repository,
+        context,
+        invocation_index=1,
+        fingerprint="c" * 64,
+        proposal=SupportTicketProposal(
+            order_id=None,
+            category=TicketCategory.ACCOUNT,
+            subject="Updated account question",
+            description="Please correct the submitted details.",
+        ),
+    )
+
+    assert created is True
+    assert corrected.id != old.id
+    assert corrected.target_ids == old.target_ids == ()
+    assert old.state is not ActionState.EXPIRED
+    async with postgres_engine.connect() as connection:
+        old_state = await connection.scalar(
+            select(ActionRequest.state).where(ActionRequest.id == old.id)
+        )
+        expiry_reason = await connection.scalar(
+            select(ActionEvent.reason_code).where(
+                ActionEvent.action_request_id == old.id,
+                ActionEvent.event_type == ActionEventType.EXPIRED.value,
+            )
+        )
+        states = (
+            await connection.scalars(
+                select(ActionRequest.state)
+                .where(
+                    ActionRequest.conversation_id == context.conversation_id,
+                    ActionRequest.action_type == "create_support_ticket",
+                )
+                .order_by(ActionRequest.created_at, ActionRequest.id)
+            )
+        ).all()
+    assert old_state == ActionState.EXPIRED.value
+    assert expiry_reason == "superseded"
+    assert states == [ActionState.EXPIRED.value, ActionState.PROPOSED.value]
+
+
 @pytest.mark.asyncio
 async def test_different_targets_remain_independent(
     postgres_engine: AsyncEngine,
@@ -400,6 +648,74 @@ async def test_changed_proposal_does_not_supersede_dispatched_work(
             select(ActionRequest.state).where(ActionRequest.id == old.id)
         )
     assert current_state == ActionState.EXECUTING.value
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dispatched_state", [ActionState.EXECUTING, ActionState.UNRESOLVED])
+async def test_reschedule_correction_fails_closed_for_dispatched_order(
+    postgres_engine: AsyncEngine,
+    dispatched_state: ActionState,
+) -> None:
+    context = await seed_stage6_action_context(postgres_engine)
+    repository = _repository(postgres_engine)
+    service = _service(postgres_engine)
+    order_id, slot_x, slot_y = uuid4(), uuid4(), uuid4()
+    old, _ = await _create(
+        repository,
+        context,
+        invocation_index=0,
+        fingerprint="d" * 64,
+        proposal=RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_x),
+    )
+    await _make_confirmable(service, old, context)
+    await service.transition(
+        old.id,
+        context.trusted_context.tenant_id,
+        old.proposal_fingerprint,
+        ActionState.READY_TO_EXECUTE,
+        context.trusted_context.principal_id,
+        ActionEventType.CUSTOMER_CONFIRMED,
+        "confirmed",
+    )
+    await service.transition(
+        old.id,
+        context.trusted_context.tenant_id,
+        old.proposal_fingerprint,
+        ActionState.EXECUTING,
+        context.trusted_context.principal_id,
+        ActionEventType.EXECUTION_STARTED,
+        "execution_started",
+    )
+    if dispatched_state is ActionState.UNRESOLVED:
+        await service.transition(
+            old.id,
+            context.trusted_context.tenant_id,
+            old.proposal_fingerprint,
+            ActionState.UNRESOLVED,
+            context.trusted_context.principal_id,
+            ActionEventType.UNRESOLVED,
+            "write_outcome_unknown",
+        )
+
+    with pytest.raises(ActionInFlightError):
+        await _create(
+            repository,
+            context,
+            invocation_index=1,
+            fingerprint="e" * 64,
+            proposal=RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_y),
+        )
+
+    async with postgres_engine.connect() as connection:
+        states = (
+            await connection.scalars(
+                select(ActionRequest.state).where(
+                    ActionRequest.conversation_id == context.conversation_id,
+                    ActionRequest.action_type == "reschedule_delivery",
+                )
+            )
+        ).all()
+    assert states == [dispatched_state.value]
 
 
 @pytest.mark.asyncio

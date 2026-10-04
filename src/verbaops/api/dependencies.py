@@ -18,6 +18,7 @@ from verbaops.db.resources import DatabaseResources
 from verbaops.observability.context import bind_tenant_id
 
 if TYPE_CHECKING:
+    from verbaops.actions.proposals import ActionProposalService
     from verbaops.agent.runtime import AgentRuntime
     from verbaops.conversations.service import ConversationService
     from verbaops.knowledge.service import KnowledgeService
@@ -90,6 +91,15 @@ def get_agent_runtime(request: Request) -> "AgentRuntime":
     if resources.agent_runtime is None:
         raise RuntimeResourceUnavailableError("agent runtime is unavailable")
     return resources.agent_runtime
+
+
+def get_action_proposal_service(request: Request) -> "ActionProposalService":
+    """Retrieve the lifespan-owned M6C proposal orchestration service."""
+
+    resources = get_runtime_resources(request)
+    if resources.action_proposal_service is None:
+        raise RuntimeResourceUnavailableError("action proposal service is unavailable")
+    return resources.action_proposal_service
 
 
 def get_knowledge_service(request: Request) -> "KnowledgeService":

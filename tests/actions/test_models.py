@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
+from verbaops.actions import models as action_models
 from verbaops.actions.models import (
     ActionProposal,
     ActionState,
@@ -12,6 +13,7 @@ from verbaops.actions.models import (
     CancelOrderProposal,
     RefundProposal,
     RescheduleDeliveryProposal,
+    ReturnItemProposal,
     ReturnProposal,
     SupportTicketProposal,
     TicketCategory,
@@ -167,3 +169,69 @@ def test_action_types_are_a_closed_wire_contract() -> None:
         "create_support_ticket",
         "request_refund",
     }
+
+
+def test_proposal_target_ids_are_stable_business_resources() -> None:
+    order_id = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    alternate_order_id = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+    slot_id = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+    item_id = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
+    other_item_id = UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
+    cases = (
+        (RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_id), (order_id,)),
+        (CancelOrderProposal(order_id=order_id), (order_id,)),
+        (
+            ReturnProposal(
+                order_id=order_id,
+                items=(ReturnItemProposal(order_item_id=item_id, quantity=1),),
+                reason="Changed my mind",
+            ),
+            (order_id,),
+        ),
+        (
+            RefundProposal(order_id=order_id, amount=Decimal("10.00"), reason="Duplicate"),
+            (order_id,),
+        ),
+        (
+            SupportTicketProposal(
+                order_id=order_id,
+                category=TicketCategory.ORDER,
+                subject="Order question",
+                description="Please check this order.",
+            ),
+            (order_id,),
+        ),
+        (
+            SupportTicketProposal(
+                order_id=None,
+                category=TicketCategory.ORDER,
+                subject="General question",
+                description="Please help.",
+            ),
+            (),
+        ),
+    )
+
+    for proposal, expected in cases:
+        assert action_models.proposal_target_ids(proposal) == expected
+
+    reschedule_x = RescheduleDeliveryProposal(order_id=order_id, delivery_slot_id=slot_id)
+    reschedule_y = RescheduleDeliveryProposal(
+        order_id=order_id, delivery_slot_id=alternate_order_id
+    )
+    return_x = ReturnProposal(
+        order_id=order_id,
+        items=(ReturnItemProposal(order_item_id=item_id, quantity=1),),
+        reason="Changed my mind",
+    )
+    return_y = ReturnProposal(
+        order_id=order_id,
+        items=(ReturnItemProposal(order_item_id=other_item_id, quantity=1),),
+        reason="Changed my mind",
+    )
+    assert action_models.proposal_target_ids(reschedule_x) == action_models.proposal_target_ids(
+        reschedule_y
+    )
+    assert action_models.proposal_target_ids(return_x) == action_models.proposal_target_ids(
+        return_y
+    )

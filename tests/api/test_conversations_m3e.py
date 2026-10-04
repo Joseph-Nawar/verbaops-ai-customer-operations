@@ -102,12 +102,12 @@ class FakeConversationService:
 class FakeAgentRuntime:
     def __init__(self, result: AgentTurnResult | Exception) -> None:
         self.result = result
-        self.arguments: tuple[ConversationScope, UUID, UUID, str] | None = None
+        self.arguments: tuple[TrustedContext, UUID, str] | None = None
 
     async def run_turn(
-        self, scope: ConversationScope, conversation_id: UUID, customer_id: UUID, content: str
+        self, trusted_context: TrustedContext, conversation_id: UUID, content: str
     ) -> AgentTurnResult:
-        self.arguments = (scope, conversation_id, customer_id, content)
+        self.arguments = (trusted_context, conversation_id, content)
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -191,7 +191,7 @@ async def test_create_and_message_responses_use_trusted_identity_only(
         assert sent.json()["assistant_message"]["content"] == "Please provide your order ID."
         assert "tenant_id" not in sent.text
         assert runtime.arguments is not None
-        assert runtime.arguments[2] == trusted_context.customer_id
+        assert runtime.arguments[0] == trusted_context
     finally:
         app.dependency_overrides.clear()
 
