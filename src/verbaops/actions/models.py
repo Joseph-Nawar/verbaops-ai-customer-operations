@@ -1,5 +1,6 @@
 """Typed action proposals and lifecycle values."""
 
+import json
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -11,6 +12,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    TypeAdapter,
     field_validator,
     model_validator,
 )
@@ -153,6 +155,12 @@ type ActionProposal = Annotated[
     | RefundProposal,
     Field(discriminator="action_type"),
 ]
+
+
+def parse_action_proposal_payload(payload: dict[str, object]) -> ActionProposal:
+    """Parse the JSONB representation while preserving strict model validation."""
+
+    return TypeAdapter(ActionProposal).validate_json(json.dumps(payload))
 
 
 def proposal_target_ids(proposal: ActionProposal) -> tuple[UUID, ...]:

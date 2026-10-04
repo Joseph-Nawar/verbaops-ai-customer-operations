@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
@@ -173,6 +173,15 @@ class ActionRequestRecord:
     updated_at: datetime
 
 
+@dataclass(frozen=True, slots=True)
+class ActionExecutionClaim:
+    """Result of the locked ready-to-executing claim."""
+
+    record: ActionRequestRecord
+    lease_owner: UUID | None
+    claimed: bool
+
+
 def validate_action_transition(current: ActionState, target: ActionState) -> None:
     """Reject any lifecycle edge not explicitly approved for Stage 6."""
 
@@ -235,6 +244,24 @@ def action_request_record(request: ActionRequest) -> ActionRequestRecord:
     )
 
 
+def _execution_gates_satisfied(request: ActionRequest) -> bool:
+    """Refuse execution unless every durably required human gate is bound."""
+
+    if (
+        request.policy_allowed is not True
+        or request.confirmation_required is not True
+        or request.customer_confirmation_decision != "confirmed"
+        or request.customer_confirmation_fingerprint != request.proposal_fingerprint
+    ):
+        return False
+    if request.approval_required:
+        return (
+            request.supervisor_approval_decision == "approved"
+            and request.supervisor_approval_fingerprint == request.proposal_fingerprint
+        )
+    return True
+
+
 async def _transition_locked(
     session: AsyncSession,
     request: ActionRequest,
@@ -245,6 +272,9 @@ async def _transition_locked(
     reason_code: str | None,
     policy_decision: PolicyDecision | None = None,
     verified_resource_id: UUID | None = None,
+    execution_lease: tuple[UUID, datetime] | None = None,
+    clear_execution_lease: bool = False,
+    commerce_outcome: tuple[int | None, str | None, UUID | None] | None = None,
     now: datetime | None = None,
 ) -> tuple[ActionRequest, bool]:
     """Apply the one authoritative row-and-event mutation inside a caller transaction."""
@@ -261,6 +291,8 @@ async def _transition_locked(
         reason_code = "expired"
         policy_decision = None
         expired_before_target = True
+    elif current is target_state and event_type is ActionEventType.COMMERCE_RESPONSE:
+        pass
     else:
         validate_action_transition(current, target_state)
     if (
@@ -357,6 +389,39 @@ async def _transition_locked(
                 "policy_observed_at": observed_at,
                 "confirmation_required": policy_decision.confirmation_required,
                 "approval_required": policy_decision.approval_required,
+            }
+        )
+    if execution_lease is not None and not expired_before_target:
+        if current is not ActionState.READY_TO_EXECUTE or target_state is not ActionState.EXECUTING:
+            raise InvalidActionTransitionError("execution leases require a ready execution claim")
+        lease_owner, lease_expires_at = execution_lease
+        if lease_expires_at <= observed_at:
+            raise ValueError("execution lease expiry must be in the future")
+        values.update(
+            {
+                "execution_attempt_count": request.execution_attempt_count + 1,
+                "execution_lease_owner": lease_owner,
+                "execution_lease_expires_at": lease_expires_at,
+            }
+        )
+    elif clear_execution_lease:
+        values.update(
+            {
+                "execution_lease_owner": None,
+                "execution_lease_expires_at": None,
+            }
+        )
+    if commerce_outcome is not None:
+        status_code, error_code, resource_id = commerce_outcome
+        if status_code is not None and not 100 <= status_code <= 599:
+            raise ValueError("Commerce status code is outside the HTTP range")
+        if error_code is not None and not _REASON_CODE.fullmatch(error_code):
+            raise ValueError("Commerce error code is not a bounded safe code")
+        values.update(
+            {
+                "commerce_status_code": status_code,
+                "commerce_error_code": error_code,
+                "commerce_resource_id": resource_id,
             }
         )
     if target_state is ActionState.SUCCEEDED:
@@ -488,6 +553,119 @@ class ActionTransitionService:
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
+
+    async def get(self, action_request_id: UUID) -> ActionRequestRecord:
+        """Load an action by its opaque internal identifier."""
+
+        async with self._session_factory() as session:
+            request = await session.scalar(
+                select(ActionRequest).where(ActionRequest.id == action_request_id)
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found")
+            return action_request_record(request)
+
+    async def claim_execution(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        expected_fingerprint: str,
+        *,
+        lease_seconds: int = 120,
+    ) -> ActionExecutionClaim:
+        """Atomically claim a confirmed, policy-allowed request before Commerce I/O."""
+
+        if lease_seconds < 1 or lease_seconds > 600:
+            raise ValueError("execution lease must be between 1 and 600 seconds")
+        claim: ActionExecutionClaim | None = None
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in tenant scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if ActionState(
+                request.state
+            ) is not ActionState.READY_TO_EXECUTE or not _execution_gates_satisfied(request):
+                claim = ActionExecutionClaim(action_request_record(request), None, False)
+            else:
+                lease_owner = uuid4()
+                lease_expiry = datetime.now(UTC) + timedelta(seconds=lease_seconds)
+                request, expired = await _transition_locked(
+                    session,
+                    request,
+                    target_state=ActionState.EXECUTING,
+                    actor_id=None,
+                    event_type=ActionEventType.EXECUTION_STARTED,
+                    reason_code=None,
+                    execution_lease=(lease_owner, lease_expiry),
+                )
+                claimed = not expired and ActionState(request.state) is ActionState.EXECUTING
+                claim = ActionExecutionClaim(
+                    action_request_record(request),
+                    lease_owner if claimed else None,
+                    claimed,
+                )
+        if claim is None:
+            raise RuntimeError("execution claim did not produce a result")
+        return claim
+
+    async def record_execution_outcome(
+        self,
+        action_request_id: UUID,
+        tenant_id: UUID,
+        expected_fingerprint: str,
+        lease_owner: UUID,
+        *,
+        target_state: ActionState,
+        event_type: ActionEventType,
+        reason_code: str | None,
+        status_code: int | None,
+        error_code: str | None,
+        resource_id: UUID | None,
+    ) -> ActionRequestRecord:
+        """Persist one bounded Commerce result through the lifecycle mutator."""
+
+        record: ActionRequestRecord | None = None
+        async with self._session_factory() as session, session.begin():
+            request = await session.scalar(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                )
+                .with_for_update()
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in tenant scope")
+            if request.proposal_fingerprint != expected_fingerprint:
+                raise ProposalFingerprintMismatchError("proposal fingerprint does not match")
+            if (
+                ActionState(request.state) is not ActionState.EXECUTING
+                or request.execution_lease_owner != lease_owner
+            ):
+                raise ConcurrentActionUpdateError("execution lease no longer owns this action")
+            request, _expired = await _transition_locked(
+                session,
+                request,
+                target_state=target_state,
+                actor_id=None,
+                event_type=event_type,
+                reason_code=reason_code,
+                clear_execution_lease=True,
+                commerce_outcome=(status_code, error_code, resource_id),
+            )
+            record = action_request_record(request)
+        if record is None:
+            raise RuntimeError("execution outcome did not produce a request record")
+        return record
 
     async def transition(
         self,

@@ -16,6 +16,7 @@ from verbaops.actions.persistence import ActionEvent
 from verbaops.actions.policy import PolicyDecision
 from verbaops.actions.transitions import (
     ActionEventType,
+    ActionExecutionClaim,
     ActionExpiredError,
     ActionPolicyDecisionRequiredError,
     ActionRequestNotFoundError,
@@ -77,6 +78,24 @@ def test_approved_lifecycle_edges_are_allowed(current: ActionState, target: Acti
 def test_unapproved_lifecycle_edges_are_rejected(current: ActionState, target: ActionState) -> None:
     with pytest.raises(InvalidActionTransitionError):
         validate_action_transition(current, target)
+
+
+def _confirmed_action_request(state: ActionState = ActionState.READY_TO_EXECUTE):
+    context = action_context()
+    request = action_request(
+        trusted_context=context,
+        state=state,
+        confirmation_required=True,
+    )
+    request.policy_allowed = True
+    request.policy_reason_code = "allowed"
+    request.policy_version = "stage6-policy-v1"
+    request.policy_observed_at = datetime.now(UTC)
+    request.customer_confirmation_decision = "confirmed"
+    request.customer_confirmation_actor_id = context.principal_id
+    request.customer_confirmation_at = datetime.now(UTC)
+    request.customer_confirmation_fingerprint = request.proposal_fingerprint
+    return context, request
 
 
 def _service(factory: FakeSessionFactory) -> ActionTransitionService:
@@ -291,3 +310,107 @@ async def test_allowed_policy_cannot_skip_customer_confirmation() -> None:
 
     assert request.state == ActionState.PROPOSED.value
     assert session.added == []
+
+
+@pytest.mark.asyncio
+async def test_execution_claim_sets_lease_attempt_and_event_atomically() -> None:
+    context, request = _confirmed_action_request()
+    session = FakeActionSession(scalar_values=[request], record=request)
+
+    claim = await _service(FakeSessionFactory(session)).claim_execution(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+    )
+
+    assert isinstance(claim, ActionExecutionClaim)
+    assert claim.claimed is True
+    assert claim.record.state is ActionState.EXECUTING
+    assert claim.record.execution_attempt_count == 1
+    assert claim.lease_owner is not None
+    assert claim.record.execution_lease_owner == claim.lease_owner
+    assert claim.record.execution_lease_expires_at is not None
+    events = [event for event in session.added if isinstance(event, ActionEvent)]
+    assert len(events) == 1
+    assert events[0].event_type == ActionEventType.EXECUTION_STARTED.value
+    assert events[0].previous_state == ActionState.READY_TO_EXECUTE.value
+    assert events[0].next_state == ActionState.EXECUTING.value
+
+
+@pytest.mark.asyncio
+async def test_execution_claim_refuses_unsatisfied_customer_or_supervisor_gate() -> None:
+    context, request = _confirmed_action_request()
+    request.customer_confirmation_fingerprint = "b" * 64
+    session = FakeActionSession(scalar_values=[request], record=request)
+
+    claim = await _service(FakeSessionFactory(session)).claim_execution(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+    )
+
+    assert claim.claimed is False
+    assert claim.record.state is ActionState.READY_TO_EXECUTE
+    assert session.added == []
+
+    _context, approval_request = _confirmed_action_request()
+    approval_request.approval_required = True
+    approval_request.supervisor_approval_decision = None
+    approval_session = FakeActionSession(scalar_values=[approval_request], record=approval_request)
+    approval_claim = await _service(FakeSessionFactory(approval_session)).claim_execution(
+        approval_request.id,
+        approval_request.tenant_id,
+        approval_request.proposal_fingerprint,
+    )
+    assert approval_claim.claimed is False
+    assert approval_claim.record.state is ActionState.READY_TO_EXECUTE
+
+
+@pytest.mark.asyncio
+async def test_execution_claim_expires_an_outdated_undispatched_action() -> None:
+    context, request = _confirmed_action_request()
+    request.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+    session = FakeActionSession(scalar_values=[request], record=request)
+
+    claim = await _service(FakeSessionFactory(session)).claim_execution(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+    )
+
+    assert claim.claimed is False
+    assert claim.record.state is ActionState.EXPIRED
+    assert claim.record.execution_attempt_count == 0
+    assert request.execution_lease_owner is None
+
+
+@pytest.mark.asyncio
+async def test_execution_outcome_persists_only_bounded_metadata_and_releases_lease() -> None:
+    context = action_context()
+    request = action_request(trusted_context=context, state=ActionState.EXECUTING)
+    lease_owner = uuid4()
+    request.execution_attempt_count = 1
+    request.execution_lease_owner = lease_owner
+    request.execution_lease_expires_at = datetime.now(UTC) + timedelta(minutes=1)
+    session = FakeActionSession(scalar_values=[request], record=request)
+    resource_id = uuid4()
+
+    result = await _service(FakeSessionFactory(session)).record_execution_outcome(
+        request.id,
+        context.tenant_id,
+        request.proposal_fingerprint,
+        lease_owner,
+        target_state=ActionState.FAILED,
+        event_type=ActionEventType.COMMERCE_RESPONSE,
+        reason_code="order_not_cancellable",
+        status_code=409,
+        error_code="order_not_cancellable",
+        resource_id=resource_id,
+    )
+
+    assert result.state is ActionState.FAILED
+    assert result.commerce_status_code == 409
+    assert result.commerce_error_code == "order_not_cancellable"
+    assert result.commerce_resource_id == resource_id
+    assert result.execution_lease_owner is None
+    assert result.execution_lease_expires_at is None

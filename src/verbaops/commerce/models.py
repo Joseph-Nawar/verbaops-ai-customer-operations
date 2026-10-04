@@ -1,11 +1,12 @@
 """VerbaOps-owned Pydantic models for the locked Commerce read contract."""
 
 from datetime import date, datetime, time
+from decimal import Decimal
 from enum import StrEnum
 from typing import ClassVar
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class CommerceModel(BaseModel):
@@ -44,6 +45,37 @@ class RefundStatus(StrEnum):
     PENDING_MANUAL_APPROVAL = "pending_manual_approval"
     REJECTED = "rejected"
     COMPLETED = "completed"
+
+
+class ReturnStatus(StrEnum):
+    """Locked NovaCommerce return status values."""
+
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    RECEIVED = "received"
+    COMPLETED = "completed"
+
+
+class SupportTicketStatus(StrEnum):
+    """Locked NovaCommerce support ticket status values."""
+
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    CLOSED = "closed"
+
+
+class SupportTicketCategory(StrEnum):
+    """Locked NovaCommerce support ticket category values."""
+
+    ORDER = "order"
+    DELIVERY = "delivery"
+    RETURNS_REFUNDS = "returns_refunds"
+    PRODUCT = "product"
+    WARRANTY = "warranty"
+    PAYMENT = "payment"
+    ACCOUNT = "account"
+    OTHER = "other"
 
 
 class OrderItemResponse(CommerceModel):
@@ -88,6 +120,134 @@ class RefundResponse(CommerceModel):
 
     id: UUID
     amount: str
+    status: RefundStatus
+    reason: str
+    requires_manual_approval: bool
+    created_at: datetime
+
+
+class CancelOrderResponse(CommerceModel):
+    """Actual NovaCommerce cancellation wrapper, including its optional shipment."""
+
+    order: OrderResponse
+    shipment: ShipmentResponse | None
+
+
+class RescheduleDeliveryRequest(CommerceModel):
+    """Fixed reschedule request body."""
+
+    delivery_slot_id: UUID
+
+
+class ReturnCreateItemRequest(CommerceModel):
+    """One order item and quantity in a return request."""
+
+    order_item_id: UUID
+    quantity: int = Field(gt=0, le=99)
+
+
+class ReturnCreateRequest(CommerceModel):
+    """Fixed create-return request body."""
+
+    order_id: UUID
+    reason: str = Field(min_length=1, max_length=500)
+    items: list[ReturnCreateItemRequest] = Field(min_length=1, max_length=50)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_return_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("reason must not be blank")
+        return cleaned
+
+    @model_validator(mode="after")
+    def require_distinct_return_items(self) -> "ReturnCreateRequest":
+        identifiers = [item.order_item_id for item in self.items]
+        if len(set(identifiers)) != len(identifiers):
+            raise ValueError("return item identifiers must be distinct")
+        return self
+
+
+class ReturnItemResponse(CommerceModel):
+    """One persisted return item."""
+
+    id: UUID
+    order_item_id: UUID
+    quantity: int
+
+
+class ReturnResponse(CommerceModel):
+    """Created NovaCommerce return request."""
+
+    id: UUID
+    order_id: UUID
+    reason: str
+    status: ReturnStatus
+    created_at: datetime
+    updated_at: datetime
+    items: list[ReturnItemResponse]
+
+
+class SupportTicketCreateRequest(CommerceModel):
+    """Fixed support-ticket creation request body."""
+
+    order_id: UUID | None = None
+    category: SupportTicketCategory
+    subject: str = Field(min_length=1, max_length=300)
+    description: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("subject", "description")
+    @classmethod
+    def clean_ticket_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("text must not be blank")
+        return cleaned
+
+
+class SupportTicketResponse(CommerceModel):
+    """Created NovaCommerce support ticket."""
+
+    id: UUID
+    customer_id: UUID
+    order_id: UUID | None
+    category: SupportTicketCategory
+    subject: str
+    description: str
+    status: SupportTicketStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class RefundCreateRequest(CommerceModel):
+    """No-supervisor refund request body accepted by the M6D write boundary."""
+
+    amount: Decimal = Field(gt=Decimal("0.00"))
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("amount")
+    @classmethod
+    def require_cent_precision(cls, value: Decimal) -> Decimal:
+        normalized = value.quantize(Decimal("0.01"))
+        if normalized != value:
+            raise ValueError("refund amount must use at most two decimal places")
+        return normalized
+
+    @field_validator("reason")
+    @classmethod
+    def clean_refund_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("reason must not be blank")
+        return cleaned
+
+
+class WriteRefundResponse(CommerceModel):
+    """Created refund request; this does not mean payment settlement completed."""
+
+    id: UUID
+    amount: Decimal
     status: RefundStatus
     reason: str
     requires_manual_approval: bool

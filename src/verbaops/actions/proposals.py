@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
@@ -20,16 +21,18 @@ from verbaops.actions.models import (
     RescheduleDeliveryProposal,
     ReturnProposal,
     SupportTicketProposal,
+    parse_action_proposal_payload,
     proposal_target_ids,
 )
-from verbaops.actions.policy import evaluate_action_policy
+from verbaops.actions.policy import PolicyDecision, evaluate_action_policy
 from verbaops.actions.repository import ActionRepository
 from verbaops.actions.transitions import (
     ActionEventType,
     ActionExpiredError,
+    ActionRequestRecord,
     ActionTransitionService,
 )
-from verbaops.auth.context import TrustedContext
+from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import CommerceNotFoundError, CommerceProtocolError
 from verbaops.commerce.models import (
@@ -63,6 +66,15 @@ _RESCHEDULABLE_ORDER_STATUSES = frozenset(
 _RESCHEDULABLE_SHIPMENT_STATUSES = frozenset(
     {ShipmentStatus.PENDING, ShipmentStatus.LABEL_CREATED, ShipmentStatus.IN_TRANSIT}
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ActionFreshnessResult:
+    """Current policy and fingerprint derived from freshly read Commerce facts."""
+
+    proposal_fingerprint: str
+    policy_decision: PolicyDecision
+    canonical_currency: str | None
 
 
 class ActionProposalService:
@@ -113,31 +125,9 @@ class ActionProposalService:
         if customer_id is None:
             raise MissingTrustedCustomerContextError()
 
-        snapshot, canonical_currency = await self._preflight(
-            customer_id=customer_id,
-            proposal=proposal,
-        )
-        decision = evaluate_action_policy(
-            trusted_context=trusted_context,
-            proposal=proposal,
-            commerce_snapshot=snapshot,
-            canonical_currency=canonical_currency,
-            policy_version=self._policy_version,
-        )
-        action_type = proposal.action_type
-        payload = proposal.model_dump(mode="python")
-        material_values = dict(snapshot.material_values)
-        if isinstance(proposal, RefundProposal):
-            material_values["canonical_currency"] = canonical_currency
-        fingerprint = fingerprint_proposal(
-            tenant_id=trusted_context.tenant_id,
-            customer_id=customer_id,
-            action_type=action_type,
-            schema_version=ACTION_PROPOSAL_SCHEMA_VERSION,
-            target_ids=proposal_target_ids(proposal),
-            normalized_payload=payload,
-            material_snapshot=material_values,
-        )
+        freshness = await self.evaluate_current(trusted_context, proposal)
+        decision = freshness.policy_decision
+        fingerprint = freshness.proposal_fingerprint
 
         record, _created = await self._repository.create_or_get(
             trusted_context=trusted_context,
@@ -182,9 +172,68 @@ class ActionProposalService:
             action_type=record.action_type,
             state=record.state,
             proposal_fingerprint=record.proposal_fingerprint,
-            safe_summary=_safe_summary(proposal, record.state, canonical_currency),
+            safe_summary=_safe_summary(proposal, record.state, freshness.canonical_currency),
             required_next_actor=_required_next_actor(record.state),
             reason_code=reason_code,
+        )
+
+    async def refresh(self, record: ActionRequestRecord) -> ActionFreshnessResult:
+        """Recompute an existing immutable proposal using its trusted stored scope."""
+
+        proposal = parse_action_proposal_payload(record.proposal_payload)
+        trusted_context = TrustedContext(
+            principal_id=record.proposing_principal_id,
+            tenant_id=record.tenant_id,
+            customer_id=record.customer_id,
+            roles=frozenset({Role.CUSTOMER}),
+        )
+        return await self.evaluate_current(
+            trusted_context,
+            proposal,
+            schema_version=record.proposal_schema_version,
+        )
+
+    async def evaluate_current(
+        self,
+        trusted_context: TrustedContext,
+        proposal: ActionProposal,
+        *,
+        schema_version: str = ACTION_PROPOSAL_SCHEMA_VERSION,
+    ) -> ActionFreshnessResult:
+        """Refresh material facts and deterministically recalculate policy and fingerprint."""
+
+        customer_id = trusted_context.customer_id
+        if customer_id is None:
+            raise MissingTrustedCustomerContextError()
+        if trusted_context.tenant_id != self._commerce.tenant_id:
+            raise CommerceNotFoundError()
+        snapshot, canonical_currency = await self._preflight(
+            customer_id=customer_id,
+            proposal=proposal,
+        )
+        decision = evaluate_action_policy(
+            trusted_context=trusted_context,
+            proposal=proposal,
+            commerce_snapshot=snapshot,
+            canonical_currency=canonical_currency,
+            policy_version=self._policy_version,
+        )
+        material_values = dict(snapshot.material_values)
+        if isinstance(proposal, RefundProposal):
+            material_values["canonical_currency"] = canonical_currency
+        fingerprint = fingerprint_proposal(
+            tenant_id=trusted_context.tenant_id,
+            customer_id=customer_id,
+            action_type=proposal.action_type,
+            schema_version=schema_version,
+            target_ids=proposal_target_ids(proposal),
+            normalized_payload=proposal.model_dump(mode="python"),
+            material_snapshot=material_values,
+        )
+        return ActionFreshnessResult(
+            proposal_fingerprint=fingerprint,
+            policy_decision=decision,
+            canonical_currency=canonical_currency,
         )
 
     async def _preflight(
