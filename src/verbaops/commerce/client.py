@@ -1,12 +1,13 @@
 """Authenticated HTTP-only NovaCommerce read client."""
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
 import httpx
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from verbaops.commerce.errors import (
     CommerceAuthenticationError,
@@ -14,22 +15,42 @@ from verbaops.commerce.errors import (
     CommerceProtocolError,
     CommerceTimeoutError,
     CommerceUnavailableError,
+    CommerceWriteAmbiguousError,
+    CommerceWritePreDispatchError,
+    CommerceWriteRejected,
 )
 from verbaops.commerce.models import (
+    CancelOrderResponse,
     DeliverySlotResponse,
     OrderResponse,
     ProductSearchResponse,
+    RefundCreateRequest,
     RefundResponse,
+    RescheduleDeliveryRequest,
+    ReturnCreateRequest,
+    ReturnResponse,
     ShipmentResponse,
+    SupportTicketCreateRequest,
+    SupportTicketResponse,
     TenantCurrencyResponse,
+    WriteRefundResponse,
 )
 from verbaops.config import CommerceSettings
 
 ResponseT = TypeVar("ResponseT")
 
 
+@dataclass(frozen=True, slots=True)
+class CommerceWriteResult[WriteResponseT]:
+    """Typed successful response and bounded idempotency metadata."""
+
+    response: WriteResponseT
+    status_code: int
+    replayed: bool
+
+
 class CommerceClient:
-    """Call only the authenticated, read-only NovaCommerce HTTP endpoints."""
+    """Call the fixed authenticated NovaCommerce read and internal write endpoints."""
 
     def __init__(self, settings: CommerceSettings, http_client: httpx.AsyncClient) -> None:
         self._settings = settings
@@ -72,6 +93,109 @@ class CommerceClient:
             f"/v1/orders/{order_id}/refunds",
             list[RefundResponse],
             customer_id=customer_id,
+        )
+
+    async def get_return(self, return_id: UUID, customer_id: UUID) -> ReturnResponse:
+        """Fetch one exact customer-scoped return resource."""
+
+        return await self._get(
+            f"/v1/returns/{return_id}",
+            ReturnResponse,
+            customer_id=customer_id,
+        )
+
+    async def get_support_ticket(self, ticket_id: UUID, customer_id: UUID) -> SupportTicketResponse:
+        """Fetch one exact customer-scoped support-ticket resource."""
+
+        return await self._get(
+            f"/v1/support-tickets/{ticket_id}",
+            SupportTicketResponse,
+            customer_id=customer_id,
+        )
+
+    async def cancel_order(
+        self, order_id: UUID, customer_id: UUID, idempotency_key: UUID
+    ) -> CommerceWriteResult[CancelOrderResponse]:
+        """Cancel one order through the fixed NovaCommerce route."""
+
+        return await self._post_write(
+            f"/v1/orders/{order_id}/cancel",
+            {},
+            CancelOrderResponse,
+            customer_id=customer_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def reschedule_delivery(
+        self,
+        order_id: UUID,
+        customer_id: UUID,
+        delivery_slot_id: UUID,
+        idempotency_key: UUID,
+    ) -> CommerceWriteResult[ShipmentResponse]:
+        """Reschedule one order to the fixed delivery slot."""
+
+        request = RescheduleDeliveryRequest(delivery_slot_id=delivery_slot_id)
+        return await self._post_write(
+            f"/v1/orders/{order_id}/reschedule",
+            request,
+            ShipmentResponse,
+            customer_id=customer_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def create_return(
+        self,
+        customer_id: UUID,
+        request: ReturnCreateRequest,
+        idempotency_key: UUID,
+    ) -> CommerceWriteResult[ReturnResponse]:
+        """Create a return request through the one fixed collection route."""
+
+        return await self._post_write(
+            "/v1/returns",
+            request,
+            ReturnResponse,
+            customer_id=customer_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def create_support_ticket(
+        self,
+        customer_id: UUID,
+        request: SupportTicketCreateRequest,
+        idempotency_key: UUID,
+    ) -> CommerceWriteResult[SupportTicketResponse]:
+        """Create a support ticket through the one fixed collection route."""
+
+        return await self._post_write(
+            "/v1/support-tickets",
+            request,
+            SupportTicketResponse,
+            customer_id=customer_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def request_refund(
+        self,
+        order_id: UUID,
+        customer_id: UUID,
+        request: RefundCreateRequest,
+        approval_reference: None,
+        idempotency_key: UUID,
+    ) -> CommerceWriteResult[WriteRefundResponse]:
+        """Request a refund without constructing supervisor approval evidence."""
+
+        if approval_reference is not None:
+            raise ValueError("M6D refund requests cannot carry supervisor approval evidence")
+        body = request.model_dump(mode="json")
+        body["approval_reference"] = approval_reference
+        return await self._post_write(
+            f"/v1/orders/{order_id}/refunds",
+            body,
+            WriteRefundResponse,
+            customer_id=customer_id,
+            idempotency_key=idempotency_key,
         )
 
     async def search_products(self, query: str, limit: int) -> ProductSearchResponse:
@@ -152,6 +276,66 @@ class CommerceClient:
             return cast(ResponseT, self._parse(response, response_type))
 
         raise CommerceUnavailableError()
+
+    async def _post_write(
+        self,
+        path: str,
+        request: BaseModel | dict[str, Any],
+        response_type: Any,
+        *,
+        customer_id: UUID,
+        idempotency_key: UUID,
+    ) -> CommerceWriteResult[Any]:
+        """Perform exactly one dispatch; only the executor may retry a safe failure."""
+
+        headers = {
+            "Authorization": f"Bearer {self._settings.service_token.get_secret_value()}",
+            "X-VerbaOps-Customer-ID": str(customer_id),
+            "Idempotency-Key": str(idempotency_key),
+        }
+        body = request.model_dump(mode="json") if isinstance(request, BaseModel) else request
+        try:
+            response = await self._http_client.post(
+                f"{self._base_url}{path}",
+                headers=headers,
+                json=body,
+                timeout=self._settings.timeout_seconds,
+            )
+        except (httpx.ConnectTimeout, httpx.PoolTimeout, httpx.ConnectError):
+            raise CommerceWritePreDispatchError() from None
+        except httpx.TransportError:
+            raise CommerceWriteAmbiguousError(status_code=None, error_code=None) from None
+
+        status_code = response.status_code
+        error_code = _response_error_code(response)
+        if status_code == 503 and error_code == "write_outcome_unknown":
+            raise CommerceWriteAmbiguousError(
+                status_code=status_code,
+                error_code=error_code,
+            )
+        if 400 <= status_code < 500 and status_code not in {408, 429}:
+            raise CommerceWriteRejected(
+                status_code=status_code,
+                error_code=error_code,
+            )
+        if not 200 <= status_code < 300:
+            raise CommerceWriteAmbiguousError(
+                status_code=status_code,
+                error_code=error_code,
+            )
+        try:
+            payload = response.json()
+            typed_response = TypeAdapter(response_type).validate_python(payload)
+        except (UnicodeDecodeError, ValueError, TypeError, ValidationError):
+            raise CommerceWriteAmbiguousError(
+                status_code=status_code,
+                error_code=None,
+            ) from None
+        return CommerceWriteResult(
+            response=typed_response,
+            status_code=status_code,
+            replayed=response.headers.get("X-Idempotent-Replay", "").lower() == "true",
+        )
 
     @staticmethod
     def _raise_for_status(response: httpx.Response) -> None:

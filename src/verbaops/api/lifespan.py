@@ -8,7 +8,10 @@ import httpx
 from fastapi import FastAPI
 from redis.asyncio import Redis
 
+from verbaops.actions.decisions import ActionDecisionService
+from verbaops.actions.executor import ActionExecutor
 from verbaops.actions.proposals import ActionProposalService
+from verbaops.actions.reconciliation import ActionReconciler
 from verbaops.actions.repository import ActionRepository
 from verbaops.actions.transitions import ActionTransitionService
 from verbaops.agent.evaluation import GroundingCandidate
@@ -53,6 +56,9 @@ class RuntimeResources:
     commerce_client: CommerceClient | None = field(default=None, repr=False)
     conversation_service: ConversationService | None = field(default=None, repr=False)
     action_proposal_service: ActionProposalService | None = field(default=None, repr=False)
+    action_executor: ActionExecutor | None = field(default=None, repr=False)
+    action_decision_service: ActionDecisionService | None = field(default=None, repr=False)
+    action_reconciler: ActionReconciler | None = field(default=None, repr=False)
     agent_runtime: AgentRuntime | None = field(default=None, repr=False)
     embedding_client: EmbeddingClient | None = field(default=None, repr=False)
     knowledge_service: KnowledgeService | None = field(default=None, repr=False)
@@ -77,6 +83,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     commerce_client: CommerceClient | None = None
     conversation_service: ConversationService | None = None
     action_proposal_service: ActionProposalService | None = None
+    action_executor: ActionExecutor | None = None
+    action_decision_service: ActionDecisionService | None = None
+    action_reconciler: ActionReconciler | None = None
     agent_runtime: AgentRuntime | None = None
     embedding_client: EmbeddingClient | None = None
     knowledge_service: KnowledgeService | None = None
@@ -112,10 +121,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
             conversation_service = ConversationService(database.session_factory)
+            action_transition_service = ActionTransitionService(database.session_factory)
             action_proposal_service = ActionProposalService(
                 commerce_client,
                 ActionRepository(database.session_factory),
-                ActionTransitionService(database.session_factory),
+                action_transition_service,
+            )
+            action_executor = ActionExecutor(
+                commerce_client=commerce_client,
+                transition_service=action_transition_service,
+                freshness_service=action_proposal_service,
+            )
+            action_decision_service = ActionDecisionService(
+                transition_service=action_transition_service,
+                freshness_service=action_proposal_service,
+                action_executor=action_executor,
+                commerce_client=commerce_client,
+            )
+            action_reconciler = ActionReconciler(
+                commerce_client=commerce_client,
+                transition_service=action_transition_service,
             )
             knowledge_service = KnowledgeService(
                 database.session_factory,
@@ -194,6 +219,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             commerce_client=commerce_client,
             conversation_service=conversation_service,
             action_proposal_service=action_proposal_service,
+            action_executor=action_executor,
+            action_decision_service=action_decision_service,
+            action_reconciler=action_reconciler,
             agent_runtime=agent_runtime,
             embedding_client=embedding_client,
             knowledge_service=knowledge_service,
