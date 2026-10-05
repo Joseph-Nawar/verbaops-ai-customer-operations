@@ -169,12 +169,14 @@ class FakeFreshness:
         approval: bool = False,
         currency: str | None = "USD",
         error: Exception | None = None,
+        tenant_id: UUID | None = None,
     ):
         self.fingerprint = fingerprint
         self.allowed = allowed
         self.approval = approval
         self.currency = currency
         self.error = error
+        self.tenant_id = tenant_id
         self.calls = 0
         self.currency_calls = 0
 
@@ -218,10 +220,12 @@ def service_for(
     *,
     record: SimpleNamespace | None = None,
     freshness: FakeFreshness | None = None,
+    commerce_tenant_id: UUID | None = None,
 ) -> tuple[ActionDecisionService, FakeTransitions, FakeFreshness, FakeExecutor]:
     action = record or action_record(trusted)
     transitions = FakeTransitions(action)
     current_freshness = freshness or FakeFreshness()
+    current_freshness.tenant_id = commerce_tenant_id or action.tenant_id
     executor = FakeExecutor(transitions)
     service = ActionDecisionService(
         transition_service=cast(ActionTransitionService, transitions),
@@ -513,6 +517,29 @@ async def test_non_refund_get_is_only_a_durable_scoped_projection() -> None:
 
     assert view.state is ActionState.AWAITING_CONFIRMATION
     assert freshness.calls == 0
+    assert freshness.currency_calls == 0
+    assert transitions.calls == []
+    assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_refund_get_skips_currency_enrichment_for_a_wrong_tenant_client() -> None:
+    trusted = context()
+    record = action_record(
+        trusted,
+        proposal=RefundProposal(order_id=uuid4(), amount=Decimal("45.00"), reason="damaged"),
+    )
+    freshness = FakeFreshness(currency="EUR")
+    service, transitions, _, executor = service_for(
+        trusted,
+        record=record,
+        freshness=freshness,
+        commerce_tenant_id=uuid4(),
+    )
+
+    view = await service.get_action_request(record.id, trusted)
+
+    assert view.currency_code is None
     assert freshness.currency_calls == 0
     assert transitions.calls == []
     assert executor.calls == []

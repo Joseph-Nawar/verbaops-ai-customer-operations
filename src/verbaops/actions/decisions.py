@@ -89,10 +89,15 @@ class ActionDecisionService:
         self._require_customer_context(trusted_context)
         record = await self._get_scoped(action_request_id, trusted_context)
         currency_code: str | None = None
-        if record.action_type is ActionType.REQUEST_REFUND and ActionState(record.state) in {
-            ActionState.AWAITING_CONFIRMATION,
-            ActionState.AWAITING_APPROVAL,
-        }:
+        if (
+            record.action_type is ActionType.REQUEST_REFUND
+            and ActionState(record.state)
+            in {
+                ActionState.AWAITING_CONFIRMATION,
+                ActionState.AWAITING_APPROVAL,
+            }
+            and record.tenant_id == self._commerce.tenant_id
+        ):
             try:
                 currency = await self._commerce.get_tenant_currency()
             except CommerceError:
