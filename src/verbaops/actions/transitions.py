@@ -266,6 +266,7 @@ def _execution_gates_satisfied(request: ActionRequest) -> bool:
     if request.approval_required:
         return (
             request.supervisor_approval_decision == "approved"
+            and request.supervisor_approval_actor_id is not None
             and request.supervisor_approval_fingerprint == request.proposal_fingerprint
         )
     return True
@@ -626,6 +627,22 @@ class ActionTransitionService:
             )
             if request is None:
                 raise ActionRequestNotFoundError("action request not found in customer scope")
+            return action_request_record(request)
+
+    async def get_tenant_scoped(
+        self, action_request_id: UUID, tenant_id: UUID
+    ) -> ActionRequestRecord:
+        """Load one action inside a trusted tenant without granting customer browsing."""
+
+        async with self._session_factory() as session:
+            request = await session.scalar(
+                select(ActionRequest).where(
+                    ActionRequest.id == action_request_id,
+                    ActionRequest.tenant_id == tenant_id,
+                )
+            )
+            if request is None:
+                raise ActionRequestNotFoundError("action request not found in tenant scope")
             return action_request_record(request)
 
     async def claim_execution(

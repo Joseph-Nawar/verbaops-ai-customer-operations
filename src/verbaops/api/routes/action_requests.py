@@ -12,6 +12,7 @@ from verbaops.actions.decisions import (
     ActionDecisionService,
     ActionFreshnessUnavailableError,
     ActionRequestView,
+    ActionSupervisorForbiddenError,
 )
 from verbaops.actions.reconciliation import ActionReconciler, ActionReconciliationForbiddenError
 from verbaops.actions.transitions import ActionRequestNotFoundError
@@ -91,6 +92,50 @@ async def reject_action_request(
         raise _decision_conflict() from None
 
 
+@router.post("/{action_request_id}/approval", response_model=ActionRequestView)
+async def approve_action_request(
+    action_request_id: UUID,
+    request: CustomerDecisionRequest,
+    context: ContextDependency,
+    service: DecisionServiceDependency,
+) -> ActionRequestView:
+    try:
+        return await service.approve(action_request_id, context, request.proposal_fingerprint)
+    except ActionRequestNotFoundError:
+        raise _not_found() from None
+    except ActionSupervisorForbiddenError:
+        raise _supervisor_authority_required() from None
+    except ActionDecisionConflictError:
+        raise _decision_conflict() from None
+    except ActionFreshnessUnavailableError:
+        raise PublicAPIError(
+            503, "action_freshness_unavailable", "action facts are unavailable"
+        ) from None
+
+
+@router.post("/{action_request_id}/approval-rejection", response_model=ActionRequestView)
+async def reject_approval_action_request(
+    action_request_id: UUID,
+    request: CustomerDecisionRequest,
+    context: ContextDependency,
+    service: DecisionServiceDependency,
+) -> ActionRequestView:
+    try:
+        return await service.reject_approval(
+            action_request_id, context, request.proposal_fingerprint
+        )
+    except ActionRequestNotFoundError:
+        raise _not_found() from None
+    except ActionSupervisorForbiddenError:
+        raise _supervisor_authority_required() from None
+    except ActionDecisionConflictError:
+        raise _decision_conflict() from None
+    except ActionFreshnessUnavailableError:
+        raise PublicAPIError(
+            503, "action_freshness_unavailable", "action facts are unavailable"
+        ) from None
+
+
 @router.post("/{action_request_id}/reconciliation", response_model=ActionRequestView)
 async def reconcile_action_request(
     action_request_id: UUID,
@@ -118,6 +163,10 @@ def _not_found() -> PublicAPIError:
 
 def _customer_authority_required() -> PublicAPIError:
     return PublicAPIError(403, "customer_authority_required", "customer authority is required")
+
+
+def _supervisor_authority_required() -> PublicAPIError:
+    return PublicAPIError(403, "supervisor_authority_required", "supervisor authority is required")
 
 
 def _decision_conflict() -> PublicAPIError:

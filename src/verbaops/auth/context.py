@@ -35,3 +35,9 @@ def has_customer_authority(context: TrustedContext) -> bool:
     """Return whether trusted identity facts authorize customer-scoped actions."""
 
     return Role.CUSTOMER in context.roles and context.customer_id is not None
+
+
+def has_supervisor_authority(context: TrustedContext) -> bool:
+    """Return whether trusted identity facts authorize supervisor-scoped actions."""
+
+    return Role.SUPPORT_SUPERVISOR in context.roles
