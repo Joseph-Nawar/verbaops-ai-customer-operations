@@ -111,6 +111,7 @@ class FakeTransitions:
 
 class ScriptedCommerce:
     def __init__(self) -> None:
+        self.tenant_id: UUID | None = None
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self.orders: list[object] = []
         self.shipments: list[object] = []
@@ -275,6 +276,7 @@ def write_result(response: object, status_code: int = 201) -> CommerceWriteResul
 
 
 def reconciler_for(commerce: ScriptedCommerce, transitions: FakeTransitions) -> ActionReconciler:
+    commerce.tenant_id = transitions.record.tenant_id
     return ActionReconciler(
         commerce_client=cast(CommerceClient, commerce),
         transition_service=cast(ActionTransitionService, transitions),
@@ -289,6 +291,7 @@ async def test_known_cancel_target_reads_exact_state_before_any_same_key_replay(
     action = action_record(proposal, context, resource_id=order_id)
     transitions = FakeTransitions(action)
     commerce = ScriptedCommerce()
+    commerce.tenant_id = context.tenant_id
     commerce.orders = [order_response(order_id, customer_id_for(context))]
     commerce.shipments = [CommerceNotFoundError()]
     commerce.write_results["cancel_order"] = []
@@ -527,6 +530,29 @@ async def test_cross_customer_reconciliation_is_not_found_and_never_calls_commer
         )
 
     assert commerce.calls == []
+
+
+@pytest.mark.asyncio
+async def test_reconciliation_fails_closed_for_a_mismatched_commerce_tenant() -> None:
+    context = customer_context()
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    action = action_record(proposal, context)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    reconciler = reconciler_for(commerce, transitions)
+    commerce.tenant_id = uuid4()
+
+    with pytest.raises(ActionReconciliationForbiddenError):
+        await reconciler.reconcile(action.id, context)
+
+    assert commerce.calls == []
+    assert transitions.claim_count == 0
+    assert transitions.finish_calls == []
 
 
 @pytest.mark.asyncio

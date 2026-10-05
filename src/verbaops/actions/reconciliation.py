@@ -73,6 +73,8 @@ class ActionReconciler:
         record = await self._transitions.get_scoped(
             action_request_id, trusted_context.tenant_id, customer_id
         )
+        if record.tenant_id != self._commerce.tenant_id:
+            raise ActionReconciliationForbiddenError("customer action authority is required")
         if record.state is ActionState.EXECUTING:
             record = await self._transitions.recover_expired_execution(
                 record.id,

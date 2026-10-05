@@ -100,6 +100,7 @@ class BlockingCancelCommerce:
 
 class BlockingTicketCommerce:
     def __init__(self, response: SupportTicketResponse) -> None:
+        self.tenant_id: UUID | None = None
         self.response = response
         self.replay_calls = 0
         self.started = asyncio.Event()
@@ -119,6 +120,7 @@ class BlockingTicketCommerce:
 
 class ReadBackOnlyCancelCommerce:
     def __init__(self, order: OrderResponse) -> None:
+        self.tenant_id: UUID | None = None
         self.order = order
         self.reads: list[str] = []
         self.writes = 0
@@ -302,6 +304,7 @@ async def test_two_reconciliation_workers_cannot_dispatch_separate_same_key_repl
         updated_at=NOW,
     )
     commerce = BlockingTicketCommerce(response)
+    commerce.tenant_id = action.tenant_id
     reconciler = ActionReconciler(
         commerce_client=commerce,  # type: ignore[arg-type]
         transition_service=transitions,
@@ -377,6 +380,7 @@ async def test_expired_execution_lease_recovers_through_readback_without_new_wri
             items=[],
         )
     )
+    commerce.tenant_id = action.tenant_id
     reconciler = ActionReconciler(
         commerce_client=cast(CommerceClient, commerce),
         transition_service=transitions,
