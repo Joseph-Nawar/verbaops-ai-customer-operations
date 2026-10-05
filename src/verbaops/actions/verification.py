@@ -242,7 +242,7 @@ def _verify_refund(
             response.amount != proposal.amount
             or response.reason != proposal.reason
             or response.status is not RefundStatus.APPROVED
-            or response.requires_manual_approval
+            or response.requires_manual_approval is not action.approval_required
         ):
             return _mismatched()
     if expected_resource_id is None:
@@ -254,7 +254,7 @@ def _verify_refund(
         refund.amount != format(proposal.amount, ".2f")
         or refund.reason != proposal.reason
         or refund.status is not RefundStatus.APPROVED
-        or refund.requires_manual_approval
+        or refund.requires_manual_approval is not action.approval_required
     ):
         return _mismatched()
     return _verified(refund.id)

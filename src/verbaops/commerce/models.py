@@ -220,11 +220,19 @@ class SupportTicketResponse(CommerceModel):
     updated_at: datetime
 
 
+class RefundApprovalReference(CommerceModel):
+    """Durable supervisor evidence accepted by the high-value refund route."""
+
+    action_request_id: UUID
+    proposal_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class RefundCreateRequest(CommerceModel):
-    """No-supervisor refund request body accepted by the M6D write boundary."""
+    """Fixed refund request body with optional durable supervisor evidence."""
 
     amount: Decimal = Field(gt=Decimal("0.00"))
     reason: str = Field(min_length=1, max_length=500)
+    approval_reference: RefundApprovalReference | None = None
 
     @field_validator("amount")
     @classmethod

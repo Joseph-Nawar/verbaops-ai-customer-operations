@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import cast
 from uuid import UUID, uuid4
@@ -25,15 +26,26 @@ from verbaops.commerce.models import (
     CancelOrderResponse,
     OrderResponse,
     OrderStatus,
+    RefundApprovalReference,
+    RefundResponse,
+    RefundStatus,
     ShipmentResponse,
     ShipmentStatus,
+    WriteRefundResponse,
 )
 
 
 class FakeFreshness:
-    def __init__(self, *, fingerprint: str = "a" * 64, allowed: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        fingerprint: str = "a" * 64,
+        allowed: bool = True,
+        approval: bool = False,
+    ) -> None:
         self.fingerprint = fingerprint
         self.allowed = allowed
+        self.approval = approval
         self.calls = 0
 
     async def refresh(self, _record: SimpleNamespace) -> SimpleNamespace:
@@ -44,7 +56,7 @@ class FakeFreshness:
                 allowed=self.allowed,
                 reason_code="allowed" if self.allowed else "commerce_ineligible",
                 confirmation_required=self.allowed,
-                approval_required=False,
+                approval_required=self.approval,
                 policy_version="stage6-policy-v1",
             ),
         )
@@ -118,11 +130,23 @@ class ScriptedCommerce:
         self.last_result = result
         return result
 
+    async def request_refund(self, *args: object, **kwargs: object) -> object:
+        assert not self.transitions.network_transaction_open
+        self.calls.append(("request_refund", args, kwargs))
+        result = self.outcomes.pop(0)
+        if isinstance(result, BaseException):
+            raise result
+        self.last_result = result
+        return result
+
     async def get_order(self, *args: object) -> object:
         return await self._read("get_order", args, "order")
 
     async def get_shipment(self, *args: object) -> object:
         return await self._read("get_shipment", args, "shipment")
+
+    async def get_refunds(self, *args: object) -> object:
+        return await self._read("get_refunds", args, "refunds")
 
     async def _read(self, name: str, args: tuple[object, ...], field: str) -> object:
         assert not self.transitions.network_transaction_open
@@ -427,3 +451,85 @@ async def test_locally_rejected_write_shape_fails_without_dispatch() -> None:
     assert result.state is ActionState.FAILED
     assert len(commerce.calls) == 0
     assert transitions.calls[-1][1]["reason_code"] == "request_validation_rejected"
+
+
+def high_value_refund_action(*, actor_id: UUID | None = None) -> SimpleNamespace:
+    action = action_record(
+        approval_required=True,
+        supervisor_approval_decision="approved",
+    )
+    order_id = UUID(action.proposal_payload["order_id"])
+    action.action_type = ActionType.REQUEST_REFUND
+    action.proposal_payload = {
+        "action_type": "request_refund",
+        "order_id": str(order_id),
+        "amount": "750.00",
+        "reason": "customer request",
+    }
+    action.target_ids = (order_id,)
+    action.supervisor_approval_actor_id = actor_id or uuid4()
+    action.supervisor_approval_fingerprint = action.proposal_fingerprint
+    return action
+
+
+def refund_result(action: SimpleNamespace) -> SimpleNamespace:
+    refund_id = uuid4()
+    return SimpleNamespace(
+        status_code=201,
+        replayed=False,
+        response=WriteRefundResponse(
+            id=refund_id,
+            amount=Decimal("750.00"),
+            status=RefundStatus.APPROVED,
+            reason="customer request",
+            requires_manual_approval=True,
+            created_at=datetime(2026, 10, 1, tzinfo=UTC),
+        ),
+        refund_id=refund_id,
+    )
+
+
+@pytest.mark.asyncio
+async def test_high_value_refund_dispatches_durable_approval_reference_and_verifies_manual_gate() -> (
+    None
+):
+    action = high_value_refund_action()
+    result = refund_result(action)
+    executor, _transitions, commerce, _ = executor_for(
+        [result], record=action, freshness=FakeFreshness(approval=True)
+    )
+    commerce.read_outcomes["get_refunds"] = [
+        [
+            RefundResponse(
+                id=result.refund_id,
+                amount="750.00",
+                status=RefundStatus.APPROVED,
+                reason="customer request",
+                requires_manual_approval=True,
+                created_at=datetime(2026, 10, 1, tzinfo=UTC),
+            )
+        ]
+    ]
+
+    completed = await executor.execute_ready(action.id)
+
+    assert completed.state is ActionState.SUCCEEDED
+    assert len(commerce.calls) == 1
+    approval_reference = commerce.calls[0][1][3]
+    assert isinstance(approval_reference, RefundApprovalReference)
+    assert approval_reference.action_request_id == action.id
+    assert approval_reference.proposal_fingerprint == action.proposal_fingerprint
+
+
+@pytest.mark.asyncio
+async def test_missing_durable_refund_approval_actor_blocks_dispatch() -> None:
+    action = high_value_refund_action(actor_id=None)
+    action.supervisor_approval_actor_id = None
+    executor, _transitions, commerce, _ = executor_for(
+        [], record=action, freshness=FakeFreshness(approval=True)
+    )
+
+    result = await executor.execute_ready(action.id)
+
+    assert result.state is ActionState.READY_TO_EXECUTE
+    assert commerce.calls == []

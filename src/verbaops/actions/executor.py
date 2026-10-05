@@ -22,6 +22,10 @@ from verbaops.actions.models import (
 )
 from verbaops.actions.policy import PolicyDecision
 from verbaops.actions.proposals import ActionProposalService
+from verbaops.actions.refunds import (
+    InvalidRefundApprovalEvidence,
+    refund_approval_reference,
+)
 from verbaops.actions.transitions import (
     ActionEventType,
     ActionRequestRecord,
@@ -153,6 +157,17 @@ class ActionExecutor:
                     target_state=ActionState.FAILED,
                     event_type=ActionEventType.STATE_TRANSITION,
                     reason_code="request_validation_rejected",
+                    status_code=None,
+                    error_code=None,
+                    resource_id=None,
+                )
+            except InvalidRefundApprovalEvidence:
+                return await self._record_outcome(
+                    record,
+                    lease_owner,
+                    target_state=ActionState.FAILED,
+                    event_type=ActionEventType.STATE_TRANSITION,
+                    reason_code="approval_evidence_invalid",
                     status_code=None,
                     error_code=None,
                     resource_id=None,
@@ -350,12 +365,13 @@ class ActionExecutor:
     ) -> CommerceWriteResult[Any]:
         if not isinstance(proposal, RefundProposal):
             raise TypeError("stored action type and proposal payload disagree")
+        approval_reference = refund_approval_reference(record)
         request = RefundCreateRequest(amount=proposal.amount, reason=proposal.reason)
         return await self._commerce.request_refund(
             proposal.order_id,
             record.customer_id,
             request,
-            None,
+            approval_reference,
             record.idempotency_key,
         )
 
@@ -380,6 +396,7 @@ def _record_gates_satisfied(record: ActionRequestRecord) -> bool:
     if record.approval_required:
         return (
             record.supervisor_approval_decision == "approved"
+            and getattr(record, "supervisor_approval_actor_id", None) is not None
             and record.supervisor_approval_fingerprint == record.proposal_fingerprint
         )
     return True

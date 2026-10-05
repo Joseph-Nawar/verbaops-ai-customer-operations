@@ -2,12 +2,12 @@
 
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic import SecretStr
+from pydantic import SecretStr, ValidationError
 
 from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import (
@@ -16,6 +16,7 @@ from verbaops.commerce.errors import (
     CommerceWriteRejected,
 )
 from verbaops.commerce.models import (
+    RefundApprovalReference,
     RefundCreateRequest,
     ReturnCreateItemRequest,
     ReturnCreateRequest,
@@ -200,6 +201,48 @@ async def test_five_write_methods_use_fixed_paths_trusted_headers_and_typed_cont
 
 
 @pytest.mark.asyncio
+async def test_refund_write_client_carries_only_typed_approval_evidence() -> None:
+    customer_id, order_id, action_id, key = (uuid4() for _ in range(4))
+    fingerprint = "a" * 64
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert (
+            request.content
+            == (
+                f'{{"amount":"750.00","reason":"damaged","approval_reference":{{'
+                f'"action_request_id":"{action_id}","proposal_fingerprint":"{fingerprint}"'
+                "}}"
+            ).encode()
+        )
+        return httpx.Response(
+            201,
+            json={
+                "id": str(uuid4()),
+                "amount": "750.00",
+                "status": "approved",
+                "reason": "damaged",
+                "requires_manual_approval": True,
+                "created_at": "2026-10-01T00:00:00Z",
+            },
+        )
+
+    commerce = client_for(handler)
+    async with commerce._http_client:
+        result = await commerce.request_refund(
+            order_id,
+            customer_id,
+            RefundCreateRequest(amount=Decimal("750.00"), reason="damaged"),
+            RefundApprovalReference(
+                action_request_id=action_id,
+                proposal_fingerprint=fingerprint,
+            ),
+            key,
+        )
+
+    assert result.response.requires_manual_approval is True
+
+
+@pytest.mark.asyncio
 async def test_exact_return_and_ticket_reads_are_customer_scoped() -> None:
     customer_id, order_id = uuid4(), uuid4()
     return_id, ticket_id = uuid4(), uuid4()
@@ -376,27 +419,13 @@ async def test_transport_failure_classification_is_single_dispatch(
 
 def test_request_models_exclude_supervisor_approval_material() -> None:
     refund = RefundCreateRequest(amount=Decimal("50.00"), reason="customer request")
-    assert "approval_reference" not in refund.model_dump(mode="json")
+    assert refund.approval_reference is None
+    assert refund.model_dump(mode="json")["approval_reference"] is None
     assert not hasattr(refund, "action_request_id")
 
 
-@pytest.mark.asyncio
-async def test_refund_write_client_rejects_supervisor_evidence() -> None:
-    calls = 0
-
-    def handler(_request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        return httpx.Response(201, json={})
-
-    commerce = client_for(handler)
-    async with commerce._http_client:
-        with pytest.raises(ValueError, match="cannot carry supervisor approval evidence"):
-            await commerce.request_refund(
-                uuid4(),
-                uuid4(),
-                RefundCreateRequest(amount=Decimal("50.00"), reason="request"),
-                cast(None, object()),
-                uuid4(),
-            )
-    assert calls == 0
+def test_refund_approval_reference_is_closed_and_lowercase() -> None:
+    reference = RefundApprovalReference(action_request_id=uuid4(), proposal_fingerprint="a" * 64)
+    assert reference.proposal_fingerprint == "a" * 64
+    with pytest.raises(ValidationError):
+        RefundApprovalReference(action_request_id=uuid4(), proposal_fingerprint="A" * 64)
