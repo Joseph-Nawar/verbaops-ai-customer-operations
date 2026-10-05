@@ -12,6 +12,7 @@ from verbaops.actions.decisions import (
     ActionDecisionForbiddenError,
     ActionFreshnessUnavailableError,
     ActionRequestView,
+    ActionSupervisorForbiddenError,
 )
 from verbaops.actions.models import ActionState, ActionType, CancelOrderProposal
 from verbaops.actions.transitions import ActionRequestNotFoundError
@@ -62,6 +63,53 @@ class FakeDecisionService:
     ) -> ActionRequestView:
         self._authorize(action_id, trusted)
         self.calls.append(("get", (action_id, trusted)))
+        return self.view
+
+    async def confirm(
+        self, action_id: UUID, trusted: TrustedContext, fingerprint: str
+    ) -> ActionRequestView:
+        self._authorize(action_id, trusted)
+        self.calls.append(("confirm", (action_id, trusted, fingerprint)))
+        if fingerprint != self.view.proposal_fingerprint:
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+        self.view = self.view.model_copy(update={"state": ActionState.SUCCEEDED})
+        return self.view
+
+    async def reject(
+        self, action_id: UUID, trusted: TrustedContext, fingerprint: str
+    ) -> ActionRequestView:
+        self._authorize(action_id, trusted)
+        self.calls.append(("reject", (action_id, trusted, fingerprint)))
+        if fingerprint != self.view.proposal_fingerprint:
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+        self.view = self.view.model_copy(update={"state": ActionState.REJECTED})
+        return self.view
+
+
+class SupervisorDecisionService(FakeDecisionService):
+    async def approve(
+        self, action_id: UUID, trusted: TrustedContext, fingerprint: str
+    ) -> ActionRequestView:
+        if Role.SUPPORT_SUPERVISOR not in trusted.roles:
+            raise ActionSupervisorForbiddenError("supervisor action authority is required")
+        self.calls.append(("approve", (action_id, trusted, fingerprint)))
+        if fingerprint != self.view.proposal_fingerprint:
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+        self.view = self.view.model_copy(
+            update={
+                "state": ActionState.AWAITING_CONFIRMATION,
+                "required_next_actor": "customer",
+            }
+        )
+        return self.view
+
+    async def reject_approval(
+        self, action_id: UUID, trusted: TrustedContext, fingerprint: str
+    ) -> ActionRequestView:
+        if Role.SUPPORT_SUPERVISOR not in trusted.roles:
+            raise ActionSupervisorForbiddenError("supervisor action authority is required")
+        self.calls.append(("reject_approval", (action_id, trusted, fingerprint)))
+        self.view = self.view.model_copy(update={"state": ActionState.REJECTED})
         return self.view
 
     async def confirm(
@@ -382,4 +430,52 @@ async def test_no_execute_or_supervisor_approval_routes_are_registered() -> None
         ("POST", "/v1/action-requests/{action_request_id}/confirmation"),
         ("POST", "/v1/action-requests/{action_request_id}/rejection"),
         ("POST", "/v1/action-requests/{action_request_id}/reconciliation"),
+        ("POST", "/v1/action-requests/{action_request_id}/approval"),
+        ("POST", "/v1/action-requests/{action_request_id}/approval-rejection"),
     }
+
+
+@pytest.mark.asyncio
+async def test_supervisor_approval_routes_reuse_exact_fingerprint_body() -> None:
+    supervisor = OWNER.model_copy(
+        update={"customer_id": None, "roles": frozenset({Role.SUPPORT_SUPERVISOR})}
+    )
+    app, service, _ = action_app(
+        supervisor, decision_service_override=SupervisorDecisionService(OWNER)
+    )
+
+    approved = await request(
+        app,
+        "POST",
+        f"/v1/action-requests/{ACTION_ID}/approval",
+        headers=auth_headers(),
+        json={"proposal_fingerprint": "a" * 64},
+    )
+    rejected = await request(
+        app,
+        "POST",
+        f"/v1/action-requests/{ACTION_ID}/approval-rejection",
+        headers=auth_headers(),
+        json={"proposal_fingerprint": "a" * 64, "reason": "not allowed"},
+    )
+
+    assert approved.status_code == 200
+    assert rejected.status_code == 422
+    assert [call[0] for call in service.calls] == ["approve"]
+
+
+@pytest.mark.asyncio
+async def test_approval_routes_require_supervisor_role() -> None:
+    app, service, _ = action_app(OWNER, decision_service_override=SupervisorDecisionService(OWNER))
+
+    response = await request(
+        app,
+        "POST",
+        f"/v1/action-requests/{ACTION_ID}/approval",
+        headers=auth_headers(),
+        json={"proposal_fingerprint": "a" * 64},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "supervisor_authority_required"
+    assert service.calls == []

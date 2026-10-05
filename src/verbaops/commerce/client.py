@@ -24,6 +24,7 @@ from verbaops.commerce.models import (
     DeliverySlotResponse,
     OrderResponse,
     ProductSearchResponse,
+    RefundApprovalReference,
     RefundCreateRequest,
     RefundResponse,
     RescheduleDeliveryRequest,
@@ -181,15 +182,14 @@ class CommerceClient:
         order_id: UUID,
         customer_id: UUID,
         request: RefundCreateRequest,
-        approval_reference: None,
+        approval_reference: RefundApprovalReference | None,
         idempotency_key: UUID,
     ) -> CommerceWriteResult[WriteRefundResponse]:
-        """Request a refund without constructing supervisor approval evidence."""
+        """Request a refund with only the executor-supplied durable evidence."""
 
-        if approval_reference is not None:
-            raise ValueError("M6D refund requests cannot carry supervisor approval evidence")
-        body = request.model_dump(mode="json")
-        body["approval_reference"] = approval_reference
+        body = request.model_copy(update={"approval_reference": approval_reference}).model_dump(
+            mode="json"
+        )
         return await self._post_write(
             f"/v1/orders/{order_id}/refunds",
             body,

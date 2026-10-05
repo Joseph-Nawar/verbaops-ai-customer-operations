@@ -15,6 +15,7 @@ from verbaops.actions.decisions import (
     ActionDecisionForbiddenError,
     ActionDecisionService,
     ActionFreshnessUnavailableError,
+    ActionSupervisorForbiddenError,
 )
 from verbaops.actions.executor import ActionExecutor
 from verbaops.actions.models import (
@@ -35,6 +36,7 @@ from verbaops.actions.proposals import ActionProposalService
 from verbaops.actions.transitions import (
     ActionEventType,
     ActionExpiredError,
+    ActionRequestNotFoundError,
     ActionRequestRecord,
     ActionTransitionService,
 )
@@ -125,6 +127,13 @@ class FakeTransitions:
             raise ActionRequestNotFoundError("action request not found in customer scope")
         return self.record
 
+    async def get_tenant_scoped(self, action_id: UUID, tenant_id: UUID) -> Any:
+        if action_id != self.record.id or tenant_id != self.record.tenant_id:
+            from verbaops.actions.transitions import ActionRequestNotFoundError
+
+            raise ActionRequestNotFoundError("action request not found in tenant scope")
+        return self.record
+
     async def transition(self, *args: Any, **kwargs: Any) -> Any:
         target_state = args[3]
         actor_id = args[4]
@@ -153,9 +162,23 @@ class FakeTransitions:
                 self.record.customer_confirmation_decision = "confirmed"
             elif event_type is ActionEventType.CUSTOMER_REJECTED:
                 self.record.customer_confirmation_decision = "rejected"
-            self.record.customer_confirmation_actor_id = actor_id
-            self.record.customer_confirmation_at = datetime.now(UTC)
-            self.record.customer_confirmation_fingerprint = self.record.proposal_fingerprint
+            elif event_type is ActionEventType.SUPERVISOR_APPROVED:
+                self.record.supervisor_approval_decision = "approved"
+                self.record.supervisor_approval_actor_id = actor_id
+                self.record.supervisor_approval_at = datetime.now(UTC)
+                self.record.supervisor_approval_fingerprint = self.record.proposal_fingerprint
+            elif event_type is ActionEventType.SUPERVISOR_REJECTED:
+                self.record.supervisor_approval_decision = "rejected"
+                self.record.supervisor_approval_actor_id = actor_id
+                self.record.supervisor_approval_at = datetime.now(UTC)
+                self.record.supervisor_approval_fingerprint = self.record.proposal_fingerprint
+            if event_type in {
+                ActionEventType.CUSTOMER_CONFIRMED,
+                ActionEventType.CUSTOMER_REJECTED,
+            }:
+                self.record.customer_confirmation_actor_id = actor_id
+                self.record.customer_confirmation_at = datetime.now(UTC)
+                self.record.customer_confirmation_fingerprint = self.record.proposal_fingerprint
         self.record.version += 1
         return self.record
 
@@ -441,7 +464,11 @@ async def test_non_customer_roles_cannot_decide_for_a_bound_customer(
     trusted = context(roles=roles)
     service, transitions, freshness, executor = service_for(trusted)
 
-    with pytest.raises(ActionDecisionForbiddenError):
+    with pytest.raises(
+        ActionRequestNotFoundError
+        if Role.SUPPORT_SUPERVISOR in roles
+        else ActionDecisionForbiddenError
+    ):
         await service.get_action_request(transitions.record.id, trusted)
     with pytest.raises(ActionDecisionForbiddenError):
         await service.confirm(
@@ -670,3 +697,167 @@ async def test_customer_view_summarizes_each_non_refund_proposal_type() -> None:
         assert view.required_next_actor == "support_supervisor"
         assert proposal.action_type is view.action_type
         assert view.safe_summary
+
+
+@pytest.mark.asyncio
+async def test_supervisor_approval_refreshes_and_commits_without_execution() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    record.proposing_principal_id = uuid4()
+    service, transitions, freshness, executor = service_for(
+        supervisor, record=record, freshness=FakeFreshness(approval=True)
+    )
+
+    result = await service.approve(record.id, supervisor, record.proposal_fingerprint)
+
+    assert result.state is ActionState.AWAITING_CONFIRMATION
+    assert result.required_next_actor == "customer"
+    assert freshness.calls == 1
+    assert executor.calls == []
+    assert transitions.record.supervisor_approval_decision == "approved"
+    assert transitions.record.supervisor_approval_actor_id == supervisor.principal_id
+    assert transitions.calls[-1][1]["event_type"] is ActionEventType.SUPERVISOR_APPROVED
+
+
+@pytest.mark.asyncio
+async def test_supervisor_rejection_is_terminal_and_does_not_refresh_or_execute() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    record.proposing_principal_id = uuid4()
+    service, transitions, freshness, executor = service_for(
+        supervisor, record=record, freshness=FakeFreshness(approval=True)
+    )
+
+    result = await service.reject_approval(record.id, supervisor, record.proposal_fingerprint)
+
+    assert result.state is ActionState.REJECTED
+    assert freshness.calls == 1
+    assert executor.calls == []
+    assert transitions.record.supervisor_approval_decision == "rejected"
+    assert transitions.calls[-1][1]["event_type"] is ActionEventType.SUPERVISOR_REJECTED
+
+
+@pytest.mark.asyncio
+async def test_supervisor_approval_requires_current_freshness_and_expires_stale_action() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    record.proposing_principal_id = uuid4()
+    service, transitions, freshness, executor = service_for(
+        supervisor, record=record, freshness=FakeFreshness(fingerprint="b" * 64)
+    )
+
+    with pytest.raises(ActionDecisionConflictError):
+        await service.approve(record.id, supervisor, record.proposal_fingerprint)
+
+    assert transitions.record.state is ActionState.EXPIRED
+    assert executor.calls == []
+    assert freshness.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_only_composed_contexts_containing_supervisor_role_can_approve() -> None:
+    for roles, allowed in (
+        (frozenset({Role.SUPPORT_SUPERVISOR}), True),
+        (frozenset({Role.SUPPORT_SUPERVISOR, Role.TENANT_ADMIN}), True),
+        (frozenset({Role.SUPPORT_SUPERVISOR, Role.CUSTOMER}), True),
+        (frozenset({Role.SUPPORT_AGENT}), False),
+        (frozenset({Role.TENANT_ADMIN}), False),
+        (frozenset({Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR}), True),
+    ):
+        supervisor = context(roles=roles, customer_id=None)
+        record = action_record(
+            supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True
+        )
+        record.proposing_principal_id = uuid4()
+        service, transitions, freshness, executor = service_for(
+            supervisor, record=record, freshness=FakeFreshness(approval=True)
+        )
+
+        if allowed:
+            result = await service.approve(record.id, supervisor, record.proposal_fingerprint)
+            assert result.state is ActionState.AWAITING_CONFIRMATION
+        else:
+            with pytest.raises(ActionDecisionForbiddenError):
+                await service.approve(record.id, supervisor, record.proposal_fingerprint)
+            assert transitions.calls == []
+            assert freshness.calls == 0
+            assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_supervisor_decision_outage_preserves_pending_action() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    record.proposing_principal_id = uuid4()
+    service, transitions, freshness, executor = service_for(
+        supervisor,
+        record=record,
+        freshness=FakeFreshness(approval=True, error=CommerceUnavailableError()),
+    )
+
+    with pytest.raises(ActionFreshnessUnavailableError):
+        await service.approve(record.id, supervisor, record.proposal_fingerprint)
+
+    assert transitions.record.state is ActionState.AWAITING_APPROVAL
+    assert transitions.calls == []
+    assert executor.calls == []
+    assert freshness.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_supervisor_decision_replay_is_idempotent_and_opposite_decision_conflicts() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    record.proposing_principal_id = uuid4()
+    service, transitions, freshness, _ = service_for(
+        supervisor, record=record, freshness=FakeFreshness(approval=True)
+    )
+
+    await service.approve(record.id, supervisor, record.proposal_fingerprint)
+    replay = await service.approve(record.id, supervisor, record.proposal_fingerprint)
+
+    assert replay.state is ActionState.AWAITING_CONFIRMATION
+    assert freshness.calls == 1
+    assert len(transitions.calls) == 1
+    with pytest.raises(ActionDecisionConflictError):
+        await service.reject_approval(record.id, supervisor, record.proposal_fingerprint)
+
+
+@pytest.mark.asyncio
+async def test_supervisor_cannot_decide_own_proposal_even_with_matching_role() -> None:
+    supervisor = context(roles=frozenset({Role.CUSTOMER, Role.SUPPORT_SUPERVISOR}))
+    record = action_record(supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True)
+    service, transitions, freshness, _ = service_for(
+        supervisor, record=record, freshness=FakeFreshness(approval=True)
+    )
+
+    with pytest.raises(ActionSupervisorForbiddenError):
+        await service.approve(record.id, supervisor, record.proposal_fingerprint)
+
+    assert freshness.calls == 0
+    assert transitions.calls == []
+
+
+@pytest.mark.asyncio
+async def test_supervisor_get_is_tenant_scoped_to_approval_actions_only() -> None:
+    supervisor = context(roles=frozenset({Role.SUPPORT_SUPERVISOR}), customer_id=None)
+    approval_record = action_record(
+        supervisor, state=ActionState.AWAITING_APPROVAL, approval_required=True
+    )
+    approval_record.proposing_principal_id = uuid4()
+    service, _, _, _ = service_for(supervisor, record=approval_record)
+
+    view = await service.get_action_request(approval_record.id, supervisor)
+    assert view.state is ActionState.AWAITING_APPROVAL
+    assert view.approval_required is True
+    assert view.confirmation_required is True
+    assert view.policy_reason_code == "allowed"
+
+    ordinary = action_record(supervisor)
+    ordinary_service, _, _, _ = service_for(supervisor, record=ordinary)
+    with pytest.raises(ActionRequestNotFoundError):
+        await ordinary_service.get_action_request(ordinary.id, supervisor)
+
+    foreign = supervisor.model_copy(update={"tenant_id": uuid4()})
+    with pytest.raises(ActionRequestNotFoundError):
+        await service.get_action_request(approval_record.id, foreign)

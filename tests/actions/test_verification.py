@@ -51,6 +51,7 @@ def record_for(
     *,
     customer_id: UUID | None = None,
     resource_id: UUID | None = None,
+    approval_required: bool = False,
 ) -> ActionRequestRecord:
     return cast(
         ActionRequestRecord,
@@ -62,6 +63,7 @@ def record_for(
             proposal_payload=proposal.model_dump(mode="json"),
             target_ids=proposal_target_ids(proposal),
             commerce_resource_id=resource_id,
+            approval_required=approval_required,
         ),
     )
 
@@ -353,3 +355,35 @@ def test_refund_requires_exact_refund_id_amount_reason_and_approved_request_stat
     assert verified.verified_resource_id == refund_id
     assert pending.status is VerificationStatus.MISMATCHED
     assert missing_id.status is VerificationStatus.UNAVAILABLE
+
+
+def test_high_value_refund_requires_approved_manual_approval_evidence() -> None:
+    order_id, refund_id = uuid4(), uuid4()
+    proposal = RefundProposal(order_id=order_id, amount=Decimal("750.00"), reason="damaged")
+    response = WriteRefundResponse(
+        id=refund_id,
+        amount=Decimal("750.00"),
+        status=RefundStatus.APPROVED,
+        reason="damaged",
+        requires_manual_approval=True,
+        created_at=NOW,
+    )
+    action = record_for(proposal, resource_id=refund_id, approval_required=True)
+
+    verified = verify_postcondition(
+        action,
+        write_result(response, 201),
+        [
+            RefundResponse(
+                id=refund_id,
+                amount="750.00",
+                status=RefundStatus.APPROVED,
+                reason="damaged",
+                requires_manual_approval=True,
+                created_at=NOW,
+            )
+        ],
+    )
+
+    assert verified.status is VerificationStatus.VERIFIED
+    assert verified.verified_resource_id == refund_id

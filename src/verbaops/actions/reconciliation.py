@@ -17,8 +17,10 @@ from verbaops.actions.models import (
     parse_action_proposal_payload,
     proposal_target_ids,
 )
+from verbaops.actions.refunds import refund_approval_reference
 from verbaops.actions.transitions import (
     ActionEventType,
+    ActionRequestNotFoundError,
     ActionRequestRecord,
     ActionTransitionService,
 )
@@ -28,7 +30,11 @@ from verbaops.actions.verification import (
     VerificationStatus,
     verify_postcondition,
 )
-from verbaops.auth.context import TrustedContext, has_customer_authority
+from verbaops.auth.context import (
+    TrustedContext,
+    has_customer_authority,
+    has_supervisor_authority,
+)
 from verbaops.commerce.client import CommerceClient, CommerceWriteResult
 from verbaops.commerce.errors import (
     CommerceError,
@@ -66,13 +72,39 @@ class ActionReconciler:
     ) -> ActionRequestRecord:
         """Recover an expired execution lease, then read or replay an unresolved action."""
 
-        if not has_customer_authority(trusted_context):
+        customer_authority = has_customer_authority(trusted_context)
+        supervisor_authority = has_supervisor_authority(trusted_context)
+        if supervisor_authority:
+            try:
+                record = await self._transitions.get_tenant_scoped(
+                    action_request_id, trusted_context.tenant_id
+                )
+            except ActionRequestNotFoundError:
+                if not customer_authority:
+                    raise
+                customer_id = trusted_context.customer_id
+                assert customer_id is not None
+                record = await self._transitions.get_scoped(
+                    action_request_id, trusted_context.tenant_id, customer_id
+                )
+            if not record.approval_required:
+                if not customer_authority:
+                    raise ActionRequestNotFoundError(
+                        "action request not found in supervisor reconciliation scope"
+                    )
+                customer_id = trusted_context.customer_id
+                assert customer_id is not None
+                record = await self._transitions.get_scoped(
+                    action_request_id, trusted_context.tenant_id, customer_id
+                )
+        elif customer_authority:
+            customer_id = trusted_context.customer_id
+            assert customer_id is not None
+            record = await self._transitions.get_scoped(
+                action_request_id, trusted_context.tenant_id, customer_id
+            )
+        else:
             raise ActionReconciliationForbiddenError("customer action authority is required")
-        customer_id = trusted_context.customer_id
-        assert customer_id is not None
-        record = await self._transitions.get_scoped(
-            action_request_id, trusted_context.tenant_id, customer_id
-        )
         if record.tenant_id != self._commerce.tenant_id:
             raise ActionReconciliationForbiddenError("customer action authority is required")
         if record.state is ActionState.EXECUTING:
@@ -84,7 +116,14 @@ class ActionReconciler:
             )
         if record.state is not ActionState.UNRESOLVED:
             return record
+        if not _reconciliation_gates_satisfied(record):
+            return record
         proposal = _parse_proposal(record)
+        if isinstance(proposal, RefundProposal):
+            try:
+                refund_approval_reference(record)
+            except ValueError:
+                return record
         claim = await self._transitions.claim_reconciliation(
             record.id,
             record.tenant_id,
@@ -232,13 +271,10 @@ class ActionReconciler:
         verified_resource_id: UUID | None = None,
         verification_status: str | None = None,
     ) -> ActionRequestRecord:
-        customer_id = trusted_context.customer_id
-        if customer_id is None:
-            raise ActionReconciliationForbiddenError("customer action authority is required")
         return await self._transitions.record_reconciliation_outcome(
             record.id,
             record.tenant_id,
-            customer_id,
+            record.customer_id,
             record.proposal_fingerprint,
             lease_owner,
             target_state=target_state,
@@ -306,7 +342,7 @@ class ActionReconciler:
                 proposal.order_id,
                 record.customer_id,
                 refund_request,
-                None,
+                refund_approval_reference(record),
                 record.idempotency_key,
             )
         raise TypeError("stored action type and proposal payload disagree")
@@ -374,6 +410,25 @@ def _can_read_before_replay(record: ActionRequestRecord, proposal: ActionProposa
     if isinstance(proposal, (CancelOrderProposal, RescheduleDeliveryProposal)):
         return True
     return record.commerce_resource_id is not None
+
+
+def _reconciliation_gates_satisfied(record: ActionRequestRecord) -> bool:
+    """Refuse replay when the durable action no longer proves human decisions."""
+
+    if (
+        getattr(record, "policy_allowed", None) is not True
+        or getattr(record, "confirmation_required", None) is not True
+        or getattr(record, "customer_confirmation_decision", None) != "confirmed"
+        or getattr(record, "customer_confirmation_fingerprint", None) != record.proposal_fingerprint
+    ):
+        return False
+    if record.approval_required:
+        return (
+            record.supervisor_approval_decision == "approved"
+            and record.supervisor_approval_actor_id is not None
+            and record.supervisor_approval_fingerprint == record.proposal_fingerprint
+        )
+    return True
 
 
 def _write_resource_id(action_type: ActionType, result: CommerceWriteResult[Any]) -> UUID | None:

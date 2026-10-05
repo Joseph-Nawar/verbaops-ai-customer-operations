@@ -20,17 +20,22 @@ from verbaops.actions.models import (
     SupportTicketProposal,
     parse_action_proposal_payload,
 )
-from verbaops.actions.proposals import ActionProposalService
+from verbaops.actions.proposals import ActionFreshnessResult, ActionProposalService
 from verbaops.actions.transitions import (
     ActionEventType,
     ActionExpiredError,
+    ActionRequestNotFoundError,
     ActionRequestRecord,
     ActionTransitionService,
     ConcurrentActionUpdateError,
     InvalidActionTransitionError,
     ProposalFingerprintMismatchError,
 )
-from verbaops.auth.context import TrustedContext, has_customer_authority
+from verbaops.auth.context import (
+    TrustedContext,
+    has_customer_authority,
+    has_supervisor_authority,
+)
 from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import CommerceError
 
@@ -41,6 +46,10 @@ class ActionDecisionConflictError(RuntimeError):
 
 class ActionDecisionForbiddenError(PermissionError):
     """Only the owning customer principal may decide a customer action."""
+
+
+class ActionSupervisorForbiddenError(ActionDecisionForbiddenError):
+    """Only a different trusted supervisor principal may decide an approval gate."""
 
 
 class ActionFreshnessUnavailableError(RuntimeError):
@@ -63,6 +72,11 @@ class ActionRequestView(BaseModel):
     expires_at: datetime
     customer_decision: Literal["confirmed", "rejected"] | None
     result_status: Literal["verified", "mismatched", "unavailable"] | None
+    confirmation_required: bool = False
+    approval_required: bool = False
+    policy_reason_code: (
+        Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")] | None
+    ) = None
 
 
 class ActionDecisionService:
@@ -86,8 +100,7 @@ class ActionDecisionService:
     ) -> ActionRequestView:
         """Return a customer-safe action view inside the authenticated owner scope."""
 
-        self._require_customer_context(trusted_context)
-        record = await self._get_scoped(action_request_id, trusted_context)
+        record = await self._get_view_scoped(action_request_id, trusted_context)
         currency_code: str | None = None
         if (
             record.action_type is ActionType.REQUEST_REFUND
@@ -104,6 +117,36 @@ class ActionDecisionService:
                 currency = None
             currency_code = currency.currency_code if currency is not None else None
         return self.view(record, currency_code=currency_code)
+
+    async def approve(
+        self,
+        action_request_id: UUID,
+        trusted_context: TrustedContext,
+        proposal_fingerprint: str,
+    ) -> ActionRequestView:
+        """Approve a current supervisor-gated action before customer confirmation."""
+
+        return await self._supervisor_decision(
+            action_request_id,
+            trusted_context,
+            proposal_fingerprint,
+            decision="approved",
+        )
+
+    async def reject_approval(
+        self,
+        action_request_id: UUID,
+        trusted_context: TrustedContext,
+        proposal_fingerprint: str,
+    ) -> ActionRequestView:
+        """Reject a current supervisor-gated action without running Commerce writes."""
+
+        return await self._supervisor_decision(
+            action_request_id,
+            trusted_context,
+            proposal_fingerprint,
+            decision="rejected",
+        )
 
     async def confirm(
         self,
@@ -146,6 +189,7 @@ class ActionDecisionService:
                 record.approval_required
                 and (
                     record.supervisor_approval_decision != "approved"
+                    or record.supervisor_approval_actor_id is None
                     or record.supervisor_approval_fingerprint != record.proposal_fingerprint
                 )
             )
@@ -296,7 +340,79 @@ class ActionDecisionService:
             result_status=cast(
                 Literal["verified", "mismatched", "unavailable"] | None, result_status
             ),
+            confirmation_required=record.confirmation_required,
+            approval_required=record.approval_required,
+            policy_reason_code=record.policy_reason_code,
         )
+
+    async def _supervisor_decision(
+        self,
+        action_request_id: UUID,
+        trusted_context: TrustedContext,
+        proposal_fingerprint: str,
+        *,
+        decision: Literal["approved", "rejected"],
+    ) -> ActionRequestView:
+        _require_supervisor_context(trusted_context)
+        record = await self._get_supervisor_scoped(action_request_id, trusted_context)
+        if not record.approval_required:
+            raise ActionRequestNotFoundError("action request not found in approval scope")
+        self._require_fingerprint(record, proposal_fingerprint)
+        if record.proposing_principal_id == trusted_context.principal_id:
+            raise ActionSupervisorForbiddenError("the proposing principal cannot decide its action")
+        if record.supervisor_approval_decision is not None:
+            if _same_supervisor_decision(record, decision, proposal_fingerprint):
+                return self.view(record)
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+        if ActionState(record.state) is not ActionState.AWAITING_APPROVAL:
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+
+        try:
+            freshness = await self._freshness.refresh(record)
+        except CommerceError:
+            raise ActionFreshnessUnavailableError("current action facts are unavailable") from None
+        currency_code = (
+            freshness.canonical_currency
+            if record.action_type is ActionType.REQUEST_REFUND
+            else None
+        )
+        if not _supervisor_freshness_matches(record, freshness):
+            current = await self._expire_stale(record, trusted_context, supervisor_scope=True)
+            if _same_supervisor_decision(current, decision, proposal_fingerprint):
+                return self.view(current, currency_code=currency_code)
+            raise ActionDecisionConflictError("action decision conflicts with current state")
+
+        target_state = (
+            ActionState.AWAITING_CONFIRMATION if decision == "approved" else ActionState.REJECTED
+        )
+        event_type = (
+            ActionEventType.SUPERVISOR_APPROVED
+            if decision == "approved"
+            else ActionEventType.SUPERVISOR_REJECTED
+        )
+        try:
+            record = await self._transitions.transition(
+                record.id,
+                record.tenant_id,
+                record.proposal_fingerprint,
+                target_state,
+                trusted_context.principal_id,
+                event_type,
+                "supervisor_approved" if decision == "approved" else "supervisor_rejected",
+            )
+        except (
+            ActionExpiredError,
+            ConcurrentActionUpdateError,
+            InvalidActionTransitionError,
+            ProposalFingerprintMismatchError,
+        ):
+            current = await self._get_supervisor_scoped(action_request_id, trusted_context)
+            if _same_supervisor_decision(current, decision, proposal_fingerprint):
+                return self.view(current, currency_code=currency_code)
+            raise ActionDecisionConflictError(
+                "action decision conflicts with current state"
+            ) from None
+        return self.view(record, currency_code=currency_code)
 
     async def _get_scoped(
         self, action_request_id: UUID, trusted_context: TrustedContext
@@ -307,6 +423,31 @@ class ActionDecisionService:
         return await self._transitions.get_scoped(
             action_request_id, trusted_context.tenant_id, customer_id
         )
+
+    async def _get_supervisor_scoped(
+        self, action_request_id: UUID, trusted_context: TrustedContext
+    ) -> ActionRequestRecord:
+        return await self._transitions.get_tenant_scoped(
+            action_request_id, trusted_context.tenant_id
+        )
+
+    async def _get_view_scoped(
+        self, action_request_id: UUID, trusted_context: TrustedContext
+    ) -> ActionRequestRecord:
+        if has_supervisor_authority(trusted_context):
+            try:
+                record = await self._get_supervisor_scoped(action_request_id, trusted_context)
+            except ActionRequestNotFoundError:
+                if has_customer_authority(trusted_context):
+                    return await self._get_scoped(action_request_id, trusted_context)
+                raise
+            if record.approval_required:
+                return record
+            if has_customer_authority(trusted_context):
+                return await self._get_scoped(action_request_id, trusted_context)
+            raise ActionRequestNotFoundError("action request not found in approval scope")
+        self._require_customer_context(trusted_context)
+        return await self._get_scoped(action_request_id, trusted_context)
 
     @staticmethod
     def _require_customer_context(trusted_context: TrustedContext) -> None:
@@ -319,7 +460,11 @@ class ActionDecisionService:
             raise ActionDecisionConflictError("action decision conflicts with current state")
 
     async def _expire_stale(
-        self, record: ActionRequestRecord, trusted_context: TrustedContext
+        self,
+        record: ActionRequestRecord,
+        trusted_context: TrustedContext,
+        *,
+        supervisor_scope: bool = False,
     ) -> ActionRequestRecord:
         try:
             return await self._transitions.transition(
@@ -334,7 +479,7 @@ class ActionDecisionService:
         except ActionExpiredError as error:
             if error.record is not None:
                 return error.record
-            return await self._get_scoped(record.id, trusted_context)
+            return await self._reload_after_decision(record.id, trusted_context, supervisor_scope)
         except (
             ConcurrentActionUpdateError,
             InvalidActionTransitionError,
@@ -342,7 +487,14 @@ class ActionDecisionService:
         ):
             # A customer decision may have won the lock while the fresh Commerce
             # reads ran. Its durable result will be observed by the caller's retry.
-            return await self._get_scoped(record.id, trusted_context)
+            return await self._reload_after_decision(record.id, trusted_context, supervisor_scope)
+
+    async def _reload_after_decision(
+        self, action_request_id: UUID, trusted_context: TrustedContext, supervisor_scope: bool
+    ) -> ActionRequestRecord:
+        if supervisor_scope:
+            return await self._get_supervisor_scoped(action_request_id, trusted_context)
+        return await self._get_scoped(action_request_id, trusted_context)
 
 
 def _same_customer_decision(
@@ -353,6 +505,39 @@ def _same_customer_decision(
         and record.customer_confirmation_fingerprint == fingerprint
         and record.proposal_fingerprint == fingerprint
     )
+
+
+def _same_supervisor_decision(
+    record: ActionRequestRecord,
+    decision: Literal["approved", "rejected"],
+    fingerprint: str,
+) -> bool:
+    return (
+        record.supervisor_approval_decision == decision
+        and record.supervisor_approval_actor_id is not None
+        and record.supervisor_approval_fingerprint == fingerprint
+        and record.proposal_fingerprint == fingerprint
+    )
+
+
+def _supervisor_freshness_matches(
+    record: ActionRequestRecord, freshness: ActionFreshnessResult
+) -> bool:
+    current_fingerprint = freshness.proposal_fingerprint
+    decision = freshness.policy_decision
+    currency = freshness.canonical_currency
+    return (
+        current_fingerprint == record.proposal_fingerprint
+        and decision.allowed
+        and decision.confirmation_required
+        and decision.approval_required
+        and (record.action_type is not ActionType.REQUEST_REFUND or currency is not None)
+    )
+
+
+def _require_supervisor_context(trusted_context: TrustedContext) -> None:
+    if not has_supervisor_authority(trusted_context):
+        raise ActionSupervisorForbiddenError("supervisor action authority is required")
 
 
 def _decision_gates_satisfied(record: ActionRequestRecord) -> bool:
@@ -366,6 +551,7 @@ def _decision_gates_satisfied(record: ActionRequestRecord) -> bool:
     if record.approval_required:
         return (
             record.supervisor_approval_decision == "approved"
+            and record.supervisor_approval_actor_id is not None
             and record.supervisor_approval_fingerprint == record.proposal_fingerprint
         )
     return True

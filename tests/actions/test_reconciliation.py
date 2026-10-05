@@ -24,7 +24,7 @@ from verbaops.actions.models import (
     proposal_target_ids,
 )
 from verbaops.actions.reconciliation import ActionReconciler, ActionReconciliationForbiddenError
-from verbaops.actions.transitions import ActionTransitionService
+from verbaops.actions.transitions import ActionRequestNotFoundError, ActionTransitionService
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient, CommerceWriteResult
 from verbaops.commerce.errors import (
@@ -36,6 +36,7 @@ from verbaops.commerce.errors import (
 from verbaops.commerce.models import (
     OrderResponse,
     OrderStatus,
+    RefundApprovalReference,
     RefundResponse,
     RefundStatus,
     ReturnItemResponse,
@@ -69,6 +70,13 @@ class FakeTransitions:
             from verbaops.actions.transitions import ActionRequestNotFoundError
 
             raise ActionRequestNotFoundError("action request not found in customer scope")
+        return self.record
+
+    async def get_tenant_scoped(self, action_id: UUID, tenant_id: UUID) -> Any:
+        if action_id != self.record.id or tenant_id != self.record.tenant_id:
+            from verbaops.actions.transitions import ActionRequestNotFoundError
+
+            raise ActionRequestNotFoundError("action request not found in tenant scope")
         return self.record
 
     async def claim_reconciliation(
@@ -200,6 +208,7 @@ def action_record(
     *,
     resource_id: UUID | None = None,
     state: ActionState = ActionState.UNRESOLVED,
+    approval_required: bool = False,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
@@ -212,6 +221,14 @@ def action_record(
         proposal_schema_version="action-proposal-v1",
         proposal_fingerprint="a" * 64,
         state=state,
+        policy_allowed=True,
+        confirmation_required=True,
+        customer_confirmation_decision="confirmed",
+        customer_confirmation_fingerprint="a" * 64,
+        approval_required=approval_required,
+        supervisor_approval_decision="approved" if approval_required else None,
+        supervisor_approval_actor_id=uuid4() if approval_required else None,
+        supervisor_approval_fingerprint="a" * 64 if approval_required else None,
         idempotency_key=uuid4(),
         commerce_resource_id=resource_id,
         commerce_status_code=None,
@@ -305,6 +322,111 @@ async def test_known_cancel_target_reads_exact_state_before_any_same_key_replay(
     assert result.state is ActionState.SUCCEEDED
     assert [call[0] for call in commerce.calls] == ["get_order", "get_shipment"]
     assert transitions.finish_calls[-1]["verified_resource_id"] == order_id
+
+
+@pytest.mark.asyncio
+async def test_same_tenant_supervisor_reconciles_approval_action_using_owner_customer_scope() -> (
+    None
+):
+    owner = customer_context()
+    supervisor = owner.model_copy(
+        update={
+            "principal_id": uuid4(),
+            "customer_id": None,
+            "roles": frozenset({Role.SUPPORT_SUPERVISOR}),
+        }
+    )
+    ticket_id = uuid4()
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Help",
+        description="Please help",
+    )
+    action = action_record(proposal, owner, resource_id=ticket_id, approval_required=True)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    commerce.tenant_id = owner.tenant_id
+    assert owner.customer_id is not None
+    commerce.tickets[ticket_id] = ticket_response(proposal, owner.customer_id, ticket_id)
+    reconciler = reconciler_for(commerce, transitions)
+
+    result = await reconciler.reconcile(action.id, supervisor)
+
+    assert result.state is ActionState.SUCCEEDED
+    assert commerce.calls == [("get_support_ticket", (ticket_id, owner.customer_id))]
+
+
+@pytest.mark.asyncio
+async def test_supervisor_cannot_reconcile_an_ordinary_action() -> None:
+    owner = customer_context()
+    supervisor = owner.model_copy(
+        update={
+            "principal_id": uuid4(),
+            "customer_id": None,
+            "roles": frozenset({Role.SUPPORT_SUPERVISOR}),
+        }
+    )
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Help",
+        description="Please help",
+    )
+    action = action_record(proposal, owner, resource_id=uuid4(), approval_required=False)
+    reconciler = reconciler_for(ScriptedCommerce(), FakeTransitions(action))
+
+    with pytest.raises(ActionRequestNotFoundError):
+        await reconciler.reconcile(action.id, supervisor)
+
+
+@pytest.mark.asyncio
+async def test_refund_reconciliation_reuses_durable_approval_reference_and_idempotency_key() -> (
+    None
+):
+    owner = customer_context()
+    supervisor = owner.model_copy(
+        update={
+            "principal_id": uuid4(),
+            "customer_id": None,
+            "roles": frozenset({Role.SUPPORT_SUPERVISOR}),
+        }
+    )
+    proposal = RefundProposal(order_id=uuid4(), amount=Decimal("750.00"), reason="damaged")
+    action = action_record(proposal, owner, approval_required=True)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    commerce.tenant_id = owner.tenant_id
+    refund_id = uuid4()
+    response = WriteRefundResponse(
+        id=refund_id,
+        amount=Decimal("750.00"),
+        status=RefundStatus.APPROVED,
+        reason="damaged",
+        requires_manual_approval=True,
+        created_at=NOW,
+    )
+    commerce.write_results["request_refund"] = [write_result(response, 201)]
+    commerce.refunds = [
+        RefundResponse(
+            id=refund_id,
+            amount="750.00",
+            status=RefundStatus.APPROVED,
+            reason="damaged",
+            requires_manual_approval=True,
+            created_at=NOW,
+        )
+    ]
+    reconciler = reconciler_for(commerce, transitions)
+
+    result = await reconciler.reconcile(action.id, supervisor)
+
+    assert result.state is ActionState.SUCCEEDED
+    refund_call = next(call for call in commerce.calls if call[0] == "request_refund")
+    assert isinstance(refund_call[1][3], RefundApprovalReference)
+    assert refund_call[1][3].action_request_id == action.id
+    assert refund_call[1][3].proposal_fingerprint == action.proposal_fingerprint
+    assert refund_call[1][4] == action.idempotency_key
 
 
 @pytest.mark.asyncio
@@ -611,7 +733,11 @@ async def test_non_customer_roles_cannot_reconcile_even_with_customer_binding(
     commerce = ScriptedCommerce()
     reconciler = reconciler_for(commerce, transitions)
 
-    with pytest.raises(ActionReconciliationForbiddenError):
+    with pytest.raises(
+        ActionRequestNotFoundError
+        if Role.SUPPORT_SUPERVISOR in roles
+        else ActionReconciliationForbiddenError
+    ):
         await reconciler.reconcile(action.id, context)
 
     assert commerce.calls == []
