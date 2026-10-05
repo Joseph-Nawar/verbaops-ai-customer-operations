@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from "react";
+
+import {
+  ActionRequestCard,
+  isActionRequestView,
+  loadActionView,
+  type ActionRequestView,
+} from "./action-request-card";
+import { isConversationId } from "@/lib/server/request-validation";
 
 type Message = {
   id: string;
@@ -12,6 +20,12 @@ type MessageResponse = {
   conversation_id: string;
   user_message: Message;
   assistant_message: Message;
+  action_requests?: Array<{ action_request_id: string }>;
+};
+
+type ConversationResponse = {
+  messages: Message[];
+  active_action_requests: ActionRequestView[];
 };
 
 async function readApiResponse(response: Response): Promise<Record<string, unknown>> {
@@ -21,8 +35,45 @@ async function readApiResponse(response: Response): Promise<Record<string, unkno
   } catch {
     body = null;
   }
-  if (!response.ok || typeof body !== "object" || body === null) throw new Error("request_failed");
+  if (!response.ok || typeof body !== "object" || body === null) {
+    const error = new Error("request_failed") as Error & { status: number };
+    error.status = response.status;
+    throw error;
+  }
   return body as Record<string, unknown>;
+}
+
+function isMessage(value: unknown): value is Message {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    typeof (value as Record<string, unknown>).id === "string" &&
+    ((value as Record<string, unknown>).role === "user" ||
+      (value as Record<string, unknown>).role === "assistant") &&
+    typeof (value as Record<string, unknown>).content === "string"
+  );
+}
+
+async function loadConversation(conversationId: string): Promise<ConversationResponse> {
+  const response = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
+    method: "GET",
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  });
+  const body = await readApiResponse(response);
+  if (
+    !Array.isArray(body.messages) ||
+    !body.messages.every(isMessage) ||
+    !Array.isArray(body.active_action_requests) ||
+    !body.active_action_requests.every(isActionRequestView)
+  ) {
+    throw new Error("request_failed");
+  }
+  return {
+    messages: body.messages,
+    active_action_requests: body.active_action_requests,
+  };
 }
 
 async function createConversation(): Promise<string> {
@@ -54,17 +105,90 @@ async function sendMessage(conversationId: string, content: string): Promise<Mes
   ) {
     throw new Error("request_failed");
   }
-  return body as unknown as MessageResponse;
+  const actionRequests = Array.isArray(body.action_requests)
+    ? body.action_requests.filter(
+        (item): item is { action_request_id: string } =>
+          typeof item === "object" &&
+          item !== null &&
+          typeof (item as Record<string, unknown>).action_request_id === "string",
+      )
+    : [];
+  return { ...(body as unknown as MessageResponse), action_requests: actionRequests };
+}
+
+async function loadTurnActionViews(
+  actionRequests: Array<{ action_request_id: string }>,
+): Promise<ActionRequestView[]> {
+  const bounded = actionRequests.slice(0, 6);
+  const results = await Promise.all(
+    bounded.map(async (summary) => {
+      try {
+        return await loadActionView(summary.action_request_id);
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return results.filter((result): result is ActionRequestView => result !== null);
+}
+
+function mergeActionViews(current: ActionRequestView[], updates: ActionRequestView[]): ActionRequestView[] {
+  const merged = new Map(current.map((action) => [action.action_request_id, action]));
+  for (const update of updates) merged.set(update.action_request_id, update);
+  return [...merged.values()];
 }
 
 export function Chat(): React.JSX.Element {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [actionRequests, setActionRequests] = useState<ActionRequestView[]>([]);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(false);
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let storedConversationId: string | null = null;
+    try {
+      storedConversationId = sessionStorage.getItem("verbaops.conversationId");
+    } catch {
+      storedConversationId = null;
+    }
+    if (!storedConversationId) return () => undefined;
+    if (!isConversationId(storedConversationId)) {
+      try {
+        sessionStorage.removeItem("verbaops.conversationId");
+      } catch {
+        // Storage is optional; the server remains authoritative.
+      }
+      return () => undefined;
+    }
+    void loadConversation(storedConversationId)
+      .then((result) => {
+        if (cancelled) return;
+        setConversationId(storedConversationId);
+        setMessages(result.messages);
+        setActionRequests(result.active_action_requests);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (error instanceof Error && "status" in error && error.status === 404) {
+          try {
+            sessionStorage.removeItem("verbaops.conversationId");
+          } catch {
+            // Storage is optional.
+          }
+          setConversationId(null);
+          return;
+        }
+        setError(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submitContent(content: string): Promise<void> {
     const cleanContent = content.trim();
@@ -74,9 +198,20 @@ export function Chat(): React.JSX.Element {
     setLastFailedContent(cleanContent);
     try {
       const id = conversationId ?? (await createConversation());
-      if (!conversationId) setConversationId(id);
+      if (!conversationId) {
+        setConversationId(id);
+        try {
+          sessionStorage.setItem("verbaops.conversationId", id);
+        } catch {
+          // Storage is optional; the server remains authoritative.
+        }
+      }
       const result = await sendMessage(id, cleanContent);
       setMessages((current) => [...current, result.user_message, result.assistant_message]);
+      if (result.action_requests && result.action_requests.length > 0) {
+        const views = await loadTurnActionViews(result.action_requests);
+        setActionRequests((current) => mergeActionViews(current, views));
+      }
       setDraft("");
       setLastFailedContent(null);
     } catch {
@@ -104,6 +239,12 @@ export function Chat(): React.JSX.Element {
     setDraft("");
     setError(false);
     setLastFailedContent(null);
+    setActionRequests([]);
+    try {
+      sessionStorage.removeItem("verbaops.conversationId");
+    } catch {
+      // Storage is optional; the server remains authoritative.
+    }
   }
 
   return (
@@ -113,7 +254,7 @@ export function Chat(): React.JSX.Element {
           <div>
             <p className="eyebrow">NovaCommerce support</p>
             <h1 id="chat-title">VerbaOps AI</h1>
-            <p className="subtitle">Read-only help for orders and deliveries.</p>
+            <p className="subtitle">Customer operations with server-owned action status.</p>
           </div>
           <button className="secondary-button" type="button" onClick={reset}>
             New conversation
@@ -132,6 +273,20 @@ export function Chat(): React.JSX.Element {
             ))
           )}
         </div>
+
+        {actionRequests.length > 0 ? (
+          <section className="action-list" aria-label="Action requests">
+            {actionRequests.map((actionRequest) => (
+              <ActionRequestCard
+                actionRequest={actionRequest}
+                key={actionRequest.action_request_id}
+                onUpdated={(updated) =>
+                  setActionRequests((current) => mergeActionViews(current, [updated]))
+                }
+              />
+            ))}
+          </section>
+        ) : null}
 
         {conversationId ? <p className="conversation-id">Conversation {conversationId}</p> : null}
         {error ? (

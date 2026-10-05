@@ -5,6 +5,79 @@ import { describe, expect, it, vi } from "vitest";
 import { Chat } from "./chat";
 
 describe("Chat", () => {
+  const reloadConversationId = "45fd2b63-ce1b-52ae-baf6-96d8cd9f4aa2";
+
+  it("reloads messages and active action views from the scoped conversation endpoint", async () => {
+    const action = {
+      action_request_id: "45fd2b63-ce1b-52ae-baf6-96d8cd9f4aa2",
+      action_type: "cancel_order",
+      state: "awaiting_confirmation",
+      proposal_fingerprint: "a".repeat(64),
+      proposal: { action_type: "cancel_order", order_id: "order-1" },
+      safe_summary: "Cancel order request",
+      currency_code: null,
+      required_next_actor: "customer",
+      expires_at: "2026-10-06T12:00:00Z",
+      customer_decision: null,
+      result_status: null,
+      confirmation_required: true,
+      approval_required: false,
+      policy_reason_code: "allowed",
+      permitted_operations: ["confirm", "reject"],
+    };
+    sessionStorage.setItem("verbaops.conversationId", reloadConversationId);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversation_id: reloadConversationId,
+          created_at: "2026-10-05T12:00:00Z",
+          updated_at: "2026-10-05T12:00:00Z",
+          messages: [
+            { id: "user-1", role: "user", content: "cancel it" },
+            { id: "assistant-1", role: "assistant", content: "Waiting for confirmation." },
+          ],
+          has_more: false,
+          next_before_sequence: null,
+          active_action_requests: [action],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<Chat />);
+
+    expect(await screen.findByText("Waiting for confirmation.")).toBeInTheDocument();
+    expect(await screen.findByText("Order order-1")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(`/api/conversations/${reloadConversationId}`, expect.any(Object));
+    expect(sessionStorage.getItem("verbaops.conversationId")).toBe(reloadConversationId);
+    expect(sessionStorage.getItem("verbaops.actionRequests")).toBeNull();
+  });
+
+  it("clears only the conversation identifier and rendered action state for a new conversation", async () => {
+    const user = userEvent.setup();
+    sessionStorage.setItem("verbaops.conversationId", reloadConversationId);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          conversation_id: reloadConversationId,
+          created_at: "2026-10-05T12:00:00Z",
+          updated_at: "2026-10-05T12:00:00Z",
+          messages: [],
+          has_more: false,
+          next_before_sequence: null,
+          active_action_requests: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Chat />);
+    await screen.findByText("Ask about an order, shipment, refund, product, or delivery slot.");
+    await user.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(sessionStorage.getItem("verbaops.conversationId")).toBeNull();
+  });
+
   it("creates one conversation on the first send and reuses it later", async () => {
     const user = userEvent.setup();
     const fetchMock = vi

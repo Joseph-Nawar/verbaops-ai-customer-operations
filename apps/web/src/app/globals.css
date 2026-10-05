@@ -37,4 +37,16 @@ h1 { margin: 5px 0; font-size: clamp(1.7rem, 4vw, 2.3rem); }
 .composer label { font-weight: 700; }
 textarea { width: 100%; resize: vertical; padding: 12px; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; outline-color: var(--accent); }
 .composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.action-list { display: grid; gap: 14px; }
+.action-card, .review-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fbfdfe; }
+.action-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.action-card h2 { margin: 4px 0 0; font-size: 1.1rem; text-transform: capitalize; }
+.action-state { padding: 5px 8px; color: var(--accent-dark); background: #eaf4f5; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
+.action-state-copy { margin: 12px 0 8px; font-weight: 700; }
+.action-details p { margin: 6px 0; line-height: 1.4; }
+.action-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.action-error { color: #8b2f2f; }
+.review-shell { min-height: 100vh; padding: 32px 16px; display: grid; place-items: center; background: var(--canvas); }
+.review-card { width: min(680px, 100%); }
+.review-card h1 { margin-top: 5px; }
 @media (max-width: 560px) { .chat-card { min-height: calc(100vh - 32px); padding: 20px; } .chat-header { flex-direction: column; } .secondary-button { align-self: flex-start; } .message { max-width: 92%; } .composer-footer { align-items: flex-end; flex-direction: column; } }
