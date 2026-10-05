@@ -29,3 +29,9 @@ class TrustedContext(BaseModel):
     tenant_id: UUID
     customer_id: UUID | None
     roles: frozenset[Role]
+
+
+def has_customer_authority(context: TrustedContext) -> bool:
+    """Return whether trusted identity facts authorize customer-scoped actions."""
+
+    return Role.CUSTOMER in context.roles and context.customer_id is not None

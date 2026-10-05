@@ -136,6 +136,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 transition_service=action_transition_service,
                 freshness_service=action_proposal_service,
                 action_executor=action_executor,
+                commerce_client=commerce_client,
             )
             action_reconciler = ActionReconciler(
                 commerce_client=commerce_client,

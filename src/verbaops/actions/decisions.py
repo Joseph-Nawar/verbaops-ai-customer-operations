@@ -30,7 +30,8 @@ from verbaops.actions.transitions import (
     InvalidActionTransitionError,
     ProposalFingerprintMismatchError,
 )
-from verbaops.auth.context import Role, TrustedContext
+from verbaops.auth.context import TrustedContext, has_customer_authority
+from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import CommerceError
 
 
@@ -73,10 +74,12 @@ class ActionDecisionService:
         transition_service: ActionTransitionService,
         freshness_service: ActionProposalService,
         action_executor: ActionExecutor,
+        commerce_client: CommerceClient,
     ) -> None:
         self._transitions = transition_service
         self._freshness = freshness_service
         self._executor = action_executor
+        self._commerce = commerce_client
 
     async def get_action_request(
         self, action_request_id: UUID, trusted_context: TrustedContext
@@ -91,30 +94,10 @@ class ActionDecisionService:
             ActionState.AWAITING_APPROVAL,
         }:
             try:
-                freshness = await self._freshness.refresh(record)
+                currency = await self._commerce.get_tenant_currency()
             except CommerceError:
-                raise ActionFreshnessUnavailableError(
-                    "current action facts are unavailable"
-                ) from None
-            decision = freshness.policy_decision
-            if (
-                freshness.proposal_fingerprint != record.proposal_fingerprint
-                or not decision.allowed
-                or not decision.confirmation_required
-                or decision.approval_required != record.approval_required
-                or freshness.canonical_currency is None
-                or (
-                    ActionState(record.state) is ActionState.AWAITING_CONFIRMATION
-                    and record.approval_required
-                    and (
-                        record.supervisor_approval_decision != "approved"
-                        or record.supervisor_approval_fingerprint != record.proposal_fingerprint
-                    )
-                )
-            ):
-                record = await self._expire_stale(record, trusted_context)
-            else:
-                currency_code = freshness.canonical_currency
+                currency = None
+            currency_code = currency.currency_code if currency is not None else None
         return self.view(record, currency_code=currency_code)
 
     async def confirm(
@@ -322,10 +305,7 @@ class ActionDecisionService:
 
     @staticmethod
     def _require_customer_context(trusted_context: TrustedContext) -> None:
-        if (
-            trusted_context.roles != frozenset({Role.CUSTOMER})
-            or trusted_context.customer_id is None
-        ):
+        if not has_customer_authority(trusted_context):
             raise ActionDecisionForbiddenError("customer action authority is required")
 
     @staticmethod

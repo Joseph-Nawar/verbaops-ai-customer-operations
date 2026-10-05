@@ -51,10 +51,6 @@ async def get_action_request(
         raise _not_found() from None
     except ActionDecisionForbiddenError:
         raise _customer_authority_required() from None
-    except ActionFreshnessUnavailableError:
-        raise PublicAPIError(
-            503, "action_freshness_unavailable", "action facts are unavailable"
-        ) from None
 
 
 @router.post("/{action_request_id}/confirmation", response_model=ActionRequestView)

@@ -39,6 +39,7 @@ from verbaops.actions.transitions import (
     ActionTransitionService,
 )
 from verbaops.auth.context import Role, TrustedContext
+from verbaops.commerce.client import CommerceClient
 from verbaops.commerce.errors import CommerceUnavailableError
 
 NOW = datetime.now(UTC)
@@ -175,6 +176,7 @@ class FakeFreshness:
         self.currency = currency
         self.error = error
         self.calls = 0
+        self.currency_calls = 0
 
     async def refresh(self, _record: object) -> SimpleNamespace:
         self.calls += 1
@@ -191,6 +193,14 @@ class FakeFreshness:
             ),
             canonical_currency=self.currency,
         )
+
+    async def get_tenant_currency(self) -> SimpleNamespace | None:
+        self.currency_calls += 1
+        if self.error is not None:
+            raise self.error
+        if self.currency is None:
+            return None
+        return SimpleNamespace(currency_code=self.currency)
 
 
 class FakeExecutor:
@@ -217,6 +227,7 @@ def service_for(
         transition_service=cast(ActionTransitionService, transitions),
         freshness_service=cast(ActionProposalService, current_freshness),
         action_executor=cast(ActionExecutor, executor),
+        commerce_client=cast(CommerceClient, current_freshness),
     )
     return service, transitions, current_freshness, executor
 
@@ -372,22 +383,92 @@ async def test_repeated_customer_rejection_is_idempotent_but_confirmation_cannot
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("role", [Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR, Role.TENANT_ADMIN])
-async def test_staff_roles_cannot_confirm_or_reject_for_a_bound_customer(role: Role) -> None:
-    owner = context()
-    staff = TrustedContext(
-        principal_id=uuid4(),
-        tenant_id=owner.tenant_id,
-        customer_id=owner.customer_id,
-        roles=frozenset({Role.CUSTOMER, role}),
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.CUSTOMER}),
+        frozenset({Role.CUSTOMER, Role.TENANT_ADMIN}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_AGENT}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_composed_customer_roles_can_view_confirm_and_reject(
+    roles: frozenset[Role],
+) -> None:
+    trusted = context(roles=roles)
+    service, transitions, freshness, executor = service_for(trusted)
+
+    view = await service.get_action_request(transitions.record.id, trusted)
+    confirmed = await service.confirm(
+        transitions.record.id, trusted, transitions.record.proposal_fingerprint
     )
-    service, transitions, freshness, executor = service_for(owner)
+
+    assert view.state is ActionState.AWAITING_CONFIRMATION
+    assert confirmed.state is ActionState.READY_TO_EXECUTE
+    assert freshness.calls == 1
+    assert executor.calls == [transitions.record.id]
+
+    reject_service, reject_transitions, _, reject_executor = service_for(
+        trusted, record=action_record(trusted)
+    )
+    rejected = await reject_service.reject(
+        reject_transitions.record.id,
+        trusted,
+        reject_transitions.record.proposal_fingerprint,
+    )
+
+    assert rejected.state is ActionState.REJECTED
+    assert reject_executor.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.SUPPORT_AGENT}),
+        frozenset({Role.SUPPORT_SUPERVISOR}),
+        frozenset({Role.TENANT_ADMIN}),
+        frozenset({Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_non_customer_roles_cannot_decide_for_a_bound_customer(
+    roles: frozenset[Role],
+) -> None:
+    trusted = context(roles=roles)
+    service, transitions, freshness, executor = service_for(trusted)
 
     with pytest.raises(ActionDecisionForbiddenError):
-        await service.confirm(transitions.record.id, staff, transitions.record.proposal_fingerprint)
+        await service.get_action_request(transitions.record.id, trusted)
     with pytest.raises(ActionDecisionForbiddenError):
-        await service.reject(transitions.record.id, staff, transitions.record.proposal_fingerprint)
+        await service.confirm(
+            transitions.record.id, trusted, transitions.record.proposal_fingerprint
+        )
+    with pytest.raises(ActionDecisionForbiddenError):
+        await service.reject(
+            transitions.record.id, trusted, transitions.record.proposal_fingerprint
+        )
+
     assert freshness.calls == 0
+    assert freshness.currency_calls == 0
+    assert transitions.calls == []
+    assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_customer_role_without_customer_binding_fails_closed() -> None:
+    trusted = TrustedContext(
+        principal_id=uuid4(),
+        tenant_id=uuid4(),
+        customer_id=None,
+        roles=frozenset({Role.CUSTOMER}),
+    )
+    service, transitions, freshness, executor = service_for(trusted)
+
+    with pytest.raises(ActionDecisionForbiddenError):
+        await service.get_action_request(transitions.record.id, trusted)
+
+    assert freshness.calls == 0
+    assert freshness.currency_calls == 0
     assert transitions.calls == []
     assert executor.calls == []
 
@@ -422,6 +503,22 @@ async def test_customer_view_contains_only_safe_action_projection() -> None:
 
 
 @pytest.mark.asyncio
+async def test_non_refund_get_is_only_a_durable_scoped_projection() -> None:
+    trusted = context()
+    record = action_record(trusted)
+    freshness = FakeFreshness(error=CommerceUnavailableError())
+    service, transitions, _, executor = service_for(trusted, record=record, freshness=freshness)
+
+    view = await service.get_action_request(record.id, trusted)
+
+    assert view.state is ActionState.AWAITING_CONFIRMATION
+    assert freshness.calls == 0
+    assert freshness.currency_calls == 0
+    assert transitions.calls == []
+    assert executor.calls == []
+
+
+@pytest.mark.asyncio
 async def test_pending_refund_view_includes_trusted_currency_and_request_only_meaning() -> None:
     trusted = context()
     record = action_record(
@@ -432,14 +529,15 @@ async def test_pending_refund_view_includes_trusted_currency_and_request_only_me
 
     view = await service.get_action_request(record.id, trusted)
 
-    assert freshness.calls == 1
+    assert freshness.calls == 0
+    assert freshness.currency_calls == 1
     assert view.currency_code == "USD"
     assert "45.00 USD" in view.safe_summary
     assert "request, not a payment" in view.safe_summary
 
 
 @pytest.mark.asyncio
-async def test_refund_currency_change_expires_the_pending_confirmation() -> None:
+async def test_stale_refund_view_does_not_expire_but_confirmation_does() -> None:
     trusted = context()
     record = action_record(
         trusted,
@@ -450,8 +548,15 @@ async def test_refund_currency_change_expires_the_pending_confirmation() -> None
 
     view = await service.get_action_request(record.id, trusted)
 
-    assert view.state is ActionState.EXPIRED
-    assert view.currency_code is None
+    assert view.state is ActionState.AWAITING_CONFIRMATION
+    assert view.currency_code == "EUR"
+    assert freshness.calls == 0
+    assert transitions.calls == []
+
+    with pytest.raises(ActionDecisionConflictError):
+        await service.confirm(record.id, trusted, record.proposal_fingerprint)
+
+    assert transitions.record.state is ActionState.EXPIRED
     assert transitions.calls[-1][1]["reason_code"] == "stale"
 
 
@@ -462,28 +567,47 @@ async def test_pending_refund_view_fails_closed_without_currency() -> None:
         trusted,
         proposal=RefundProposal(order_id=uuid4(), amount=Decimal("45.00"), reason="damaged"),
     )
-    service, _, _, _ = service_for(trusted, record=record, freshness=FakeFreshness(currency=None))
+    service, transitions, freshness, executor = service_for(
+        trusted, record=record, freshness=FakeFreshness(currency=None)
+    )
 
     view = await service.get_action_request(record.id, trusted)
 
-    assert view.state is ActionState.EXPIRED
+    assert view.state is ActionState.AWAITING_CONFIRMATION
     assert view.currency_code is None
     assert "45.00" not in view.safe_summary
+    assert freshness.calls == 0
+    assert freshness.currency_calls == 1
+    assert transitions.calls == []
+    assert executor.calls == []
 
 
 @pytest.mark.asyncio
-async def test_refund_view_translates_commerce_failure_to_freshness_error() -> None:
+async def test_refund_view_returns_durable_state_during_commerce_outage() -> None:
     trusted = context()
     record = action_record(
         trusted,
         proposal=RefundProposal(order_id=uuid4(), amount=Decimal("45.00"), reason="damaged"),
     )
-    service, _, _, _ = service_for(
+    service, transitions, freshness, executor = service_for(
         trusted, record=record, freshness=FakeFreshness(error=CommerceUnavailableError())
     )
 
+    view = await service.get_action_request(record.id, trusted)
+
+    assert view.state is ActionState.AWAITING_CONFIRMATION
+    assert view.currency_code is None
+    assert freshness.calls == 0
+    assert freshness.currency_calls == 1
+    assert transitions.calls == []
+    assert executor.calls == []
+
     with pytest.raises(ActionFreshnessUnavailableError):
-        await service.get_action_request(record.id, trusted)
+        await service.confirm(record.id, trusted, record.proposal_fingerprint)
+
+    assert transitions.record.state is ActionState.AWAITING_CONFIRMATION
+    assert freshness.calls == 1
+    assert transitions.calls == []
 
 
 @pytest.mark.asyncio

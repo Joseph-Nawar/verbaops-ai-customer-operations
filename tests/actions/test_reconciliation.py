@@ -23,7 +23,7 @@ from verbaops.actions.models import (
     TicketCategory,
     proposal_target_ids,
 )
-from verbaops.actions.reconciliation import ActionReconciler
+from verbaops.actions.reconciliation import ActionReconciler, ActionReconciliationForbiddenError
 from verbaops.actions.transitions import ActionTransitionService
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient, CommerceWriteResult
@@ -518,7 +518,101 @@ async def test_cross_customer_reconciliation_is_not_found_and_never_calls_commer
     from verbaops.actions.transitions import ActionRequestNotFoundError
 
     with pytest.raises(ActionRequestNotFoundError):
-        await reconciler.reconcile(action.id, customer_context(tenant_id=context.tenant_id))
+        await reconciler.reconcile(
+            action.id,
+            customer_context(
+                tenant_id=context.tenant_id,
+                roles=frozenset({Role.CUSTOMER, Role.SUPPORT_AGENT}),
+            ),
+        )
+
+    assert commerce.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.CUSTOMER}),
+        frozenset({Role.CUSTOMER, Role.TENANT_ADMIN}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_AGENT}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_composed_customer_roles_can_reconcile_scoped_action(
+    roles: frozenset[Role],
+) -> None:
+    context = customer_context(roles=roles)
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    action = action_record(proposal, context, state=ActionState.SUCCEEDED)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    reconciler = reconciler_for(commerce, transitions)
+
+    result = await reconciler.reconcile(action.id, context)
+
+    assert result.id == action.id
+    assert commerce.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.SUPPORT_AGENT}),
+        frozenset({Role.SUPPORT_SUPERVISOR}),
+        frozenset({Role.TENANT_ADMIN}),
+        frozenset({Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_non_customer_roles_cannot_reconcile_even_with_customer_binding(
+    roles: frozenset[Role],
+) -> None:
+    context = customer_context(roles=roles)
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    action = action_record(proposal, context, state=ActionState.SUCCEEDED)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    reconciler = reconciler_for(commerce, transitions)
+
+    with pytest.raises(ActionReconciliationForbiddenError):
+        await reconciler.reconcile(action.id, context)
+
+    assert commerce.calls == []
+
+
+@pytest.mark.asyncio
+async def test_customer_role_without_binding_cannot_reconcile() -> None:
+    owner = customer_context()
+    trusted = TrustedContext(
+        principal_id=owner.principal_id,
+        tenant_id=owner.tenant_id,
+        customer_id=None,
+        roles=frozenset({Role.CUSTOMER}),
+    )
+    proposal = SupportTicketProposal(
+        order_id=None,
+        category=TicketCategory.OTHER,
+        subject="Need help",
+        description="Please help",
+    )
+    action = action_record(proposal, owner, state=ActionState.SUCCEEDED)
+    transitions = FakeTransitions(action)
+    commerce = ScriptedCommerce()
+    reconciler = reconciler_for(commerce, transitions)
+
+    with pytest.raises(ActionReconciliationForbiddenError):
+        await reconciler.reconcile(action.id, trusted)
 
     assert commerce.calls == []
 

@@ -52,10 +52,10 @@ class FakeDecisionService:
         self.calls: list[tuple[str, tuple[object, ...]]] = []
 
     def _authorize(self, action_id: UUID, trusted: TrustedContext) -> None:
+        if Role.CUSTOMER not in trusted.roles or trusted.customer_id is None:
+            raise ActionDecisionForbiddenError("customer action authority is required")
         if action_id != ACTION_ID or trusted.customer_id != self.owner.customer_id:
             raise ActionRequestNotFoundError("action request not found in customer scope")
-        if trusted.roles != frozenset({Role.CUSTOMER}):
-            raise ActionDecisionForbiddenError("customer action authority is required")
 
     async def get_action_request(
         self, action_id: UUID, trusted: TrustedContext
@@ -154,8 +154,9 @@ class FreshnessUnavailableDecisionService(FakeDecisionService):
     async def get_action_request(
         self, action_id: UUID, trusted: TrustedContext
     ) -> ActionRequestView:
-        del action_id, trusted
-        raise ActionFreshnessUnavailableError("current action facts are unavailable")
+        self._authorize(action_id, trusted)
+        self.calls.append(("get", (action_id, trusted)))
+        return self.view
 
     async def confirm(
         self, action_id: UUID, trusted: TrustedContext, fingerprint: str
@@ -165,8 +166,10 @@ class FreshnessUnavailableDecisionService(FakeDecisionService):
 
 
 @pytest.mark.asyncio
-async def test_refund_view_and_confirmation_map_freshness_outages_to_503() -> None:
-    app, _, _ = action_app(decision_service_override=FreshnessUnavailableDecisionService(OWNER))
+async def test_refund_get_survives_outage_but_confirmation_maps_it_to_503() -> None:
+    app, service, _ = action_app(
+        decision_service_override=FreshnessUnavailableDecisionService(OWNER)
+    )
 
     view = await request(app, "GET", f"/v1/action-requests/{ACTION_ID}", headers=auth_headers())
     confirm = await request(
@@ -177,9 +180,10 @@ async def test_refund_view_and_confirmation_map_freshness_outages_to_503() -> No
         json={"proposal_fingerprint": "a" * 64},
     )
 
-    assert view.status_code == confirm.status_code == 503
-    assert view.json()["error"]["code"] == "action_freshness_unavailable"
+    assert view.status_code == 200
+    assert view.json()["state"] == ActionState.AWAITING_CONFIRMATION.value
     assert confirm.json()["error"]["code"] == "action_freshness_unavailable"
+    assert [call[0] for call in service.calls] == ["get"]
 
 
 @pytest.mark.asyncio
@@ -194,12 +198,25 @@ async def test_customer_view_rejects_support_context() -> None:
 
 
 @pytest.mark.asyncio
+async def test_customer_role_without_binding_is_rejected() -> None:
+    missing_binding = OWNER.model_copy(
+        update={"customer_id": None, "roles": frozenset({Role.CUSTOMER})}
+    )
+    app, _, _ = action_app(missing_binding)
+
+    response = await request(app, "GET", f"/v1/action-requests/{ACTION_ID}", headers=auth_headers())
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "customer_authority_required"
+
+
+@pytest.mark.asyncio
 async def test_random_and_cross_customer_ids_have_identical_sanitized_not_found() -> None:
     stranger = build_context(
         principal_id="90000000-0000-0000-0000-000000000006",
         tenant_id=str(OWNER.tenant_id),
         customer_id="90000000-0000-0000-0000-000000000007",
-    ).model_copy(update={"roles": frozenset({Role.CUSTOMER})})
+    ).model_copy(update={"roles": frozenset({Role.CUSTOMER, Role.SUPPORT_AGENT})})
     app, _, _ = action_app(stranger)
 
     cross_owner = await request(
@@ -251,13 +268,23 @@ async def test_confirmation_and_rejection_accept_exact_fingerprint_only() -> Non
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("role", [Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR])
-async def test_support_and_supervisor_contexts_cannot_confirm_as_customer(role: Role) -> None:
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.SUPPORT_AGENT}),
+        frozenset({Role.SUPPORT_SUPERVISOR}),
+        frozenset({Role.TENANT_ADMIN}),
+        frozenset({Role.SUPPORT_AGENT, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_non_customer_contexts_cannot_confirm_or_reconcile_as_customer(
+    roles: frozenset[Role],
+) -> None:
     staff = TrustedContext(
         principal_id=uuid4(),
         tenant_id=OWNER.tenant_id,
         customer_id=OWNER.customer_id,
-        roles=frozenset({role}),
+        roles=roles,
     )
     app, service, _ = action_app(staff)
 
@@ -280,6 +307,42 @@ async def test_support_and_supervisor_contexts_cannot_confirm_as_customer(role: 
         headers=auth_headers(),
     )
     assert reconciled.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "roles",
+    [
+        frozenset({Role.CUSTOMER}),
+        frozenset({Role.CUSTOMER, Role.TENANT_ADMIN}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_AGENT}),
+        frozenset({Role.CUSTOMER, Role.SUPPORT_SUPERVISOR}),
+    ],
+)
+async def test_composed_customer_contexts_can_get_confirm_and_reconcile(
+    roles: frozenset[Role],
+) -> None:
+    trusted = OWNER.model_copy(update={"roles": roles})
+    app, service, reconciler = action_app(trusted)
+
+    view = await request(app, "GET", f"/v1/action-requests/{ACTION_ID}", headers=auth_headers())
+    confirmed = await request(
+        app,
+        "POST",
+        f"/v1/action-requests/{ACTION_ID}/confirmation",
+        headers=auth_headers(),
+        json={"proposal_fingerprint": "a" * 64},
+    )
+    reconciliation = await request(
+        app,
+        "POST",
+        f"/v1/action-requests/{ACTION_ID}/reconciliation",
+        headers=auth_headers(),
+    )
+
+    assert view.status_code == confirmed.status_code == reconciliation.status_code == 200
+    assert service.calls[0][0] == "get"
+    assert reconciler.calls == [(ACTION_ID, trusted)]
 
 
 @pytest.mark.asyncio

@@ -166,6 +166,7 @@ async def test_concurrent_confirmation_commits_decision_before_one_write_dispatc
         transition_service=transitions,
         freshness_service=freshness,  # type: ignore[arg-type]
         action_executor=executor,
+        commerce_client=commerce,  # type: ignore[arg-type]
     )
 
     first = asyncio.create_task(decisions.confirm(action.id, context.trusted_context, fingerprint))

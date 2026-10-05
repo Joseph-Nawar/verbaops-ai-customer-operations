@@ -28,7 +28,7 @@ from verbaops.actions.verification import (
     VerificationStatus,
     verify_postcondition,
 )
-from verbaops.auth.context import Role, TrustedContext
+from verbaops.auth.context import TrustedContext, has_customer_authority
 from verbaops.commerce.client import CommerceClient, CommerceWriteResult
 from verbaops.commerce.errors import (
     CommerceError,
@@ -66,13 +66,12 @@ class ActionReconciler:
     ) -> ActionRequestRecord:
         """Recover an expired execution lease, then read or replay an unresolved action."""
 
-        if (
-            trusted_context.roles != frozenset({Role.CUSTOMER})
-            or trusted_context.customer_id is None
-        ):
+        if not has_customer_authority(trusted_context):
             raise ActionReconciliationForbiddenError("customer action authority is required")
+        customer_id = trusted_context.customer_id
+        assert customer_id is not None
         record = await self._transitions.get_scoped(
-            action_request_id, trusted_context.tenant_id, trusted_context.customer_id
+            action_request_id, trusted_context.tenant_id, customer_id
         )
         if record.state is ActionState.EXECUTING:
             record = await self._transitions.recover_expired_execution(
