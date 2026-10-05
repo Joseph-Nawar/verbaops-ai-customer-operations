@@ -166,7 +166,7 @@ class FreshnessUnavailableDecisionService(FakeDecisionService):
 
 
 @pytest.mark.asyncio
-async def test_refund_get_survives_outage_but_confirmation_maps_it_to_503() -> None:
+async def test_pending_get_survives_outage_but_confirmation_maps_it_to_503() -> None:
     app, service, _ = action_app(
         decision_service_override=FreshnessUnavailableDecisionService(OWNER)
     )
