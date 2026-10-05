@@ -29,6 +29,7 @@ from verbaops.agent.versions import (
     MAX_TOOL_ROUNDS,
     MAX_VALIDATION_REPAIRS,
 )
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.commerce.errors import (
     CommerceAuthenticationError,
     CommerceError,
@@ -174,6 +175,7 @@ async def model_node(state: AgentState, runtime: Runtime[AgentContext]) -> dict[
         "model_call_count": state["model_call_count"] + 1,
         "final_response": content if not response.tool_calls else None,
         "failure": None,
+        "action_requests": list(state.get("action_requests", [])),
     }
 
 
@@ -247,6 +249,7 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
     context = _context(runtime)
     invalid_call_ids = {message.tool_call_id for message in state["last_tool_results"]}
     tool_messages = list(state["last_tool_results"])
+    action_requests = list(state.get("action_requests", []))
     tool_path_entered = state.get("tool_path_entered", False)
     for call in state["pending_tool_calls"]:
         if call.id in invalid_call_ids:
@@ -371,12 +374,19 @@ async def execute_tools(state: AgentState, runtime: Runtime[AgentContext]) -> di
             (perf_counter() - started_at) * 1000,
         )
         tool_messages.append(_tool_message(call, result_json))
+        if (
+            cast(Any, definition).risk_level.value == "proposal"
+            and isinstance(result, ActionRequestSummary)
+            and len(action_requests) < MAX_TOOL_CALLS
+        ):
+            action_requests.append(result)
 
     return {
         "messages": [*state["messages"], *tool_messages],
         "pending_tool_calls": [],
         "last_tool_results": tool_messages,
         "tool_path_entered": tool_path_entered,
+        "action_requests": action_requests,
     }
 
 

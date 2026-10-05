@@ -3,6 +3,7 @@
 from typing import NotRequired, TypedDict
 from uuid import UUID
 
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.agent.errors import AgentError
 from verbaops.llm.models import ChatMessage, ToolCall
 from verbaops.retrieval.models import RetrievalEvidence
@@ -25,5 +26,6 @@ class AgentState(TypedDict):
     knowledge_evidence: list[RetrievalEvidence]
     retrieval_invocation_id: UUID | None
     grounded_citations: list[RetrievalEvidence]
+    action_requests: list[ActionRequestSummary]
     p4_diagnostics: NotRequired[dict[str, object]]
     p5_diagnostics: NotRequired[dict[str, object]]

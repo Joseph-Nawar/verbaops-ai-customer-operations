@@ -120,11 +120,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
         commerce_client = CommerceClient(dependencies.settings.commerce, commerce_http_client)
         if database is not None:
-            conversation_service = ConversationService(database.session_factory)
+            action_repository = ActionRepository(database.session_factory)
+            conversation_service = ConversationService(
+                database.session_factory, action_repository=action_repository
+            )
             action_transition_service = ActionTransitionService(database.session_factory)
             action_proposal_service = ActionProposalService(
                 commerce_client,
-                ActionRepository(database.session_factory),
+                action_repository,
                 action_transition_service,
             )
             action_executor = ActionExecutor(

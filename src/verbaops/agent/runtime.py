@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, cast
 from uuid import UUID
 
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.actions.proposals import ActionProposalService
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import (
@@ -62,6 +63,7 @@ class AgentTurnResult:
     agent_run: AgentRunRecord
     user_message: MessageRecord
     assistant_message: MessageRecord
+    action_requests: tuple[ActionRequestSummary, ...] = ()
 
 
 class AgentRuntime:
@@ -217,6 +219,11 @@ class AgentRuntime:
                     turn_start.agent_run.id,
                     final_response,
                 )
+            raw_action_requests = final_state.get("action_requests", [])
+            if not isinstance(raw_action_requests, (list, tuple)) or not all(
+                isinstance(item, ActionRequestSummary) for item in raw_action_requests
+            ):
+                raise AgentProtocolError()
         except TimeoutError:
             error = AgentUnavailableError()
             await self._fail_run(scope, conversation_id, turn_start.agent_run.id, error)
@@ -237,6 +244,7 @@ class AgentRuntime:
             agent_run=completion.agent_run,
             user_message=turn_start.user_message,
             assistant_message=completion.assistant_message,
+            action_requests=tuple(raw_action_requests),
         )
 
     @staticmethod
@@ -285,6 +293,7 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "knowledge_evidence": [],
         "retrieval_invocation_id": None,
         "grounded_citations": [],
+        "action_requests": [],
     }
 
 

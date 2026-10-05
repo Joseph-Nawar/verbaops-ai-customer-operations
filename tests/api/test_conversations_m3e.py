@@ -98,6 +98,16 @@ class FakeConversationService:
             next_before_sequence=page[0].sequence if has_more else None,
         )
 
+    async def list_active_action_requests(
+        self,
+        _scope: ConversationScope,
+        conversation_id: UUID,
+        _customer_id: UUID | None,
+    ) -> list[object]:
+        if conversation_id != self.conversation.id:
+            raise ConversationNotFoundError()
+        return []
+
 
 class FakeAgentRuntime:
     def __init__(self, result: AgentTurnResult | Exception) -> None:
@@ -187,6 +197,7 @@ async def test_create_and_message_responses_use_trusted_identity_only(
             "run_id",
             "user_message",
             "assistant_message",
+            "action_requests",
         }
         assert sent.json()["assistant_message"]["content"] == "Please provide your order ID."
         assert "tenant_id" not in sent.text
