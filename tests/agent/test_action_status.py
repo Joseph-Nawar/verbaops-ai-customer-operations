@@ -16,7 +16,7 @@ from tests.agent.test_tool_loop import (
 from tests.support.fake_llm import ScriptedLLMClient
 from verbaops.actions.models import ActionRequestSummary, ActionState, ActionType
 from verbaops.agent.graph import build_agent_graph
-from verbaops.llm.models import ToolCall
+from verbaops.llm.models import GenerateResponse, ToolCall
 from verbaops.tools.models import RetryPolicy, RiskLevel, ToolDefinition
 from verbaops.tools.registry import ToolRegistry
 from verbaops.tools.stage6_models import Stage6RiskLevel
@@ -39,8 +39,8 @@ def summary(*, state: ActionState = ActionState.AWAITING_CONFIRMATION) -> Action
 
 
 def proposal_registry(result: object) -> ToolRegistry:
-    async def handler(_input: ProposalInput, _context: Any, _client: Any) -> object:
-        return result
+    async def handler(_input: ProposalInput, _context: Any, _client: Any) -> BaseModel:
+        return cast(BaseModel, result)
 
     definition = ToolDefinition(
         name="propose_cancel_order",
@@ -138,15 +138,14 @@ async def test_model_prose_cannot_override_durable_structured_status() -> None:
     result = await build_agent_graph().ainvoke(make_state(), context=context)
 
     assert result["action_requests"][0].state is ActionState.AWAITING_CONFIRMATION
-    assert result["action_requests"][0].state is not ActionState.SUCCEEDED
 
 
-def make_response(content: str | None, *calls: ToolCall):
+def make_response(content: str | None, *calls: ToolCall) -> GenerateResponse:
     return make_response_impl(content, *calls)
 
 
-def make_response_impl(content: str | None, *calls: ToolCall):
-    from verbaops.llm.models import CapabilityAlias, GenerateResponse, ResponseMetadata
+def make_response_impl(content: str | None, *calls: ToolCall) -> GenerateResponse:
+    from verbaops.llm.models import CapabilityAlias, ResponseMetadata
 
     return GenerateResponse(
         content=content,

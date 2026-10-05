@@ -1,14 +1,15 @@
 """Short-transaction lifecycle service for future agent turns."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from verbaops.actions.repository import ActionRepository
 from verbaops.actions.transitions import ActionRequestRecord
 from verbaops.conversations.domain import (
     AgentRunRecord,
@@ -25,6 +26,9 @@ from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.repository import ConversationRepository
 from verbaops.llm.models import ResponseMetadata
 from verbaops.retrieval.models import RetrievalEvidence
+
+if TYPE_CHECKING:
+    from verbaops.actions.repository import ActionRepository
 
 
 class ConversationService:

@@ -11,6 +11,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from pydantic import BaseModel, ValidationError
 
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.agent.context import AgentContext
 from verbaops.agent.errors import (
     AgentBudgetExceededError,
@@ -29,7 +30,6 @@ from verbaops.agent.versions import (
     MAX_TOOL_ROUNDS,
     MAX_VALIDATION_REPAIRS,
 )
-from verbaops.actions.models import ActionRequestSummary
 from verbaops.commerce.errors import (
     CommerceAuthenticationError,
     CommerceError,
