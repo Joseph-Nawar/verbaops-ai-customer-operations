@@ -1,4 +1,5 @@
-# Deterministic, provider-free contract configuration.
+# Deterministic, provider-free contract configuration. The acceptance runner
+# points only at the in-compose scripted provider stub.
 model_list:
   - model_name: agent-fast
     litellm_params:

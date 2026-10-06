@@ -78,7 +78,17 @@ async def apply_overlay(database_url: str, manifest_path: Path) -> None:
             if primary_exists is None:
                 raise ValueError("canonical customer_primary is missing")
             existing = await session.scalar(
-                select(Order.id).where(Order.id.in_([recent_order_id, reschedule_order_id]))
+                select(Order.id).where(
+                    Order.id.in_(
+                        [
+                            recent_order_id,
+                            reschedule_order_id,
+                            _uuid(manifest, "ordinary_cancel_order"),
+                            _uuid(manifest, "unusual_cancel_order"),
+                            _uuid(manifest, "stale_cancel_order"),
+                        ]
+                    )
+                )
             )
             ensure_overlay_absent(existing)
             await session.execute(insert(Product), rows["products"])
@@ -111,10 +121,22 @@ def build_overlay_rows(
     reschedule_item_id = _uuid(manifest, "reschedulable_order_item")
     slot_x_id = _uuid(manifest, "slot_x")
     slot_y_id = _uuid(manifest, "slot_y")
+    stage6_slot_x_id = _uuid(manifest, "stage6_slot_x")
+    stage6_slot_y_id = _uuid(manifest, "stage6_slot_y")
+    unusual_cancel_order_id = _uuid(manifest, "unusual_cancel_order")
+    unusual_cancel_item_id = _uuid(manifest, "unusual_cancel_item")
+    unusual_cancel_shipment_id = _uuid(manifest, "unusual_cancel_shipment")
+    stale_cancel_order_id = _uuid(manifest, "stale_cancel_order")
+    stale_cancel_item_id = _uuid(manifest, "stale_cancel_item")
+    stale_cancel_shipment_id = _uuid(manifest, "stale_cancel_shipment")
+    ordinary_cancel_order_id = _uuid(manifest, "ordinary_cancel_order")
+    ordinary_cancel_item_id = _uuid(manifest, "ordinary_cancel_item")
+    ordinary_cancel_shipment_id = _uuid(manifest, "ordinary_cancel_shipment")
     created_at = now
-    # Stay outside the canonical seed's 30-day window while remaining future-relative.
-    future_x = today + timedelta(days=40)
-    future_y = today + timedelta(days=41)
+    commerce_future_x = today + timedelta(days=40)
+    commerce_future_y = today + timedelta(days=41)
+    stage6_future_x = today + timedelta(days=5)
+    stage6_future_y = today + timedelta(days=6)
     return {
         "products": [
             {
@@ -132,7 +154,7 @@ def build_overlay_rows(
         "delivery_slots": [
             {
                 "id": slot_x_id,
-                "service_date": future_x,
+                "service_date": commerce_future_x,
                 "window_start": time(9, 0, tzinfo=UTC),
                 "window_end": time(11, 0, tzinfo=UTC),
                 "capacity": 20,
@@ -140,7 +162,23 @@ def build_overlay_rows(
             },
             {
                 "id": slot_y_id,
-                "service_date": future_y,
+                "service_date": commerce_future_y,
+                "window_start": time(9, 0, tzinfo=UTC),
+                "window_end": time(11, 0, tzinfo=UTC),
+                "capacity": 20,
+                "reserved_count": 0,
+            },
+            {
+                "id": stage6_slot_x_id,
+                "service_date": stage6_future_x,
+                "window_start": time(9, 0, tzinfo=UTC),
+                "window_end": time(11, 0, tzinfo=UTC),
+                "capacity": 20,
+                "reserved_count": 3,
+            },
+            {
+                "id": stage6_slot_y_id,
+                "service_date": stage6_future_y,
                 "window_start": time(9, 0, tzinfo=UTC),
                 "window_end": time(11, 0, tzinfo=UTC),
                 "capacity": 20,
@@ -166,6 +204,33 @@ def build_overlay_rows(
                 "updated_at": created_at,
                 "cancelled_at": None,
             },
+            {
+                "id": ordinary_cancel_order_id,
+                "customer_id": primary_id,
+                "status": OrderStatus.CONFIRMED.value,
+                "total": Decimal("25.00"),
+                "created_at": created_at,
+                "updated_at": created_at,
+                "cancelled_at": None,
+            },
+            {
+                "id": unusual_cancel_order_id,
+                "customer_id": primary_id,
+                "status": OrderStatus.PROCESSING.value,
+                "total": Decimal("25.00"),
+                "created_at": created_at,
+                "updated_at": created_at,
+                "cancelled_at": None,
+            },
+            {
+                "id": stale_cancel_order_id,
+                "customer_id": primary_id,
+                "status": OrderStatus.PROCESSING.value,
+                "total": Decimal("25.00"),
+                "created_at": created_at,
+                "updated_at": created_at,
+                "cancelled_at": None,
+            },
         ],
         "order_items": [
             {
@@ -182,6 +247,27 @@ def build_overlay_rows(
                 "quantity": 1,
                 "unit_price": Decimal("25.00"),
             },
+            {
+                "id": ordinary_cancel_item_id,
+                "order_id": ordinary_cancel_order_id,
+                "product_id": overlay_product_id,
+                "quantity": 1,
+                "unit_price": Decimal("25.00"),
+            },
+            {
+                "id": unusual_cancel_item_id,
+                "order_id": unusual_cancel_order_id,
+                "product_id": overlay_product_id,
+                "quantity": 1,
+                "unit_price": Decimal("25.00"),
+            },
+            {
+                "id": stale_cancel_item_id,
+                "order_id": stale_cancel_order_id,
+                "product_id": overlay_product_id,
+                "quantity": 1,
+                "unit_price": Decimal("25.00"),
+            },
         ],
         "shipments": [
             {
@@ -192,7 +278,17 @@ def build_overlay_rows(
                 "status": ShipmentStatus.LABEL_CREATED.value,
                 "estimated_delivery": now + timedelta(days=2),
                 "delivered_at": None,
-                "delivery_slot_id": slot_x_id,
+                "delivery_slot_id": stage6_slot_x_id,
+            },
+            {
+                "id": ordinary_cancel_shipment_id,
+                "order_id": ordinary_cancel_order_id,
+                "carrier": "Acceptance Carrier",
+                "tracking_number": "ACCEPTANCE-OVERLAY-ORDINARY-CANCEL",
+                "status": ShipmentStatus.PENDING.value,
+                "estimated_delivery": now + timedelta(days=2),
+                "delivered_at": None,
+                "delivery_slot_id": None,
             },
             {
                 "id": _uuid(manifest, "recent_delivered_shipment"),
@@ -203,6 +299,26 @@ def build_overlay_rows(
                 "estimated_delivery": now - timedelta(days=1),
                 "delivered_at": now - timedelta(days=1),
                 "delivery_slot_id": None,
+            },
+            {
+                "id": unusual_cancel_shipment_id,
+                "order_id": unusual_cancel_order_id,
+                "carrier": "Acceptance Carrier",
+                "tracking_number": "ACCEPTANCE-OVERLAY-CANCEL",
+                "status": ShipmentStatus.LABEL_CREATED.value,
+                "estimated_delivery": now + timedelta(days=2),
+                "delivered_at": None,
+                "delivery_slot_id": stage6_slot_x_id,
+            },
+            {
+                "id": stale_cancel_shipment_id,
+                "order_id": stale_cancel_order_id,
+                "carrier": "Acceptance Carrier",
+                "tracking_number": "ACCEPTANCE-OVERLAY-STALE",
+                "status": ShipmentStatus.LABEL_CREATED.value,
+                "estimated_delivery": now + timedelta(days=2),
+                "delivered_at": None,
+                "delivery_slot_id": stage6_slot_x_id,
             },
         ],
     }

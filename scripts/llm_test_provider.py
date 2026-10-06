@@ -30,6 +30,9 @@ def _content_text(messages: list[dict[str, Any]]) -> str:
 
 
 def _completion(request: dict[str, Any]) -> dict[str, Any]:
+    stage6 = _stage6_proposal_completion(request)
+    if stage6 is not None:
+        return stage6
     acceptance = _agent_acceptance_completion(request)
     if acceptance is not None:
         return acceptance
@@ -86,6 +89,72 @@ def _completion(request: dict[str, Any]) -> dict[str, Any]:
             "completion_tokens": completion_tokens,
             "total_tokens": 7 + completion_tokens,
         },
+    }
+
+
+def _stage6_proposal_completion(request: dict[str, Any]) -> dict[str, Any] | None:
+    """Return a scripted proposal call for the Stage 6 black-box stack."""
+
+    messages = request.get("messages", [])
+    if not isinstance(messages, list):
+        return None
+    tool_messages = [
+        message
+        for message in messages
+        if isinstance(message, dict) and message.get("role") == "tool"
+    ]
+    if tool_messages:
+        try:
+            result = json.loads(str(tool_messages[-1].get("content", "{}")))
+        except json.JSONDecodeError:
+            return None
+        if isinstance(result, dict) and "action_request_id" in result:
+            state = result.get("state", "recorded")
+            return _response_payload(
+                f"The server recorded this proposal with durable state {state}.",
+                finish_reason="stop",
+                completion_tokens=13,
+            )
+        return None
+    latest = _content_text(messages)
+    if not latest.startswith("stage6-propose:"):
+        return None
+    try:
+        envelope = json.loads(latest.removeprefix("stage6-propose:"))
+    except json.JSONDecodeError:
+        return _response_payload(
+            "The proposal could not be validated by the server.",
+            finish_reason="stop",
+            completion_tokens=10,
+        )
+    if not isinstance(envelope, dict):
+        return None
+    name = envelope.get("tool")
+    arguments = envelope.get("arguments")
+    if not isinstance(name, str) or not isinstance(arguments, dict):
+        return None
+    return {
+        **_response_payload(None, finish_reason="tool_calls", completion_tokens=10),
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_stage6_proposal",
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": json.dumps(arguments, separators=(",", ":")),
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
     }
 
 

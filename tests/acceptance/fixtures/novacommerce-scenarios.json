@@ -34,6 +34,17 @@
     "reschedulable_order_item": "8c8e6f76-3bb0-5d03-83bc-8a104ca55412",
     "reschedulable_shipment": "d83df457-3a34-57be-a14c-201f119a4464",
     "slot_x": "1d2a1c96-225b-53aa-8979-d91272ea6d58",
-    "slot_y": "8e4ed276-fc71-5dff-ad00-ce206e5f2c0c"
+    "slot_y": "8e4ed276-fc71-5dff-ad00-ce206e5f2c0c",
+    "stage6_slot_x": "1d2a1c96-225b-53aa-8979-d91272ea6d59",
+    "stage6_slot_y": "8e4ed276-fc71-5dff-ad00-ce206e5f2c0d",
+    "unusual_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4701",
+    "unusual_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4702",
+    "unusual_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4703",
+    "ordinary_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4721",
+    "ordinary_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4722",
+    "ordinary_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4723",
+    "stale_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4711",
+    "stale_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4712",
+    "stale_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4713"
   }
 }
