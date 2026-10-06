@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "VerbaOps AI",
-  description: "Read-only NovaCommerce support chat",
+  description: "NovaCommerce customer operations with server-owned action status",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {

@@ -105,6 +105,24 @@ class ActionRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
+    async def list_active_for_conversation(
+        self, *, tenant_id: UUID, customer_id: UUID, conversation_id: UUID
+    ) -> list[ActionRequestRecord]:
+        """Load only active action requests for one trusted conversation scope."""
+
+        async with self._session_factory() as session, session.begin():
+            rows = await session.scalars(
+                select(ActionRequest)
+                .where(
+                    ActionRequest.tenant_id == tenant_id,
+                    ActionRequest.customer_id == customer_id,
+                    ActionRequest.conversation_id == conversation_id,
+                    ActionRequest.state.in_(_ACTIVE_STATES),
+                )
+                .order_by(ActionRequest.created_at, ActionRequest.id)
+            )
+            return [action_request_record(row) for row in rows]
+
     async def create_or_get(
         self,
         *,

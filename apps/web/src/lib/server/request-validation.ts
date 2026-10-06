@@ -11,9 +11,21 @@ export async function readJson(request: Request): Promise<unknown | undefined> {
 }
 
 export function isConversationId(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+  return isUuid(value);
 }
 
 export function encodedConversationId(value: string): string {
   return encodeURIComponent(value);
+}
+
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+export function encodedUuid(value: string): string {
+  return encodeURIComponent(value);
+}
+
+export function isProposalFingerprint(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
 }

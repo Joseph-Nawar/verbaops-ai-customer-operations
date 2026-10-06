@@ -77,6 +77,9 @@ class ActionRequestView(BaseModel):
     policy_reason_code: (
         Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_.-]{0,127}$")] | None
     ) = None
+    permitted_operations: tuple[
+        Literal["confirm", "reject", "approve", "approval_reject", "reconcile"], ...
+    ] = ()
 
 
 class ActionDecisionService:
@@ -116,7 +119,30 @@ class ActionDecisionService:
             except CommerceError:
                 currency = None
             currency_code = currency.currency_code if currency is not None else None
-        return self.view(record, currency_code=currency_code)
+        return self.view_for_context(record, trusted_context, currency_code=currency_code)
+
+    @staticmethod
+    def view_for_context(
+        record: ActionRequestRecord,
+        trusted_context: TrustedContext,
+        *,
+        currency_code: str | None = None,
+    ) -> ActionRequestView:
+        """Project durable state plus server-derived actor operations."""
+
+        if record.tenant_id != trusted_context.tenant_id:
+            raise ActionDecisionForbiddenError("action request not found")
+        customer_scope = has_customer_authority(trusted_context) and (
+            trusted_context.customer_id == record.customer_id
+        )
+        supervisor_scope = has_supervisor_authority(trusted_context) and record.approval_required
+        if not customer_scope and not supervisor_scope:
+            raise ActionDecisionForbiddenError("action request not found")
+        return ActionDecisionService.view(
+            record,
+            currency_code=currency_code,
+            permitted_operations=_permitted_operations(record, trusted_context),
+        )
 
     async def approve(
         self,
@@ -280,7 +306,14 @@ class ActionDecisionService:
         return self.view(record)
 
     @staticmethod
-    def view(record: ActionRequestRecord, *, currency_code: str | None = None) -> ActionRequestView:
+    def view(
+        record: ActionRequestRecord,
+        *,
+        currency_code: str | None = None,
+        permitted_operations: tuple[
+            Literal["confirm", "reject", "approve", "approval_reject", "reconcile"], ...
+        ] = (),
+    ) -> ActionRequestView:
         """Project only safe owner-visible fields from the durable action record."""
 
         proposal = parse_action_proposal_payload(record.proposal_payload)
@@ -343,6 +376,7 @@ class ActionDecisionService:
             confirmation_required=record.confirmation_required,
             approval_required=record.approval_required,
             policy_reason_code=record.policy_reason_code,
+            permitted_operations=permitted_operations,
         )
 
     async def _supervisor_decision(
@@ -518,6 +552,34 @@ def _same_supervisor_decision(
         and record.supervisor_approval_fingerprint == fingerprint
         and record.proposal_fingerprint == fingerprint
     )
+
+
+def _permitted_operations(
+    record: ActionRequestRecord, trusted_context: TrustedContext
+) -> tuple[Literal["confirm", "reject", "approve", "approval_reject", "reconcile"], ...]:
+    """Describe bounded presentation capabilities without replacing POST authorization."""
+
+    operations: list[Literal["confirm", "reject", "approve", "approval_reject", "reconcile"]] = []
+    state = ActionState(record.state)
+    owns_action = has_customer_authority(trusted_context) and (
+        trusted_context.customer_id == record.customer_id
+    )
+    if owns_action:
+        if state is ActionState.AWAITING_CONFIRMATION and record.confirmation_required:
+            operations.extend(("confirm", "reject"))
+        elif state is ActionState.AWAITING_APPROVAL:
+            operations.append("reject")
+        elif state is ActionState.UNRESOLVED:
+            operations.append("reconcile")
+
+    if has_supervisor_authority(trusted_context) and record.approval_required:
+        if state is ActionState.AWAITING_APPROVAL and (
+            record.proposing_principal_id != trusted_context.principal_id
+        ):
+            operations.extend(("approve", "approval_reject"))
+        elif state is ActionState.UNRESOLVED:
+            operations.append("reconcile")
+    return tuple(dict.fromkeys(operations))
 
 
 def _supervisor_freshness_matches(

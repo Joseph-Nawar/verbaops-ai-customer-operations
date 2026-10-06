@@ -7,6 +7,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from verbaops.actions.decisions import ActionDecisionService, ActionRequestView
+from verbaops.actions.models import ActionRequestSummary
+from verbaops.actions.transitions import ActionRequestRecord
 from verbaops.agent.errors import (
     AgentBudgetExceededError,
     AgentBusyError,
@@ -78,6 +81,7 @@ class MessageResponse(BaseModel):
     run_id: UUID
     user_message: PublicMessage
     assistant_message: PublicMessage
+    action_requests: list[ActionRequestSummary] = Field(default_factory=list)
 
 
 class ConversationResponse(BaseModel):
@@ -87,6 +91,7 @@ class ConversationResponse(BaseModel):
     messages: list[PublicMessage]
     has_more: bool
     next_before_sequence: int | None
+    active_action_requests: list[ActionRequestView] = Field(default_factory=list)
 
 
 ContextDependency = Annotated[TrustedContext, Depends(get_trusted_context)]
@@ -149,9 +154,12 @@ async def get_conversation(
         page = await service.list_messages_page(
             _scope(context), conversation_id, limit=limit, before_sequence=before_sequence
         )
+        active_records = await service.list_active_action_requests(
+            _scope(context), conversation_id, record.customer_id
+        )
     except ConversationNotFoundError:
         raise PublicAPIError(404, "conversation_not_found", "conversation not found") from None
-    return _conversation_response(record, page)
+    return _conversation_response(record, page, active_records, context)
 
 
 def _scope(context: TrustedContext) -> ConversationScope:
@@ -185,10 +193,22 @@ def _message_response(result: AgentTurnResult) -> MessageResponse:
         run_id=result.agent_run_id,
         user_message=_public_message(result.user_message),
         assistant_message=_public_message(result.assistant_message),
+        action_requests=list(result.action_requests),
     )
 
 
-def _conversation_response(record: ConversationRecord, page: MessagePage) -> ConversationResponse:
+def _conversation_response(
+    record: ConversationRecord,
+    page: MessagePage,
+    active_records: list[ActionRequestRecord],
+    context: TrustedContext,
+) -> ConversationResponse:
+    active_views: list[ActionRequestView] = []
+    for active_record in active_records:
+        try:
+            active_views.append(ActionDecisionService.view_for_context(active_record, context))
+        except PermissionError:
+            continue
     return ConversationResponse(
         conversation_id=record.id,
         created_at=record.created_at,
@@ -196,4 +216,5 @@ def _conversation_response(record: ConversationRecord, page: MessagePage) -> Con
         messages=[_public_message(message) for message in page.messages],
         has_more=page.has_more,
         next_before_sequence=page.next_before_sequence,
+        active_action_requests=active_views,
     )

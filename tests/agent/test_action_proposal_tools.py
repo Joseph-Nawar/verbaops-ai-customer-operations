@@ -91,6 +91,7 @@ def _state(call: ToolCall) -> AgentState:
         "knowledge_evidence": [],
         "retrieval_invocation_id": None,
         "grounded_citations": [],
+        "action_requests": [],
     }
 
 

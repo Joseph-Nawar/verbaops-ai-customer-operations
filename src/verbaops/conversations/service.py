@@ -1,13 +1,16 @@
 """Short-transaction lifecycle service for future agent turns."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from verbaops.actions.transitions import ActionRequestRecord
 from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationRecord,
@@ -24,6 +27,9 @@ from verbaops.conversations.repository import ConversationRepository
 from verbaops.llm.models import ResponseMetadata
 from verbaops.retrieval.models import RetrievalEvidence
 
+if TYPE_CHECKING:
+    from verbaops.actions.repository import ActionRepository
+
 
 class ConversationService:
     """Own one committed database transaction per lifecycle operation."""
@@ -32,10 +38,33 @@ class ConversationService:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         *,
+        action_repository: ActionRepository | None = None,
         stale_after: timedelta = timedelta(minutes=15),
     ) -> None:
         self._session_factory = session_factory
+        self._action_repository = action_repository
         self._stale_after = stale_after
+
+    async def list_active_action_requests(
+        self, scope: ConversationScope, conversation_id: UUID, customer_id: UUID | None
+    ) -> list[ActionRequestRecord]:
+        """Load active actions only after the conversation scope is authenticated."""
+
+        async with self._session_factory() as session, session.begin():
+            conversation = await ConversationRepository(session).get_conversation(
+                scope, conversation_id
+            )
+        if (
+            self._action_repository is None
+            or customer_id is None
+            or conversation.customer_id != customer_id
+        ):
+            return []
+        return await self._action_repository.list_active_for_conversation(
+            tenant_id=scope.tenant_id,
+            customer_id=customer_id,
+            conversation_id=conversation_id,
+        )
 
     async def create_conversation(
         self, scope: ConversationScope, customer_id: UUID | None = None
