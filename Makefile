@@ -99,10 +99,10 @@ stage6-action-contract:
 		-m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance and not stage6_acceptance" -q
 
 stage6-postgres-contract:
-	$(UV) run python -c "import os, sys; sys.exit('VERBAOPS_DATABASE__URL is required') if not os.environ.get('VERBAOPS_DATABASE__URL') else None"
+	$(UV) run python -c "import os, sys; missing = [name for name in ('VERBAOPS_DATABASE__URL', 'NOVACOMMERCE_DATABASE__URL', 'NOVACOMMERCE_TEST_DATABASE_URL') if not os.environ.get(name)]; sys.exit('required database environment is missing: ' + ', '.join(missing)) if missing else None"
 	$(UV) run python scripts/require_test_database.py
 	$(UV) run alembic upgrade head
-	NOVACOMMERCE_DATABASE__URL="$${NOVACOMMERCE_DATABASE__URL:-$$NOVACOMMERCE_TEST_DATABASE_URL}" $(UV) run alembic -c alembic-commerce.ini upgrade head
+	$(UV) run alembic -c alembic-commerce.ini upgrade head
 	$(UV) run pytest tests/postgres/stage6 -m "postgres and contract and not concurrency" -q
 	$(UV) run pytest tests/integration/test_m2d_write_postgres.py -m "postgres and contract" -q
 	$(UV) run pytest tests/integration/test_m2d_write_postgres.py -m "postgres and concurrency" -q
