@@ -99,8 +99,7 @@ stage6-action-contract:
 		-m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance and not stage6_acceptance" -q
 
 stage6-postgres-contract:
-	@test -n "$${VERBAOPS_DATABASE__URL:-}"
-	@test -n "$${NOVACOMMERCE_TEST_DATABASE_URL:-}"
+	$(UV) run python -c "import os, sys; sys.exit('VERBAOPS_DATABASE__URL is required') if not os.environ.get('VERBAOPS_DATABASE__URL') else None"
 	$(UV) run python scripts/require_test_database.py
 	$(UV) run alembic upgrade head
 	NOVACOMMERCE_DATABASE__URL="$${NOVACOMMERCE_DATABASE__URL:-$$NOVACOMMERCE_TEST_DATABASE_URL}" $(UV) run alembic -c alembic-commerce.ini upgrade head
