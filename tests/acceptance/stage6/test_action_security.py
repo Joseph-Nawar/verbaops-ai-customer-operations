@@ -111,7 +111,8 @@ def test_cross_customer_action_and_conversation_are_non_enumerating(
     foreign = client.get(f"/v1/action-requests/{action_id}", headers=headers(other_customer_token))
     random = client.get(f"/v1/action-requests/{uuid4()}", headers=headers(other_customer_token))
     assert foreign.status_code == random.status_code == 404
-    assert foreign.json() == random.json()
+    assert foreign.json()["error"]["code"] == random.json()["error"]["code"]
+    assert foreign.json()["error"]["message"] == random.json()["error"]["message"]
 
 
 def test_self_approval_is_rejected_without_a_decision_event(

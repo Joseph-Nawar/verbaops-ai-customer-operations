@@ -14,7 +14,6 @@ from collections.abc import Callable, Sequence
 from contextlib import suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "docker-compose.agent-acceptance.yml"
@@ -122,13 +121,15 @@ def _provider_free_configuration() -> None:
 def _acceptance_as_of() -> str:
     try:
         from scripts.acceptance_time import serialize_acceptance_as_of as _serialize_scripts
+
+        serializer: Callable[[datetime], str] = _serialize_scripts
     except ModuleNotFoundError:  # pragma: no cover - direct script execution
         from acceptance_time import (  # type: ignore[import-not-found]
             serialize_acceptance_as_of as _serialize_mounted,
         )
 
-        return cast(Callable[[datetime], str], _serialize_mounted)(datetime.now(UTC))
-    return _serialize_scripts(datetime.now(UTC))
+        serializer = _serialize_mounted
+    return serializer(datetime.now(UTC))
 
 
 def run_acceptance() -> int:

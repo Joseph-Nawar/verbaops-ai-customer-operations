@@ -38,6 +38,9 @@
     "unusual_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4701",
     "unusual_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4702",
     "unusual_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4703",
+    "ordinary_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4721",
+    "ordinary_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4722",
+    "ordinary_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4723",
     "stale_cancel_order": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4711",
     "stale_cancel_item": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4712",
     "stale_cancel_shipment": "6f2a6e7f-bf95-5b14-8b0b-c89fbe8f4713"

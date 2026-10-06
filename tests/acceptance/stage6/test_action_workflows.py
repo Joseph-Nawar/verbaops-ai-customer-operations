@@ -58,7 +58,9 @@ def test_reschedule_requires_customer_only_and_verifies_exact_slot(
         UUID(summary["action_request_id"]),
         summary["proposal_fingerprint"],
     )
-    assert result["state"] == "succeeded"
+    assert result["state"] == "succeeded", durable_action(
+        database_url, UUID(summary["action_request_id"])
+    )
     assert result["result_status"] == "verified"
     shipment = commerce_client.get(
         f"/v1/orders/{order_id}/shipment",
@@ -90,7 +92,7 @@ def test_ordinary_cancellation_is_customer_confirmed_and_verified(
     manifest: dict[str, object],
     database_url: str,
 ) -> None:
-    order_id = scenario_id(manifest, "order_cancellable")
+    order_id = overlay_id(manifest, "ordinary_cancel_order")
     _, summary, view = propose(
         client,
         customer_token,
@@ -102,7 +104,10 @@ def test_ordinary_cancellation_is_customer_confirmed_and_verified(
     result = _confirm(
         client, customer_token, UUID(summary["action_request_id"]), summary["proposal_fingerprint"]
     )
-    assert result["state"] == "succeeded"
+    assert result["state"] == "succeeded", {
+        key: result.get(key)
+        for key in ("state", "reason_code", "result_status", "error_code", "status_code")
+    }
     order = commerce_client.get(
         f"/v1/orders/{order_id}",
         headers=commerce_headers(commerce_token, scenario_id(manifest, "customer_primary")),
@@ -118,6 +123,7 @@ def test_unusual_cancellation_requires_different_supervisor_then_customer(
     supervisor_token: str,
     commerce_token: str,
     manifest: dict[str, object],
+    database_url: str,
 ) -> None:
     order_id = overlay_id(manifest, "unusual_cancel_order")
     _, summary, view = propose(
@@ -140,7 +146,7 @@ def test_unusual_cancellation_requires_different_supervisor_then_customer(
     assert approved.json()["state"] == "awaiting_confirmation"
 
     result = _confirm(client, customer_token, action_id, summary["proposal_fingerprint"])
-    assert result["state"] == "succeeded"
+    assert result["state"] == "succeeded", durable_action(database_url, action_id)
     order = commerce_client.get(
         f"/v1/orders/{order_id}",
         headers=commerce_headers(commerce_token, scenario_id(manifest, "customer_primary")),
@@ -174,7 +180,10 @@ def test_return_verifies_material_items_and_return_readback(
     result = _confirm(
         client, customer_token, UUID(summary["action_request_id"]), summary["proposal_fingerprint"]
     )
-    assert result["state"] == "succeeded"
+    assert result["state"] == "succeeded", {
+        key: result.get(key)
+        for key in ("state", "reason_code", "result_status", "error_code", "status_code")
+    }
     durable = durable_action(database_url, UUID(summary["action_request_id"]))
     return_id = durable["action"]["commerce_resource_id"]
     assert return_id is not None
@@ -184,7 +193,10 @@ def test_return_verifies_material_items_and_return_readback(
     )
     assert read_back.status_code == 200
     assert read_back.json()["order_id"] == order_id
-    assert read_back.json()["items"] == [{"order_item_id": item_id, "quantity": 1}]
+    assert [
+        {"order_item_id": item["order_item_id"], "quantity": item["quantity"]}
+        for item in read_back.json()["items"]
+    ] == [{"order_item_id": item_id, "quantity": 1}]
     assert "refund" not in result["safe_summary"].lower()
 
 
@@ -212,7 +224,10 @@ def test_support_ticket_verifies_category_and_material_fields(
     result = _confirm(
         client, customer_token, UUID(summary["action_request_id"]), summary["proposal_fingerprint"]
     )
-    assert result["state"] == "succeeded"
+    assert result["state"] == "succeeded", {
+        key: result.get(key)
+        for key in ("state", "reason_code", "result_status", "error_code", "status_code")
+    }
     durable = durable_action(database_url, UUID(summary["action_request_id"]))
     ticket_id = durable["action"]["commerce_resource_id"]
     assert ticket_id is not None

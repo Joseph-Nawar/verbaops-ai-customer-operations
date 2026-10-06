@@ -153,6 +153,7 @@ def propose(
     action_requests = payload["action_requests"]
     assert len(action_requests) == 1, payload
     action_summary = action_requests[0]
+    assert action_summary["state"] != "policy_denied", action_summary
     action_id = UUID(action_summary["action_request_id"])
     view = client.get(f"/v1/action-requests/{action_id}", headers=headers(token))
     assert view.status_code == 200, view.text
@@ -169,7 +170,8 @@ def durable_action(database_url: str, action_id: UUID) -> dict[str, Any]:
                         await connection.execute(
                             text(
                                 "SELECT id, state, proposal_fingerprint, idempotency_key, "
-                                "commerce_resource_id, verification_status, execution_attempt_count "
+                                "commerce_resource_id, commerce_status_code, commerce_error_code, "
+                                "verification_status, execution_attempt_count "
                                 "FROM action_requests WHERE id = :id"
                             ),
                             {"id": action_id},
@@ -182,7 +184,7 @@ def durable_action(database_url: str, action_id: UUID) -> dict[str, Any]:
                     (
                         await connection.execute(
                             text(
-                                "SELECT sequence, event_type, previous_state, next_state "
+                                "SELECT sequence, event_type, previous_state, next_state, reason_code "
                                 "FROM action_events WHERE action_request_id = :id ORDER BY sequence"
                             ),
                             {"id": action_id},
