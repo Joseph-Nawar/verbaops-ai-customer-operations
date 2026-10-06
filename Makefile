@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-unit-contract rag-contract rag-evaluation-contract m5d-evaluation-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check rag-eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
+.PHONY: sync lint format-check typecheck test check dev down migrate commerce-migrate commerce-seed commerce-acceptance commerce-client-contract llm-gateway-contract rag-unit-contract rag-contract rag-evaluation-contract m5d-evaluation-contract agent-acceptance postgres-contract postgres-concurrency postgres-critical-race stage6-action-contract stage6-postgres-contract stage6-acceptance knowledge-contract commerce-contract-check commerce-contract-update web-check web-smoke eval-corpus-check rag-eval-corpus-check eval-agent eval-agent-live eval-agent-finalize eval-agent-finalization-rehearsal eval-agent-rescore eval-compare
 
 sync:
 	$(UV) sync
@@ -84,6 +84,33 @@ rag-eval-corpus-check:
 
 agent-acceptance:
 	$(UV) run python -m scripts.run_agent_acceptance
+
+stage6-action-contract:
+	$(UV) run pytest \
+		tests/actions \
+		tests/api/test_action_requests.py \
+		tests/api/test_conversation_actions.py \
+		tests/tools/test_proposals.py \
+		tests/agent/test_action_proposal_tools.py \
+		tests/agent/test_action_status.py \
+		tests/novacommerce/test_stage6_ticket_category.py \
+		tests/novacommerce/test_stage6_exact_reads.py \
+		tests/novacommerce/test_stage6_refunds.py \
+		-m "not postgres and not commerce_acceptance and not commerce_client_contract and not llm_gateway_contract and not agent_acceptance and not stage6_acceptance" -q
+
+stage6-postgres-contract:
+	@test -n "$${VERBAOPS_DATABASE__URL:-}"
+	@test -n "$${NOVACOMMERCE_TEST_DATABASE_URL:-}"
+	$(UV) run python scripts/require_test_database.py
+	$(UV) run alembic upgrade head
+	NOVACOMMERCE_DATABASE__URL="$${NOVACOMMERCE_DATABASE__URL:-$$NOVACOMMERCE_TEST_DATABASE_URL}" $(UV) run alembic -c alembic-commerce.ini upgrade head
+	$(UV) run pytest tests/postgres/stage6 -m "postgres and contract and not concurrency" -q
+	$(UV) run pytest tests/integration/test_m2d_write_postgres.py -m "postgres and contract" -q
+	$(UV) run pytest tests/integration/test_m2d_write_postgres.py -m "postgres and concurrency" -q
+	$(UV) run pytest tests/postgres/stage6 -m "postgres and concurrency" -q
+
+stage6-acceptance:
+	$(UV) run python scripts/run_stage6_acceptance.py
 
 postgres-contract:
 	$(UV) run python scripts/require_test_database.py
