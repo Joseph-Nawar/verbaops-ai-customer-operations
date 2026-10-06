@@ -11,7 +11,10 @@ import tempfile
 import uuid
 from collections.abc import Sequence
 from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
+
+from scripts.acceptance_time import serialize_acceptance_as_of
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "docker-compose.agent-acceptance.yml"
@@ -130,6 +133,7 @@ def run_acceptance() -> int:
             f"{commerce_password}@commerce-postgres:5432/commerce_acceptance"
         ),
         "NOVACOMMERCE_SERVICE_TOKEN": commerce_token,
+        "NOVACOMMERCE_TENANT_CURRENCY": "USD",
         "VERBAOPS_LLM__API_KEY": gateway_key,
         "VERBAOPS_COMMERCE__TENANT_ID": tenant_id,
         "VERBAOPS_AUTH__DEVELOPMENT_TOKEN": development_token,
@@ -137,6 +141,7 @@ def run_acceptance() -> int:
         "VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID": tenant_id,
         "VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID": customer_id,
         "AGENT_ACCEPTANCE_API_PORT": str(api_port),
+        "ACCEPTANCE_AS_OF": serialize_acceptance_as_of(datetime.now(UTC)),
     }
     compose_env.update(
         {

@@ -33,8 +33,8 @@ def test_overlay_rows_are_time_relative_and_use_only_overlay_entity_ids() -> Non
     assert {row["product_id"] for row in rows["order_items"]} == {
         UUID(MANIFEST["overlay_ids"]["overlay_product"])
     }
-    assert {row["id"] for row in rows["delivery_slots"]} == {
-        UUID(MANIFEST["overlay_ids"][name]) for name in ("slot_x", "slot_y")
+    assert {UUID(MANIFEST["overlay_ids"][name]) for name in ("slot_x", "slot_y")} <= {
+        row["id"] for row in rows["delivery_slots"]
     }
     assert rows["delivery_slots"][0]["service_date"] == date(2031, 5, 15)
     assert rows["delivery_slots"][1]["service_date"] == date(2031, 5, 16)

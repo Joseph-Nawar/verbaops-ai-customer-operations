@@ -66,7 +66,7 @@ def test_action_get_is_observational_and_active_reload_uses_durable_rows(
         {
             "action_type": "reschedule_delivery",
             "order_id": overlay_id(manifest, "reschedulable_order"),
-            "delivery_slot_id": overlay_id(manifest, "slot_x"),
+            "delivery_slot_id": overlay_id(manifest, "stage6_slot_x"),
         },
     )
     action_id = UUID(summary["action_request_id"])
@@ -104,7 +104,7 @@ def test_cross_customer_action_and_conversation_are_non_enumerating(
         {
             "action_type": "reschedule_delivery",
             "order_id": overlay_id(manifest, "reschedulable_order"),
-            "delivery_slot_id": overlay_id(manifest, "slot_x"),
+            "delivery_slot_id": overlay_id(manifest, "stage6_slot_x"),
         },
     )
     action_id = summary["action_request_id"]

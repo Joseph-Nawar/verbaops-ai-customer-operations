@@ -37,7 +37,7 @@ def test_reschedule_requires_customer_only_and_verifies_exact_slot(
     database_url: str,
 ) -> None:
     order_id = overlay_id(manifest, "reschedulable_order")
-    target_slot = overlay_id(manifest, "slot_y")
+    target_slot = overlay_id(manifest, "stage6_slot_y")
     conversation_id, summary, view = propose(
         client,
         customer_token,

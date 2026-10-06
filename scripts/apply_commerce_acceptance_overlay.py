@@ -121,6 +121,8 @@ def build_overlay_rows(
     reschedule_item_id = _uuid(manifest, "reschedulable_order_item")
     slot_x_id = _uuid(manifest, "slot_x")
     slot_y_id = _uuid(manifest, "slot_y")
+    stage6_slot_x_id = _uuid(manifest, "stage6_slot_x")
+    stage6_slot_y_id = _uuid(manifest, "stage6_slot_y")
     unusual_cancel_order_id = _uuid(manifest, "unusual_cancel_order")
     unusual_cancel_item_id = _uuid(manifest, "unusual_cancel_item")
     unusual_cancel_shipment_id = _uuid(manifest, "unusual_cancel_shipment")
@@ -131,9 +133,10 @@ def build_overlay_rows(
     ordinary_cancel_item_id = _uuid(manifest, "ordinary_cancel_item")
     ordinary_cancel_shipment_id = _uuid(manifest, "ordinary_cancel_shipment")
     created_at = now
-    # Keep both slots inside the Stage 6 preflight's 31-day lookup window.
-    future_x = today + timedelta(days=5)
-    future_y = today + timedelta(days=6)
+    commerce_future_x = today + timedelta(days=40)
+    commerce_future_y = today + timedelta(days=41)
+    stage6_future_x = today + timedelta(days=5)
+    stage6_future_y = today + timedelta(days=6)
     return {
         "products": [
             {
@@ -151,15 +154,31 @@ def build_overlay_rows(
         "delivery_slots": [
             {
                 "id": slot_x_id,
-                "service_date": future_x,
+                "service_date": commerce_future_x,
+                "window_start": time(9, 0, tzinfo=UTC),
+                "window_end": time(11, 0, tzinfo=UTC),
+                "capacity": 20,
+                "reserved_count": 1,
+            },
+            {
+                "id": slot_y_id,
+                "service_date": commerce_future_y,
+                "window_start": time(9, 0, tzinfo=UTC),
+                "window_end": time(11, 0, tzinfo=UTC),
+                "capacity": 20,
+                "reserved_count": 0,
+            },
+            {
+                "id": stage6_slot_x_id,
+                "service_date": stage6_future_x,
                 "window_start": time(9, 0, tzinfo=UTC),
                 "window_end": time(11, 0, tzinfo=UTC),
                 "capacity": 20,
                 "reserved_count": 3,
             },
             {
-                "id": slot_y_id,
-                "service_date": future_y,
+                "id": stage6_slot_y_id,
+                "service_date": stage6_future_y,
                 "window_start": time(9, 0, tzinfo=UTC),
                 "window_end": time(11, 0, tzinfo=UTC),
                 "capacity": 20,
@@ -259,7 +278,7 @@ def build_overlay_rows(
                 "status": ShipmentStatus.LABEL_CREATED.value,
                 "estimated_delivery": now + timedelta(days=2),
                 "delivered_at": None,
-                "delivery_slot_id": slot_x_id,
+                "delivery_slot_id": stage6_slot_x_id,
             },
             {
                 "id": ordinary_cancel_shipment_id,
@@ -289,7 +308,7 @@ def build_overlay_rows(
                 "status": ShipmentStatus.LABEL_CREATED.value,
                 "estimated_delivery": now + timedelta(days=2),
                 "delivered_at": None,
-                "delivery_slot_id": slot_x_id,
+                "delivery_slot_id": stage6_slot_x_id,
             },
             {
                 "id": stale_cancel_shipment_id,
@@ -299,7 +318,7 @@ def build_overlay_rows(
                 "status": ShipmentStatus.LABEL_CREATED.value,
                 "estimated_delivery": now + timedelta(days=2),
                 "delivered_at": None,
-                "delivery_slot_id": slot_x_id,
+                "delivery_slot_id": stage6_slot_x_id,
             },
         ],
     }
