@@ -89,6 +89,24 @@ services:
         condition: service_completed_successfully
     command: ["--seed", "20260821", "--as-of", "2026-08-21"]
 
+  commerce-fixtures:
+    build:
+      context: .
+      target: runtime
+    environment:
+      NOVACOMMERCE_ENVIRONMENT: test
+      NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
+      ACCEPTANCE_SCENARIO_MANIFEST: /acceptance/novacommerce-scenarios.json
+      ACCEPTANCE_AS_OF: ${ACCEPTANCE_AS_OF}
+    volumes:
+      - ./scripts/apply_commerce_acceptance_overlay.py:/acceptance/apply_overlay.py:ro
+      - ./scripts/acceptance_time.py:/acceptance/acceptance_time.py:ro
+      - ./tests/acceptance/fixtures/novacommerce-scenarios.json:/acceptance/novacommerce-scenarios.json:ro
+    depends_on:
+      commerce-seed:
+        condition: service_completed_successfully
+    command: ["python", "/acceptance/apply_overlay.py"]
+
   commerce-api:
     build:
       context: .
@@ -98,8 +116,10 @@ services:
       NOVACOMMERCE_DATABASE__URL: ${NOVACOMMERCE_DATABASE__URL}
       NOVACOMMERCE_SERVICE_TOKEN: ${NOVACOMMERCE_SERVICE_TOKEN}
     depends_on:
-      commerce-seed:
+      commerce-fixtures:
         condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${AGENT_ACCEPTANCE_COMMERCE_PORT:-0}:8000"
     command: ["uvicorn", "novacommerce.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -124,6 +144,9 @@ services:
       VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID: ${VERBAOPS_AUTH__DEVELOPMENT_PRINCIPAL_ID}
       VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID: ${VERBAOPS_AUTH__DEVELOPMENT_TENANT_ID}
       VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID: ${VERBAOPS_AUTH__DEVELOPMENT_CUSTOMER_ID}
+      PYTHONPATH: /acceptance
+    volumes:
+      - ./tests/acceptance/stage6/runtime.py:/acceptance/stage6_runtime.py:ro
     depends_on:
       verbaops-migrate:
         condition: service_completed_successfully
@@ -133,7 +156,7 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:${AGENT_ACCEPTANCE_API_PORT:-18020}:8000"
-    command: ["uvicorn", "verbaops.api.runtime:create_runtime_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "stage6_runtime:create_acceptance_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 3s
