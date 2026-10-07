@@ -45,6 +45,7 @@ The design preserves the following permanent boundaries:
 - only an explicit STT FINAL transcript can enter the durable VerbaOps turn path;
 - the Voice Worker coordinates audio and calls a narrow VerbaOps internal boundary;
 - the Voice Worker has no Commerce credentials, policy authority, or business write client;
+- browser voice delegates exactly CUSTOMER role authority, even when the bootstrapping principal has composed trusted roles;
 - the LLM can propose typed actions but cannot confirm, approve, execute, or verify them;
 - spoken confirmation is a deterministic state machine bound to an exact ActionRequest and proposal fingerprint;
 - the durable Stage 6 ActionRequest remains the only action authority;
@@ -114,7 +115,11 @@ define tenant, principal, customer, or role values.
 
 Stage 7 extends this boundary with customer voice-session routes and a separate
 server-side worker-authenticated internal route. The browser never supplies
-authoritative identity or worker credentials.
+authoritative identity or worker credentials. Successful browser voice bootstrap
+creates a delegated capability that is narrower than the original context:
+the durable voice session preserves the server-owned tenant, principal, and
+customer IDs, but the internal voice turn context has exactly CUSTOMER role
+authority. The original principal's other roles are not copied into voice.
 
 ### 4.3 Existing conversation and runtime ownership
 
@@ -196,8 +201,8 @@ profile and evidence boundaries.
 | Requirement | Stage 7 design mapping |
 |---|---|
 | FR-01 | Final voice turns use the existing Conversation, Message, AgentRun, ToolInvocation, and ActionRequest persistence. Voice sessions add only bounded transport/lifecycle metadata. |
-| FR-02 | Bootstrap derives all identity from `TrustedContext`; the internal worker endpoint reconstructs trusted context from the server-owned voice session. Browser, LiveKit metadata, STT, and LLM output cannot set identity. |
-| FR-03 | Voice-session creation, transcript submission, conversation reads, and action decisions are tenant/customer scoped by server-owned IDs and existing authorization. |
+| FR-02 | Bootstrap derives all identity from `TrustedContext`; successful customer bootstrap delegates an internal voice context with the session's server-owned tenant, principal, and customer IDs plus exactly `Role.CUSTOMER`. Browser, LiveKit metadata, STT, and LLM output cannot set identity or roles. |
+| FR-03 | Voice-session creation, transcript submission, conversation reads, and action decisions are tenant/customer scoped by server-owned IDs and existing authorization; ended, expired, invalid, or wrong-scope sessions cannot provide an active voice context. |
 | FR-04 | Voice-originating AgentRuns link to `voice_session_id`; existing model, tool, action, approval, outcome, and latency traces remain linked to the same conversation and run. |
 | FR-16 | Existing typed read/proposal tools remain the only business tools. The Voice Worker has no business tool registry. |
 | FR-17 | Spoken confirmation is bound to the exact durable ActionRequest and proposal fingerprint and reuses Stage 6 decision services. |
@@ -211,7 +216,7 @@ profile and evidence boundaries.
 | FR-27 / NFR-12 | Stage 7 records bounded speech-end-to-final, runtime, TTS-first-audio, speech-end-to-first-audio, and total-turn latency measurements against the p95 ≤3 second speech-end-to-first-audio target. |
 | NFR-03 | One configured provider per stage, bounded timeouts, safe error handling, and no provider failover or fallback graph. |
 | NFR-04 | Correlation spans/events retain tenant, conversation, voice session, AgentRun, and ActionRequest IDs while minimizing transcript logging. |
-| NFR-05 | No model, browser, provider, or LiveKit event can replace trusted identity. |
+| NFR-05 | The voice channel preserves the trusted principal ID for audit/proposer identity but narrows role authority to exactly CUSTOMER; original support-agent, supervisor, or tenant-admin roles are never inherited by the Voice Worker. |
 | NFR-06 | LiveKit, STT, TTS, worker, VerbaOps, and Commerce credentials stay server-side and are never persisted in voice-session rows or sent to the browser. |
 | NFR-07 | No raw audio, recordings, biometrics, embeddings, or arbitrary provider payloads are persisted; logs use bounded metadata and identifiers. |
 
@@ -224,7 +229,7 @@ flowchart LR
     VW -->|STT adapter| STT[ElevenLabs Scribe v2 Realtime]
     VW -->|POST final transcript<br/>worker auth| API[VerbaOps internal voice API]
     API --> VS[(voice_sessions)]
-    API --> CT[TrustedContext reconstruction]
+    API --> CT[CUSTOMER-only TrustedContext<br/>from voice_sessions]
     API --> AR[Existing AgentRuntime]
     AR --> G[Existing LangGraph<br/>retrieval + typed tools]
     G --> A[(Conversation / AgentRun / ToolInvocation)]
@@ -238,11 +243,11 @@ flowchart LR
     API -->|BFF reload source| B[Existing chat messages + action cards]
 ```
 
-The VerbaOps API owns durable session state, trusted context reconstruction,
-conversation concurrency, AgentRuntime invocation, structured action state, and
-all business authority. LiveKit owns media transport. The Voice Worker owns
-realtime coordination only. STT and TTS are provider boundaries, not business
-boundaries.
+The VerbaOps API owns durable session state, CUSTOMER-only delegated trusted
+context reconstruction, conversation concurrency, AgentRuntime invocation,
+structured action state, and all business authority. LiveKit owns media
+transport. The Voice Worker owns realtime coordination only. STT and TTS are
+provider boundaries, not business boundaries.
 
 ## 7. Trust boundaries
 
@@ -250,7 +255,7 @@ boundaries.
 |---|---|---|---|
 | Browser | Microphone media, optional existing conversation ID, UI intent to start/end voice | Tenant, customer, principal, role, room, participant, worker, agent, action state, or credentials | BFF validates the bounded body; API derives scope from authenticated context. |
 | LiveKit transport | WebRTC media and transport/session events | VerbaOps authorization or durable action state | Server-minted token and opaque server-generated identity; data packets are hints/cache invalidations only. |
-| Voice Worker | Final transcript submission, bounded worker lifecycle events | Identity, tenant/customer/role, Commerce operation, policy result, confirmation authority | Dedicated worker credential; internal endpoint loads `voice_sessions` and reconstructs trusted context. |
+| Voice Worker | Final transcript submission, bounded worker lifecycle events | Identity, tenant/customer/role, Commerce operation, policy result, confirmation authority | Dedicated worker credential; internal endpoint loads `voice_sessions` and constructs the exact CUSTOMER-only `TrustedContext` from server-owned session values. |
 | STT provider | Partial and explicit final transcript events | Business turn status, customer identity, action intent authority | Only explicit FINAL events can be bridged; partial events are never passed to `AgentRuntime`. |
 | LLM / AgentRuntime | Language interpretation, retrieval use, typed proposal selection, response text | Identity, authorization, policy, confirmation, approval, execution, verification | Existing tool registry, deterministic policy, action transitions, and server-owned response projections. |
 | TTS provider | Audio synthesis | Business result or action state | TTS consumes server-owned assistant text/summary; synthesis failure cannot change durable state. |
@@ -264,7 +269,8 @@ boundaries.
 1. The authenticated customer calls `POST /v1/voice/sessions` through the existing
    server-only BFF. The body may contain only an optional existing
    `conversation_id`.
-2. The API requires customer authority in `TrustedContext`.
+2. The API requires customer authority in `TrustedContext`; this is the only
+   authority that can bootstrap browser voice.
 3. If a conversation ID is supplied, the API loads it in the existing trusted
    tenant/principal scope and requires its server-owned customer to equal the
    authenticated customer. A mismatch is returned as a non-enumerating not-found
@@ -276,6 +282,8 @@ boundaries.
    the required room grants.
 6. The response returns the voice-session ID, conversation ID, LiveKit URL, and
    short-lived room token. It does not return any API secret or worker credential.
+   The successful bootstrap is the server-created proof that CUSTOMER authority
+   existed; no role set is copied into or persisted on the voice session.
 7. The browser connects to LiveKit. The LiveKit job/dispatch carries only the
    opaque `voice_session_id`. The Voice Worker changes the session to
    `connecting`, then `connected` after the room is established.
@@ -301,6 +309,13 @@ voice session never changes an ActionRequest. An ActionRequest awaiting
 approval, confirmation, execution, or reconciliation remains governed by Stage 6
 and can be resumed through text, browser action controls, or a new voice session
 attached to the same conversation.
+
+An internal voice turn may use the delegated customer capability only while its
+corresponding voice session is valid: the session must be server-owned,
+tenant/customer scoped to the request, not ended, and within the bounded session
+and short-lived-token validity window. An ended, expired, invalid, or
+wrong-scope session cannot reconstruct an active voice context. Stage 7 does not
+add production-IdP revocation infrastructure or a second authorization system.
 
 ### 8.3 Voice turn state machine
 
@@ -384,9 +399,24 @@ operations and has no access to normal customer APIs or Commerce APIs.
 
 The LiveKit dispatch carries only `voice_session_id`. When the worker submits a
 final transcript, the VerbaOps internal endpoint loads the durable session,
-checks its lifecycle and scope, reconstructs `TrustedContext`, and invokes the
-existing AgentRuntime. The worker never sends tenant, principal, customer, role,
-or authorization values as authoritative request fields.
+checks its lifecycle and scope, and constructs the conceptual delegated context:
+
+```python
+TrustedContext(
+    tenant_id=voice_session.tenant_id,
+    principal_id=voice_session.principal_id,
+    customer_id=voice_session.customer_id,
+    roles=frozenset({Role.CUSTOMER}),
+)
+```
+
+This is server-side reconstruction, not worker-supplied data. The worker never
+sends tenant, principal, customer, role, or authorization values as authoritative
+request fields, and it never reconstructs arbitrary caller roles. The original
+`principal_id` remains unchanged for AgentRun proposer/audit identity; only role
+capabilities are narrowed. A principal with CUSTOMER plus SUPPORT_AGENT,
+SUPPORT_SUPERVISOR, or TENANT_ADMIN therefore operates through voice as
+CUSTOMER only.
 
 The worker keeps pending spoken-confirmation state in ephemeral per-session
 memory. A worker restart clears that state. No Redis requirement is introduced
@@ -741,6 +771,13 @@ indexes, and foreign keys using existing conventions. The design forbids JWTs,
 API keys, raw provider credentials, raw audio, and arbitrary provider JSON in the
 row.
 
+There is intentionally no `roles` JSON/array, support-role snapshot,
+supervisor-role snapshot, or arbitrary authorization-claims column on
+`voice_sessions`. Successful bootstrap is the server-created proof that the
+caller had CUSTOMER authority at session creation. Later worker-driven voice
+turns use the fixed delegated CUSTOMER-only context defined in sections 10 and
+19, subject to session validity.
+
 ### 17.3 AgentRun provenance and final-event deduplication
 
 The same migration adds only the minimum narrow provenance to `agent_runs`:
@@ -824,9 +861,10 @@ It requires the dedicated worker credential and accepts exactly:
 
 The endpoint rejects customer bearer credentials and rejects tenant, customer,
 principal, role, room, participant, action, fingerprint, approval, and execution
-fields. The endpoint loads `voice_sessions`, reconstructs the trusted context,
-checks session status and conversation scope, and invokes the existing
-`AgentRuntime` with `interaction_mode="voice"`.
+fields. The endpoint loads `voice_sessions`, checks session validity and
+conversation scope, constructs the exact CUSTOMER-only delegated `TrustedContext`
+shown in section 10, and invokes the existing `AgentRuntime` with
+`interaction_mode="voice"`.
 
 The response contains server-owned values sufficient for the worker to speak and
 control presentation:
@@ -851,12 +889,37 @@ requires `has_customer_authority(TrustedContext)`. The request may select only a
 conversation ID. The server determines tenant, principal, customer,
 conversation, room, participant, and token grants.
 
+### Delegated customer capability
+
+Successful bootstrap creates a narrower server-owned capability for subsequent
+worker-driven voice turns. The internal endpoint loads `tenant_id`,
+`principal_id`, and `customer_id` from the valid durable voice session and
+constructs `TrustedContext` with exactly `frozenset({Role.CUSTOMER})` for
+`roles`. It does not persist or reconstruct the original role set. In
+particular, CUSTOMER + SUPPORT_AGENT, CUSTOMER + SUPPORT_SUPERVISOR, and
+CUSTOMER + TENANT_ADMIN all become CUSTOMER-only through voice.
+
+The original `principal_id` is intentionally retained for audit and proposer
+identity. It is not an authorization role. If the same principal later uses a
+separately authenticated supervisor browser surface, the existing Stage 6
+proposer/approver separation and self-approval rule still apply.
+
+This delegated capability is usable only while the session is valid under the
+bounded lifecycle and token/session expiry semantics in section 8. An ended,
+expired, invalid, or wrong-scope session cannot produce an active voice
+`TrustedContext`.
+
 ### Worker authentication
 
 The Voice Worker uses a separate server-side service credential, stored as a
 secret configuration value and rotated through the same operational discipline as
 other service credentials. It is never derived from or forwarded from the
 customer browser token. Its allowed scope is the narrow internal voice API.
+
+The worker cannot supply, select, or inherit roles. The API always constructs
+the delegated CUSTOMER-only role set from the durable voice session. A worker
+request with a role field is rejected by the exact request schema; a worker
+request without a role field still receives only CUSTOMER authority.
 
 The worker cannot obtain authorization by sending LiveKit metadata, STT output,
 LLM output, or browser data packets. The internal API looks up the session by
@@ -874,7 +937,10 @@ LiveKit metadata is never mapped into `TrustedContext`.
 Voice confirmation uses the server-owned customer identity associated with the
 voice session and the existing Stage 6 decision service. The decision service
 rechecks tenant, customer, action state, operation permission, expiry, and exact
-fingerprint. Voice does not add policy authority or bypass approval order.
+fingerprint. The reconstructed voice context has no support-agent, supervisor,
+or tenant-admin role. Voice does not add policy authority or bypass approval
+order; supervisor operations remain the separately authenticated browser
+workflow.
 
 ## 20. Failure and recovery semantics
 
@@ -934,6 +1000,7 @@ become connected again. Ending a session never changes the ActionRequest state.
 | Browser supplies forged room or participant identity | Browser → LiveKit/API | Backend generates opaque room and participant identities and signs the short-lived token. | Ignore caller values or reject malformed request; no trusted identity changes. | Token/room/participant boundary tests |
 | LiveKit API or provider credential leaks to browser | Server config → bootstrap response/BFF | Secrets use server-only settings; response contains only short-lived room token and URL. | Omit secret and fail safely if token cannot be minted; log no credential. | Response secret-redaction tests |
 | Voice Worker credential is misused | Worker → internal voice API | Dedicated token is accepted only on narrow internal voice operations; body contains no authoritative identity; session is server-loaded and bounded. | Reject invalid credential, ended/unknown session, or forbidden operation; no Commerce access. | Worker-auth and scope tests |
+| Worker attempts role escalation or inherits composed caller roles | Worker/API → `TrustedContext` | Bootstrap requires `has_customer_authority`; internal reconstruction hard-codes `roles=frozenset({Role.CUSTOMER})` from the valid session and never persists role sets. | Voice turns have customer proposal/decision authority only; no staff, supervisor, or tenant-admin operation is available. | Voice context role-narrowing regression |
 | Partial transcript is treated as final | STT/worker → AgentRuntime | Only explicit FINAL event type can call the internal operation; partial events have no durable path. | Discard/replace partial UI text; create no Message, AgentRun, tool, or action. | Partial-transcript security regression |
 | Duplicate final STT event | STT/worker retry → VerbaOps | Opaque `(voice_session_id, voice_turn_id)` uniqueness and idempotent response. | Return first result or bounded in-progress response; never duplicate the durable turn. | Duplicate-final and idempotency tests |
 | Interrupted summary followed by “confirm” | LiveKit playout → voice gate | Gate is armed only after complete deterministic summary playout; interruption clears it. | Treat confirmation as non-authorizing and replay/clarify; no Stage 6 decision. | Full-playout/barge-in confirmation tests |
@@ -952,6 +1019,7 @@ become connected again. Ending a session never changes the ActionRequest state.
 | Assistant text | Existing durable assistant Message and bounded TTS input; no provider payload retention. |
 | Action state | Existing ActionRequest/action-event rules, including exact fingerprint and audit metadata. |
 | Voice-session metadata | Tenant, principal, customer, conversation, bounded provider/transport references, opaque room/participant identities, lifecycle timestamps, and bounded error code only. |
+| Trusted roles | Never persisted on `voice_sessions`; successful bootstrap is the server-created proof of customer authority, and internal voice context always uses exactly CUSTOMER. |
 | Secrets | LiveKit, ElevenLabs, worker, VerbaOps, and Commerce credentials are server-side configuration only and never stored in rows, browser storage, logs, or dispatch metadata. |
 | Provider retention | The design makes no claim about upstream retention unless an external provider contract explicitly guarantees it. |
 
@@ -1050,6 +1118,10 @@ credits, ElevenLabs credits, or microphone hardware.
 Permanent tests cover at least:
 
 - trusted customer voice-session bootstrap and optional conversation reuse;
+- customer-only bootstrap succeeds;
+- CUSTOMER + SUPPORT_AGENT, CUSTOMER + SUPPORT_SUPERVISOR, and CUSTOMER + TENANT_ADMIN contexts execute voice turns with CUSTOMER authority only;
+- supervisor-only, support-agent-only, and tenant-admin-only contexts cannot bootstrap customer voice;
+- the Voice Worker cannot inject roles or reach supervisor approval through inherited role composition;
 - server-generated room and participant identity;
 - rejection of browser-supplied tenant/customer/principal/role/room/participant values;
 - short-lived token response and secret non-disclosure;
