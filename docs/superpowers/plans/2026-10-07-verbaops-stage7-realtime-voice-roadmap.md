@@ -93,6 +93,7 @@ class VoiceSessionState(StrEnum):
     CONNECTED = "connected"
     ENDED = "ended"
 
+
 @dataclass(frozen=True)
 class VoiceSessionRecord:
     id: UUID
@@ -110,6 +111,7 @@ class VoiceSessionRecord:
     connected_at: datetime | None
     ended_at: datetime | None
     error_code: str | None
+
 
 class VoiceSessionBootstrap(BaseModel):
     voice_session_id: UUID
@@ -155,6 +157,7 @@ class VoiceSessionService:
         trusted_context: TrustedContext,
     ) -> VoiceSessionRecord: ...
 
+
 class LiveKitTokenIssuer(Protocol):
     async def mint_customer_token(
         self,
@@ -176,11 +179,15 @@ Own in `src/verbaops/voice/auth.py` and `src/verbaops/voice/models.py`:
 class VoiceWorkerContext:
     service_name: Literal["voice_worker"]
 
+
 def authenticate_worker(credential: OpaqueCredential) -> VoiceWorkerContext: ...
+
 
 class VoiceFinalTranscriptRequest(BaseModel):
     voice_turn_id: UUID
-    transcript: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+    transcript: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)
+    ]
 ```
 
 The internal request body is exactly `{"voice_turn_id": ..., "transcript": ...}`. Worker authentication is a dependency, not a body field. The worker cannot submit identity, roles, tenant, customer, conversation, room, or arbitrary metadata.
@@ -193,6 +200,7 @@ Own in `src/verbaops/agent/context.py` and `src/verbaops/agent/runtime.py`:
 class InteractionMode(StrEnum):
     TEXT = "text"
     VOICE = "voice"
+
 
 async def run_turn(
     self,
@@ -217,14 +225,17 @@ class SpeechEventKind(StrEnum):
     PARTIAL = "partial"
     FINAL = "final"
 
+
 @dataclass(frozen=True)
 class SpeechEvent:
     kind: SpeechEventKind
     transcript: str
     voice_turn_id: UUID | None
 
+
 class STTAdapter(Protocol):
     async def events(self) -> AsyncIterator[SpeechEvent]: ...
+
 
 class PlayoutHandle(Protocol):
     @property
@@ -233,8 +244,10 @@ class PlayoutHandle(Protocol):
     async def wait_complete(self) -> None: ...
     async def cancel(self) -> None: ...
 
+
 class TTSAdapter(Protocol):
     async def speak(self, text: str) -> PlayoutHandle: ...
+
 
 class VoiceWorkerCoordinator:
     async def handle_speech_event(self, event: SpeechEvent) -> None: ...
@@ -256,6 +269,7 @@ class VoiceTurnOutcome(StrEnum):
     ACTION_RESULT = "action_result"
     FAILURE = "failure"
 
+
 class VoiceActionPrompt(BaseModel):
     action_request_id: UUID
     action_type: ActionType
@@ -264,6 +278,7 @@ class VoiceActionPrompt(BaseModel):
     spoken_summary: str
     required_next_actor: str
     permitted_operations: tuple[Literal["confirm", "reject"], ...]
+
 
 class VoiceTurnResult(BaseModel):
     voice_session_id: UUID
@@ -276,6 +291,7 @@ class VoiceTurnResult(BaseModel):
     action_requests: tuple[ActionRequestSummary, ...]
     action_prompt: VoiceActionPrompt | None
 
+
 @dataclass(frozen=True)
 class PendingVoiceConfirmation:
     voice_session_id: UUID
@@ -284,6 +300,7 @@ class PendingVoiceConfirmation:
     summary_text: str
     tts_playout_id: str
     armed: bool
+
 
 def parse_confirmation(text: str) -> ConfirmationIntent: ...
 ```
