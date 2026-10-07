@@ -58,7 +58,7 @@ These cases are release-blocking and must remain visible throughout execution:
 2. An interrupted confirmation summary must not arm confirmation. A later `confirm` must perform zero Stage 6 decisions until the full summary is replayed and completed. Primary test: `tests/voice/test_playout_gate.py::test_interrupted_summary_then_confirm_never_decides` (M7D/E/G).
 3. Composed caller roles must narrow to CUSTOMER. A caller with CUSTOMER + SUPPORT_AGENT, CUSTOMER + SUPPORT_SUPERVISOR, or CUSTOMER + TENANT_ADMIN may bootstrap, but the worker’s reconstructed context must contain exactly `Role.CUSTOMER`. Primary tests: `tests/api/test_voice_sessions.py::test_composed_roles_are_customer_only` and `tests/api/test_voice_transcripts.py::test_worker_cannot_inherit_composed_roles` (M7A/B/G).
 4. Concurrent voice/text turns for one conversation must obey the existing one-running-turn rule without duplicate action creation or an in-memory queue. Primary test: `tests/postgres/voice/test_voice_text_concurrency.py::test_voice_and_text_turns_have_one_winner` (M7E/G).
-5. A worker restart after action creation but before complete spoken summary must replay authoritative durable state without executing twice or leaving an unsafe confirmation gate. Primary test: `tests/voice/test_worker_recovery.py::test_restart_after_action_before_summary_replays_without_duplicate_execution` (M7E/G).
+5. A worker restart after action creation but before complete spoken summary must replay authoritative durable state without executing twice or leaving an unsafe confirmation gate. A worker restart after an armed ephemeral gate must also destroy that gate and require complete summary replay before a new confirmation. Primary tests: `tests/voice/test_worker_recovery.py::test_restart_after_action_before_summary_replays_without_duplicate_execution` and `tests/voice/test_worker_recovery.py::test_restart_after_armed_confirmation_requires_summary_replay` (M7E/G).
 
 ## Repository Ownership Map
 
@@ -80,7 +80,7 @@ These cases are release-blocking and must remain visible throughout execution:
 
 ## Frozen Interfaces and Contracts
 
-The following interfaces are implementation targets. Names may be adjusted only if the implementation records an equivalent contract and updates all plan references in the same milestone.
+The following interfaces are frozen for implementation across milestones. If execution discovers a material reason to change a cross-milestone DTO, enum, method signature, or route shape, STOP and obtain human design/roadmap approval before changing the contract. Minor local/private helper names do not require approval.
 
 ### Voice session domain
 
@@ -114,14 +114,13 @@ class VoiceSessionRecord:
 class VoiceSessionBootstrap(BaseModel):
     voice_session_id: UUID
     conversation_id: UUID
-    room_name: str
-    participant_identity: str
     livekit_url: AnyHttpUrl
-    access_token: str
-    expires_at: datetime
+    room_token: str
+    token_expires_at: datetime
+    status: VoiceSessionState
 ```
 
-`VoiceSessionRecord` intentionally has no `roles`, `claims`, `access_token`, `raw_audio`, `provider_payload`, or secret fields. `VoiceSessionBootstrap` is the bounded response; the token is never logged, persisted, placed in browser storage, or accepted back as an authorization claim.
+At successful bootstrap, `status` is `VoiceSessionState.CREATED`. `VoiceSessionRecord` intentionally has no `roles`, `claims`, transport token, `raw_audio`, `provider_payload`, or secret fields. `VoiceSessionBootstrap` is the exact bounded customer-facing response; the room token is never logged, persisted, placed in browser storage, or accepted back as an authorization claim. Room identity and participant identity remain server-owned/session-owned values and are not exposed in this browser response.
 
 ### Session service and transport token issuer
 
@@ -404,7 +403,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 **Steps:**
 
 - [ ] RED: test that caller-supplied room names, participant identities, grants, roles, and TTLs cannot override server values.
-- [ ] RED: test minimum grants, short bounded expiry, issuer/audience configuration, and token-not-returned-on-failure behavior.
+- [ ] RED: test minimum grants, short bounded expiry, issuer/audience configuration, and room-token-not-returned-on-failure behavior.
 - [ ] RED: test no token or LiveKit secret appears in logs, exception strings, metrics, or serialized session records.
 - [ ] GREEN: implement the official LiveKit token builder behind the narrow issuer protocol.
 - [ ] GREEN: derive room and participant identity from the durable session and trusted principal, with collision-safe server IDs.
@@ -428,6 +427,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 - `POST /v1/voice/sessions` with optional `conversation_id` only.
 - `POST /v1/voice/sessions/{voice_session_id}/end` with no role or identity body.
+- Bootstrap response exactly matches `VoiceSessionBootstrap`: `voice_session_id`, `conversation_id`, `livekit_url`, `room_token`, `token_expires_at`, and `status=VoiceSessionState.CREATED`; room/participant identities remain server-owned and are not response fields.
 
 **Steps:**
 
@@ -435,7 +435,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 - [ ] RED: test CUSTOMER + SUPPORT_AGENT, CUSTOMER + SUPPORT_SUPERVISOR, and CUSTOMER + TENANT_ADMIN bootstrap succeeds but records no roles and produces a worker context with exactly CUSTOMER.
 - [ ] RED: test support-only, supervisor-only, and tenant-admin-only bootstrap returns the existing authorization error shape without session enumeration.
 - [ ] RED: test foreign conversation IDs, forged principal/tenant/customer/room/participant fields, arbitrary extra body fields, and invalid UUIDs are rejected safely.
-- [ ] RED: test bounded token/session expiry, end behavior, repeated end, cross-customer isolation, and ended-session bootstrap/worker rejection.
+- [ ] RED: test bounded `token_expires_at`/session expiry, `status=VoiceSessionState.CREATED` at bootstrap, end behavior, repeated end, cross-customer isolation, and ended-session bootstrap/worker rejection.
 - [ ] GREEN: implement the two routes using trusted context and server-owned session state only.
 - [ ] GREEN: apply `has_customer_authority` at bootstrap and preserve the original principal ID for audit only.
 - [ ] GREEN: ensure no arbitrary roles enter the durable record, token, response, or worker request.
@@ -666,9 +666,9 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 **Steps:**
 
-- [ ] RED: test server-only forwarding, allowed body fields, fixed upstream paths, upstream error mapping, and timeout behavior.
+- [ ] RED: test server-only forwarding, allowed body fields, fixed upstream paths, exact `VoiceSessionBootstrap` response fields (`voice_session_id`, `conversation_id`, `livekit_url`, `room_token`, `token_expires_at`, `status`), upstream error mapping, and timeout behavior.
 - [ ] RED: test no browser-provided identity, role, room, participant, token, or grant fields are forwarded.
-- [ ] RED: test returned access tokens are present only in the immediate response path and are never written to `localStorage`, `sessionStorage`, cookies, or logs.
+- [ ] RED: test the returned room token is present only in the immediate response path and is never written to `localStorage`, `sessionStorage`, cookies, or logs.
 - [ ] GREEN: implement the two BFF routes through the existing server-only forwarding helper.
 - [ ] GREEN: validate the response shape and redact provider secrets in error/log paths.
 - [ ] REFACTOR: keep upstream URL construction centralized and avoid exposing the VerbaOps base URL to the browser.
@@ -687,7 +687,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 **Interfaces consumed:** BFF routes, browser transport adapter, current Chat conversation state, existing action card rendering, and fake provider/test transport.
 
-**Interfaces produced:** Start Voice/End Voice controls and state rendering for disconnected, connecting, connected, listening, user speaking, thinking, assistant speaking, interrupted, partial transcript, and error.
+**Interfaces produced:** an exact browser `VoiceSessionBootstrap` type containing only `voice_session_id`, `conversation_id`, `livekit_url`, `room_token`, `token_expires_at`, and `status`, plus Start Voice/End Voice controls and state rendering for disconnected, connecting, connected, listening, user speaking, thinking, assistant speaking, interrupted, partial transcript, and error.
 
 **Steps:**
 
@@ -793,11 +793,15 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 **Steps:**
 
-- [ ] RED: test deterministic summaries for create order, update order, cancel order, request refund, and change delivery address.
-- [ ] RED: test summaries use only stored proposal values and do not infer dates from slot IDs, historical snapshots, or payment completion.
-- [ ] RED: test refund request/approval is not described as settlement or completion.
+- [ ] RED: test deterministic summaries for exactly `reschedule_delivery`, `cancel_order`, `initiate_return`, `create_support_ticket`, and `request_refund`.
+- [ ] RED: test `reschedule_delivery` uses stored `order_id`, `delivery_slot_id`, and only authoritative safe material already present in the durable projection, such as `target_service_date` or delivery-window fields; never infer a human date/time from a slot UUID.
+- [ ] RED: test `cancel_order` uses the stored order target and consequence wording without claiming cancellation completion before Stage 6 verifies it.
+- [ ] RED: test `initiate_return` uses stored `order_id`, each `items[].order_item_id`, each `items[].quantity`, and `reason`.
+- [ ] RED: test `create_support_ticket` uses stored optional `order_id`, `category`, `subject`, and bounded `description`.
+- [ ] RED: test `request_refund` uses stored `order_id`, `amount`, trusted `currency_code` when available from the durable decision projection, and `reason`; refund request/approval is never described as payment settlement.
+- [ ] RED: test summaries use only existing `ActionRequestView.proposal`, `ActionRequestView.currency_code`, `ActionRequestView.safe_summary`, and persisted safe material; do not invent proposal fields, dates, historical snapshot values, or payment completion.
 - [ ] RED: test pending supervisor approval says approval is required and offers no voice supervisor operation.
-- [ ] GREEN: implement server-side formatting with bounded field labels and relevant consequences.
+- [ ] GREEN: implement server-side formatting for exactly the five frozen Stage 6 `ActionType` values with bounded field labels, relevant consequences, and no foreign action semantics.
 - [ ] GREEN: expose only read-only action prompt data to the worker/browser.
 - [ ] REFACTOR: keep grammar/provider presentation separate from Stage 6 action state.
 - [ ] Run: `uv run pytest tests/voice/test_action_summaries.py -q`.
@@ -812,14 +816,16 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 **Interfaces consumed:** normalized final transcripts and the exact confirmation vocabulary in the approved spec.
 
-**Interfaces produced:** `ConfirmationIntent` parser accepting positive `confirm`, `yes`, `confirm/go ahead/proceed` forms and negative `cancel`, `reject`, `no` forms with case/space/basic punctuation normalization.
+**Interfaces produced:** `ConfirmationIntent` parser accepting exactly positive `confirm`, `yes, confirm`, `go ahead`, and `proceed` forms and negative `cancel`, `reject`, and `no` forms with only approved case, surrounding-whitespace, and basic terminal-punctuation normalization. Bare `yes` is ambiguous and non-authorizing.
 
 **Steps:**
 
-- [ ] RED: test positive and negative exact phrases, case/space/basic punctuation variants.
-- [ ] RED: test rejection/clarification for `maybe`, `I guess`, `probably`, `yeah`, `sure`, Arabic equivalents, long arbitrary utterances, and fuzzy matches.
+- [ ] RED: test accepted positive phrases exactly: `confirm`, `yes, confirm`, `go ahead`, and `proceed`, plus only case, surrounding-whitespace, and explicitly supported basic terminal-punctuation variants.
+- [ ] RED: test accepted negative phrases exactly: `cancel`, `reject`, and `no`, plus only the same approved normalization variants.
+- [ ] RED: test `yes`, `yeah`, `sure`, `maybe`, `I guess`, `probably`, arbitrary longer statements, and Arabic equivalents are ambiguous/non-authorizing.
+- [ ] RED: test no fuzzy matching, semantic similarity, or LLM classification is used.
 - [ ] RED: test parser never decides an action without a bound pending gate.
-- [ ] GREEN: implement exact normalized grammar; do not add semantic LLM classification or fuzzy matching.
+- [ ] GREEN: implement the exact normalized grammar; bare `yes` remains non-authorizing and no semantic LLM classification, fuzzy matching, or additional phrase is accepted.
 - [ ] REFACTOR: keep accepted vocabulary auditable and English-first while preserving bounded Arabic plumbing where the spec requires it.
 - [ ] Run: `uv run pytest tests/voice/test_confirmation.py -q`.
 - [ ] Commit: `git commit -m "feat: add exact voice confirmation grammar"`.
@@ -839,7 +845,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 - [ ] RED: test a gate is bound to exactly one session, action ID, and proposal fingerprint.
 - [ ] RED: test opposite decisions, stale fingerprints, changed actions, ended sessions, and new sessions cannot reuse a gate.
-- [ ] RED: test gate memory is cleared on worker restart/disconnect unless reconstructed from an authoritative completed playout state explicitly allowed by the recovery design.
+- [ ] RED: test worker restart always destroys `PendingVoiceConfirmation`, including a previously armed gate; no completed-playout marker or other durable authority may recreate it.
 - [ ] RED: test no Redis or durable confirmation authority is introduced without a separate design review.
 - [ ] GREEN: implement the ephemeral state machine and invalidation operations.
 - [ ] REFACTOR: keep durable Stage 6 action state authoritative and make the gate an intent/presentation guard only.
@@ -933,7 +939,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 - Modify `src/verbaops/voice/worker.py` and provider adapter interfaces as needed.
 - Create `tests/voice/test_turn_detection.py`.
 
-**Interfaces consumed:** official LiveKit-supported VAD/turn detector boundary, normalized speech events, fake event source.
+**Interfaces consumed:** normalized speech events, deterministic fake turn/VAD events, playout lifecycle, interruption/cancellation events, and the existing worker protocols. If LiveKit type/API knowledge is needed to define the abstraction, verify current official LiveKit documentation during M7E implementation; do not defer the contract to M7F.
 
 **Interfaces produced:** turn detection integration that does not implement custom timing or bespoke speech segmentation.
 
@@ -941,7 +947,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 - [ ] RED: test provider-neutral start/stop/partial/final event sequences with fake timing.
 - [ ] RED: test silence, interruption, cancellation, and end-session events do not generate phantom finals.
-- [ ] GREEN: configure only the supported provider/agent turn detection interfaces selected during M7F documentation verification.
+- [ ] GREEN: implement provider-independent turn semantics for speech started, partial transcript, final transcript, assistant playout, interruption, silence/no-final, cancellation, and confirmation-gate clearing. Do not make this milestone depend on a future provider selection.
 - [ ] REFACTOR: retain fake event injection and keep timing values in settings.
 - [ ] Run: `uv run pytest tests/voice/test_turn_detection.py -q`.
 - [ ] Commit: `git commit -m "feat: integrate supported voice turn detection"`.
@@ -1051,8 +1057,10 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 - [ ] RED: test crash after final commit but before response; retry replays the result without duplicate message/action.
 - [ ] RED: test crash after action creation before summary; restart reads durable action and formats summary without executing again.
 - [ ] RED: test crash after summary generation before full playout; restart does not assume confirmation was armed.
+- [ ] RED: test `test_restart_after_armed_confirmation_requires_summary_replay`: after a complete summary arms an ephemeral gate and the worker crashes before customer confirmation, durable `ActionRequest` remains `awaiting_confirmation`, the old gate is gone, immediate `confirm` does not decide, the current exact summary is replayed completely, and only a subsequent accepted confirmation calls Stage 6.
 - [ ] RED: test crash during/after decision execution returns authoritative Stage 6 state.
-- [ ] GREEN: implement recovery as durable lookup/replay plus explicit gate invalidation, not as provider-memory restoration.
+- [ ] GREEN: implement recovery as durable lookup/replay plus unconditional gate invalidation. A worker restart always destroys `PendingVoiceConfirmation`, including a previously armed gate. After restart, load the durable current `ActionRequest`, validate it remains customer-confirmable, reconstruct the current deterministic summary, speak it completely, wait for uninterrupted full playout, and only then create/arm a new ephemeral gate.
+- [ ] GREEN: never reconstruct an armed gate from `AgentRun`, `ActionRequest`, browser state, LiveKit state, worker memory, or a persisted playout-complete marker; do not add a durable playout-authority column/table or Redis confirmation authority.
 - [ ] REFACTOR: make crash points explicit in fake tests and keep recovery provider-free.
 - [ ] Run: `uv run pytest tests/voice/test_worker_recovery.py tests/postgres/voice/test_final_turn_idempotency.py -q`.
 - [ ] Commit: `git commit -m "feat: make voice worker recovery idempotent"`.
@@ -1108,7 +1116,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 - [ ] RED: run provider contract tests against fakes that model official event/error shapes before adding SDK-specific code.
 - [ ] RED: test missing/invalid credentials fail at startup or connection with bounded errors and no secret leakage.
 - [ ] GREEN: implement LiveKit Python worker transport, ElevenLabs Scribe v2 Realtime STT adapter, and ElevenLabs low-latency TTS/Flash v2.5 adapter where supported.
-- [ ] GREEN: configure Silero/official turn detection only if required by the verified LiveKit setup; do not build custom VAD timing.
+- [ ] GREEN: wire the maintained real-provider turn/VAD implementation selected from current official LiveKit documentation, including Silero VAD or LiveKit turn detection only if required/supported, and map it into the provider-independent M7E event semantics; do not build custom VAD timing.
 - [ ] REFACTOR: preserve the same application protocols used by provider-free tests.
 - [ ] Run: `uv run pytest tests/voice/providers -q`.
 - [ ] Run: `uv run pytest tests/voice tests/api -q` without live credentials.
@@ -1250,6 +1258,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 
 - [ ] RED: test trusted customer bootstrap, server-owned identities, original principal audit identity, exact CUSTOMER-only worker roles, and worker auth.
 - [ ] RED: test partial no-op, final once, duplicate final, continuity, spoken proposal, full arm, interruption, confirm, withdraw, awaiting approval, stale action, reconnect, and safe failure.
+- [ ] RED: test an armed confirmation gate is destroyed by worker restart, immediate spoken `confirm` is non-authorizing after restart, and complete deterministic summary replay is required before a new gate and later confirmation.
 - [ ] RED: test browser reload/new session does not resurrect token/gate state and action cards reflect server truth.
 - [ ] GREEN: compose the deterministic fake stack at the app boundary rather than mocking every internal function.
 - [ ] GREEN: include PostgreSQL-backed cases for durable uniqueness, lifecycle, action state, and required races.
@@ -1275,6 +1284,7 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 - [ ] RED: test cross-customer session/conversation/fingerprint access does not enumerate or execute.
 - [ ] RED: test direct Commerce/ActionExecutor imports or calls from worker fail architecture checks.
 - [ ] RED: test duplicate simultaneous final, voice/text, confirm/confirm, confirm/reject, session-end/submit, and worker restart races.
+- [ ] RED: include the crash-after-armed-confirmation replay scenario and prove no persisted playout marker or previous worker memory restores spoken-confirmation authority.
 - [ ] GREEN: close any contract gap revealed by these tests without weakening the approved boundary.
 - [ ] REFACTOR: keep this suite explicit and small enough to be a release gate.
 - [ ] Run: `uv run pytest tests/acceptance/stage7/test_voice_security.py tests/acceptance/stage7/test_voice_races.py -m "agent_acceptance or critical_race" -q`.
@@ -1402,14 +1412,45 @@ Each milestone is implemented and reviewed on its named branch, then integrated 
 | Provider-free CI | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Controlled real-provider evidence |  |  |  |  |  | ✓ | ✓ |
 
+# Stage 7 Completion Criteria Traceability
+
+The matrix below is the completion lock for the approved Stage 7 design. M7F real-provider rows are controlled evidence, not permanent provider-free CI claims.
+
+| # | Completion criterion | Implementing milestone(s) | Primary evidence/test | Permanent gate |
+|---:|---|---|---|---|
+| 1 | Real browser microphone → LiveKit → Voice Worker → STT works. | M7C/M7F/M7G | Controlled validation report; `apps/web/tests/smoke/stage7-voice.spec.ts` for the provider-free transport contract. | `stage7-acceptance` contract gate; real-provider proof remains controlled M7F evidence, not normal CI. |
+| 2 | Explicit FINAL transcripts enter the existing AgentRuntime. | M7B/M7G | `tests/api/test_voice_transcripts.py`; `tests/acceptance/stage7/test_voice_workflows.py::test_final_transcript_enters_existing_agent_runtime`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 3 | Partial transcripts never enter durable business turns. | M7B/M7G | `tests/voice/test_speech_events.py::test_partial_event_never_submits_or_persists`; `tests/acceptance/stage7/test_voice_workflows.py::test_partial_transcript_is_ephemeral`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 4 | Responses synthesize and play through LiveKit. | M7B/M7C/M7F/M7G | `tests/voice/test_worker_coordinator.py`; controlled provider validation report; `apps/web/tests/smoke/stage7-voice.spec.ts`. | `stage7-voice-contract` / `stage7-acceptance`; real provider playback remains controlled M7F evidence. |
+| 5 | Text and voice share one durable Conversation. | M7A/M7B/M7C/M7G | `apps/web/src/components/voice-continuity.test.tsx`; `tests/acceptance/stage7/test_voice_workflows.py::test_text_and_voice_share_conversation`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 6 | Trusted identity remains entirely server-derived. | M7A/M7B/M7G | `tests/api/test_voice_sessions.py`; `tests/api/test_voice_transcripts.py::test_worker_cannot_inherit_composed_roles`; `tests/acceptance/stage7/test_voice_security.py`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 7 | Voice Worker cannot independently mutate Commerce. | M7B/M7D/M7E/M7G | `tests/architecture/test_voice_worker_boundaries.py`; `tests/acceptance/stage7/test_voice_security.py::test_worker_has_no_direct_commerce_or_executor_access`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 8 | Model has no confirmation or execution authority. | M7B/M7D/M7G | `tests/voice/test_decision_bridge.py`; `tests/voice/test_confirmation.py`; `tests/acceptance/stage7/test_voice_security.py`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 9 | Action confirmation is bound to exact ActionRequest, proposal fingerprint, and customer. | M7D/M7E/M7G | `tests/voice/test_pending_confirmation.py`; `tests/voice/test_decision_bridge.py`; `tests/postgres/voice/test_voice_decision_races.py`. | `stage7-voice-contract` / `stage7-postgres-contract` / `stage7-acceptance` |
+| 10 | Complete deterministic spoken summary must finish before confirmation is armed. | M7D/M7G | `tests/voice/test_playout_gate.py::test_full_summary_arms_only_after_complete_playout`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 11 | Interrupted summary cannot authorize an action. | M7D/M7E/M7G | `tests/voice/test_playout_gate.py::test_interrupted_summary_then_confirm_never_decides`; `tests/acceptance/stage7/test_voice_races.py`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 12 | Barge-in works. | M7C/M7E/M7G | `tests/voice/test_barge_in.py`; `apps/web/tests/smoke/stage7-voice.spec.ts`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 13 | High-risk actions preserve supervisor-before-customer ordering. | M7D/M7E/M7G | `tests/voice/test_supervisor_boundary.py`; `tests/acceptance/stage7/test_voice_security.py::test_voice_cannot_approve_supervisor_gate`. | `stage7-voice-contract` / `stage7-acceptance` |
+| 14 | Ambiguous, duplicate, stale, and racing decisions remain Stage 6 safe. | M7B/M7D/M7E/M7G | `tests/postgres/voice/test_final_turn_idempotency.py`; `tests/postgres/voice/test_voice_decision_races.py`; `tests/voice/test_confirmation.py`. | `stage7-voice-contract` / `stage7-postgres-contract` / `stage7-acceptance` |
+| 15 | Provider and worker failures cannot invent business success. | M7E/M7F/M7G | `tests/voice/test_failures.py`; `tests/voice/test_worker_recovery.py`; controlled failure scenarios in the validation report. | `stage7-voice-contract` / `stage7-acceptance`; controlled provider failures remain M7F evidence. |
+| 16 | No raw audio is persisted. | M7A/M7B/M7F/M7G | `tests/postgres/voice/test_voice_session_schema.py`; `tests/architecture/test_voice_worker_boundaries.py`; validation-report hygiene check. | `stage7-voice-contract` / `stage7-postgres-contract` / `stage7-acceptance` |
+| 17 | English real-provider path works end to end. | M7F | Controlled English scenario report in `docs/evaluation/stage7-realtime-voice-validation.md`. | Not normal CI; manual controlled M7F evidence only. |
+| 18 | NFR-12 latency target is measured honestly. | M7F | `tests/voice/test_latency_metrics.py`; validation report with sample count, p50, p95, provider/model, environment, and pass/fail. | Provider-free metric contract in `stage7-voice-contract`; measured result remains controlled M7F evidence. |
+| 19 | MSA, Egyptian Arabic, and code-switch checks provide bounded plumbing evidence only. | M7F | `tests/voice/test_language_plumbing.py`; bounded language-plumbing section of the validation report. | `stage7-voice-contract`; quality claims remain outside Stage 7 and are not CI gates. |
+| 20 | Permanent provider-free Stage 7 CI protects final-transcript and action boundaries. | M7B/M7D/M7E/M7G | `Makefile` targets and `.github/workflows/ci.yml`; `tests/test_stage7_ci_contract.py`. | `stage7-voice-contract` / `stage7-postgres-contract` / `stage7-acceptance` |
+| 21 | All pre-existing Stage 6 gates remain green. | M7G | Existing Stage 6 targets and regression suites. | `stage6-action-contract` / `stage6-postgres-contract` / `stage6-acceptance` |
+
 ## Fresh Self-Review Checklist Before Implementation Starts
 
 - [ ] Spec coverage: every approved requirement in Sections 5–31 of the design is assigned to one or more M7A–M7G tasks.
 - [ ] Security coverage: customer-only bootstrap, exact role narrowing, preserved principal identity, no role persistence, no worker role input, and browser-only supervisor workflow are explicit in tasks and tests.
 - [ ] Interface coverage: session service, token issuer, worker auth, strict transcript request, runtime provenance, speech adapters, action summaries, confirmation parser, playout gate, decision bridge, BFF, and browser transport are named with owners.
+- [ ] Frozen contract coverage: the bootstrap DTO is exactly `voice_session_id`, `conversation_id`, `livekit_url`, `room_token`, `token_expires_at`, and `status`; confirmation grammar excludes bare `yes`; and cross-milestone names/semantics require human approval to change.
 - [ ] Data coverage: `voice_sessions` has no role set, raw audio, token, secret, or arbitrary provider JSON; `AgentRun` has only required provenance fields; migration is `0007_voice_sessions_v1`.
 - [ ] Concurrency coverage: duplicate final, voice/text turn, decision races, session end/submit, and worker restart are all named with PostgreSQL/provider-free tests.
+- [ ] Recovery coverage: every worker restart destroys `PendingVoiceConfirmation`, including an armed gate, and the crash-after-armed case requires full deterministic summary replay.
 - [ ] Testing coverage: provider-free unit/contract/acceptance checks are separated from M7F controlled validation, and existing Stage 6/web/historical checks remain selected.
+- [ ] Completion coverage: all 21 approved Stage 7 completion criteria appear in the traceability matrix with milestone, evidence/test, and permanent gate ownership.
 - [ ] Operational coverage: observability fields, bounded failures, recovery, latency evidence, report location, and evidence hygiene are specified.
 - [ ] Scope coverage: no Stage 7 implementation, production IdP revocation system, multilingual quality gate, provider failover, direct executor, custom transport, roadmap expansion, or unrelated refactor is included.
 - [ ] Execution check: use `superpowers:executing-plans` with one primary agent only; stop for human review if implementation uncovers an ambiguity that changes an approved security or lifecycle decision.
