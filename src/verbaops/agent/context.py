@@ -35,6 +35,9 @@ class AgentContext:
     retrieval_service: RetrievalService | None = None
     citation_finalizer: CitationFinalizer | None = None
     evaluation_profile: AgentEvaluationProfile | None = None
+    interaction_mode: InteractionMode = InteractionMode.TEXT
+    voice_session_id: UUID | None = None
+    voice_turn_id: UUID | None = None
 
     @property
     def scope(self) -> ConversationScope:

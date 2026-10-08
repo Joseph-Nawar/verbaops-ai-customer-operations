@@ -35,9 +35,10 @@ from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationScope,
+    InteractionMode,
     MessageRecord,
 )
-from verbaops.conversations.errors import ConversationBusyError
+from verbaops.conversations.errors import ConversationBusyError, ConversationInputError
 from verbaops.conversations.service import ConversationService
 from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.evaluation.p5_trace import P5TraceStore
@@ -138,10 +139,19 @@ class AgentRuntime:
         trusted_context: TrustedContext,
         conversation_id: UUID,
         content: str,
+        *,
+        interaction_mode: InteractionMode = InteractionMode.TEXT,
+        voice_session_id: UUID | None = None,
+        voice_turn_id: UUID | None = None,
     ) -> AgentTurnResult:
         """Run one validated turn without holding a transaction over external work."""
 
         self._validate_content(content)
+        try:
+            interaction_mode = InteractionMode(interaction_mode)
+        except ValueError:
+            raise AgentInputError() from None
+        _validate_provenance(interaction_mode, voice_session_id, voice_turn_id)
         scope = ConversationScope(
             tenant_id=trusted_context.tenant_id,
             principal_id=trusted_context.principal_id,
@@ -162,9 +172,15 @@ class AgentRuntime:
                     else self._prompt_version
                 ),
                 tool_schema_version=self._tool_schema_version,
+                interaction_mode=interaction_mode,
+                voice_session_id=voice_session_id,
+                voice_turn_id=voice_turn_id,
+                customer_id=trusted_context.customer_id,
             )
         except ConversationBusyError:
             raise AgentBusyError() from None
+        except ConversationInputError:
+            raise AgentInputError() from None
 
         try:
             history = await self._conversation_service.list_messages(scope, conversation_id)
@@ -179,6 +195,9 @@ class AgentRuntime:
                 retrieval_service=self._retrieval_service,
                 citation_finalizer=self._citation_finalizer,
                 evaluation_profile=self._evaluation_profile,
+                interaction_mode=interaction_mode,
+                voice_session_id=voice_session_id,
+                voice_turn_id=voice_turn_id,
             )
             final_state = await asyncio.wait_for(
                 self._graph.ainvoke(
@@ -295,6 +314,19 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "grounded_citations": [],
         "action_requests": [],
     }
+
+
+def _validate_provenance(
+    interaction_mode: InteractionMode,
+    voice_session_id: UUID | None,
+    voice_turn_id: UUID | None,
+) -> None:
+    if interaction_mode is InteractionMode.TEXT:
+        if voice_session_id is not None or voice_turn_id is not None:
+            raise AgentInputError()
+        return
+    if voice_session_id is None or voice_turn_id is None:
+        raise AgentInputError()
 
 
 __all__ = ["AgentRuntime", "AgentTurnResult"]

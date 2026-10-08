@@ -15,6 +15,7 @@ from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationRecord,
     ConversationScope,
+    InteractionMode,
     MessagePage,
     MessageRecord,
     ModelCallRecord,
@@ -111,6 +112,10 @@ class ConversationService:
         graph_version: str,
         prompt_version: str,
         tool_schema_version: str,
+        interaction_mode: InteractionMode = InteractionMode.TEXT,
+        voice_session_id: UUID | None = None,
+        voice_turn_id: UUID | None = None,
+        customer_id: UUID | None = None,
     ) -> TurnStart:
         async with self._session_factory() as session:
             try:
@@ -125,6 +130,10 @@ class ConversationService:
                         prompt_version=prompt_version,
                         tool_schema_version=tool_schema_version,
                         stale_after=self._stale_after,
+                        interaction_mode=interaction_mode,
+                        voice_session_id=voice_session_id,
+                        voice_turn_id=voice_turn_id,
+                        customer_id=customer_id,
                     )
             except IntegrityError as error:
                 if "uq_agent_runs_one_running_per_conversation" in str(error):

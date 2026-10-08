@@ -23,6 +23,7 @@ from verbaops.conversations.domain import (
 )
 from verbaops.conversations.errors import (
     ConversationBusyError,
+    ConversationInputError,
     ConversationLifecycleError,
     ConversationNotFoundError,
 )
@@ -36,6 +37,7 @@ from verbaops.conversations.persistence import (
 from verbaops.knowledge.repository_tables import message_citations
 from verbaops.llm.models import ResponseMetadata
 from verbaops.retrieval.models import RetrievalEvidence
+from verbaops.voice.persistence import VoiceSession
 
 
 def utc_now() -> datetime:
@@ -115,8 +117,20 @@ class ConversationRepository:
         prompt_version: str,
         tool_schema_version: str,
         stale_after: timedelta,
+        interaction_mode: InteractionMode = InteractionMode.TEXT,
+        voice_session_id: UUID | None = None,
+        voice_turn_id: UUID | None = None,
+        customer_id: UUID | None = None,
     ) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]:
         conversation = await self._conversation(scope, conversation_id, for_update=True)
+        await self._validate_provenance(
+            conversation_id,
+            scope,
+            interaction_mode=interaction_mode,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
+            customer_id=customer_id,
+        )
         await self._recover_or_reject_running(conversation_id, stale_after)
 
         next_sequence = await self._next_message_sequence(conversation_id)
@@ -137,12 +151,44 @@ class ConversationRepository:
             graph_version=graph_version,
             prompt_version=prompt_version,
             tool_schema_version=tool_schema_version,
+            interaction_mode=interaction_mode.value,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
             started_at=utc_now(),
         )
         self._session.add(run)
         conversation.updated_at = utc_now()
         await self._session.flush()
         return _conversation_record(conversation), _message_record(message), _agent_run_record(run)
+
+    async def _validate_provenance(
+        self,
+        conversation_id: UUID,
+        scope: ConversationScope,
+        *,
+        interaction_mode: InteractionMode,
+        voice_session_id: UUID | None,
+        voice_turn_id: UUID | None,
+        customer_id: UUID | None,
+    ) -> None:
+        if interaction_mode is InteractionMode.TEXT:
+            if voice_session_id is not None or voice_turn_id is not None:
+                raise ConversationInputError("text turns cannot contain voice provenance")
+            return
+        if voice_session_id is None or voice_turn_id is None or customer_id is None:
+            raise ConversationInputError("voice turns require complete provenance")
+        voice_session = await self._session.scalar(
+            select(VoiceSession).where(
+                VoiceSession.id == voice_session_id,
+                VoiceSession.tenant_id == scope.tenant_id,
+                VoiceSession.principal_id == scope.principal_id,
+                VoiceSession.customer_id == customer_id,
+                VoiceSession.conversation_id == conversation_id,
+                VoiceSession.status != "ended",
+            )
+        )
+        if voice_session is None:
+            raise ConversationInputError("voice provenance is outside the trusted session scope")
 
     async def append_model_call(
         self,
