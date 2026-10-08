@@ -8,6 +8,7 @@ import {
   loadActionView,
   type ActionRequestView,
 } from "./action-request-card";
+import { VoicePanel, type VoicePanelHandle } from "./voice-panel";
 import { isConversationId } from "@/lib/server/request-validation";
 
 type Message = {
@@ -147,6 +148,7 @@ export function Chat(): React.JSX.Element {
   const [error, setError] = useState(false);
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const voicePanelRef = useRef<VoicePanelHandle | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,7 +235,19 @@ export function Chat(): React.JSX.Element {
     }
   }
 
-  function reset(): void {
+  async function refreshConversation(): Promise<void> {
+    if (!conversationId) return;
+    try {
+      const result = await loadConversation(conversationId);
+      setMessages(result.messages);
+      setActionRequests(result.active_action_requests);
+    } catch {
+      setError(true);
+    }
+  }
+
+  async function reset(): Promise<void> {
+    await voicePanelRef.current?.resetVoiceSession();
     setConversationId(null);
     setMessages([]);
     setDraft("");
@@ -256,10 +270,17 @@ export function Chat(): React.JSX.Element {
             <h1 id="chat-title">VerbaOps AI</h1>
             <p className="subtitle">Customer operations with server-owned action status.</p>
           </div>
-          <button className="secondary-button" type="button" onClick={reset}>
+          <button className="secondary-button" type="button" onClick={() => void reset()}>
             New conversation
           </button>
         </header>
+
+        <VoicePanel
+          ref={voicePanelRef}
+          conversationId={conversationId}
+          onConversationId={setConversationId}
+          onAuthoritativeStateInvalidated={() => void refreshConversation()}
+        />
 
         <div className="message-list" aria-live="polite" aria-label="Conversation history">
           {messages.length === 0 ? (

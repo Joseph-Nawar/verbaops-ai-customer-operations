@@ -38,6 +38,11 @@ h1 { margin: 5px 0; font-size: clamp(1.7rem, 4vw, 2.3rem); }
 textarea { width: 100%; resize: vertical; padding: 12px; color: var(--ink); border: 1px solid var(--line); border-radius: 10px; outline-color: var(--accent); }
 .composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .action-list { display: grid; gap: 14px; }
+.voice-panel { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: #f8fbfc; }
+.voice-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.voice-panel .eyebrow { margin-bottom: 4px; }
+.voice-status { margin: 0; font-weight: 700; }
+.voice-partial { margin: 0; padding: 10px 12px; color: var(--muted); background: white; border-radius: 8px; font-style: italic; }
 .action-card, .review-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: #fbfdfe; }
 .action-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .action-card h2 { margin: 4px 0 0; font-size: 1.1rem; text-transform: capitalize; }

@@ -7,6 +7,13 @@ import { Chat } from "./chat";
 describe("Chat", () => {
   const reloadConversationId = "45fd2b63-ce1b-52ae-baf6-96d8cd9f4aa2";
 
+  it("mounts the browser voice surface alongside the shared conversation", () => {
+    render(<Chat />);
+
+    expect(screen.getByRole("region", { name: "Browser voice" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Message")).toBeInTheDocument();
+  });
+
   it("reloads messages and active action views from the scoped conversation endpoint", async () => {
     const action = {
       action_request_id: "45fd2b63-ce1b-52ae-baf6-96d8cd9f4aa2",
