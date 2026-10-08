@@ -16,6 +16,7 @@ from verbaops.auth.provider import AuthenticationError, AuthProvider, OpaqueCred
 from verbaops.config.settings import Settings
 from verbaops.db.resources import DatabaseResources
 from verbaops.observability.context import bind_tenant_id
+from verbaops.voice.auth import VoiceWorkerContext, authenticate_worker
 
 if TYPE_CHECKING:
     from verbaops.actions.decisions import ActionDecisionService
@@ -177,6 +178,7 @@ def get_auth_provider(
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
+worker_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_trusted_context(
@@ -194,3 +196,20 @@ async def get_trusted_context(
     context = auth_provider.authenticate(OpaqueCredential(credentials.credentials))
     bind_tenant_id(context.tenant_id)
     return context
+
+
+async def get_voice_worker_context(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(worker_bearer_scheme),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> VoiceWorkerContext:
+    """Authenticate the internal worker without creating a customer context."""
+
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise AuthenticationError("authentication failed")
+    return authenticate_worker(
+        OpaqueCredential(credentials.credentials),
+        expected_token=settings.voice.worker_token,
+    )
