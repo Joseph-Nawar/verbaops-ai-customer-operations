@@ -35,4 +35,3 @@ export async function POST(request: Request): Promise<Response> {
   if (!isVoiceSessionBootstrap(responseBody)) return safeBackendFailure();
   return Response.json(responseBody, { status: upstream.status });
 }
-

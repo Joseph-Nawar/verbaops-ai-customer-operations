@@ -55,4 +55,3 @@ export function isVoiceSessionBootstrap(value: unknown): value is VoiceSessionBo
     record.status === "created"
   );
 }
-

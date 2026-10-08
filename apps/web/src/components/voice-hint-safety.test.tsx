@@ -61,4 +61,3 @@ describe("browser voice hint safety", () => {
     expect(screen.queryByText(/succeeded|confirmed|approved|supervisor/i)).not.toBeInTheDocument();
   });
 });
-

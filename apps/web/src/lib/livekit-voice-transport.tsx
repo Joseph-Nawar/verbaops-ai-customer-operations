@@ -57,4 +57,3 @@ export class LiveKitVoiceTransport implements VoiceTransport {
 export function createLiveKitVoiceTransport(): VoiceTransport {
   return new LiveKitVoiceTransport();
 }
-

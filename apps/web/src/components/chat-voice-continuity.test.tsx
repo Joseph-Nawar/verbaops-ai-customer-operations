@@ -129,4 +129,3 @@ describe("Chat and browser voice conversation continuity", () => {
     expect(screen.getByText("Voice disconnected")).toBeInTheDocument();
   });
 });
-

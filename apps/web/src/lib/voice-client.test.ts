@@ -48,4 +48,3 @@ describe("provider-neutral voice transport", () => {
     expect(transport.lastBootstrap()).toBeNull();
   });
 });
-
