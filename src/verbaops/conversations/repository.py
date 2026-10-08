@@ -1,5 +1,6 @@
 """Transaction-scoped repository operations for conversation persistence."""
 
+import json
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -264,16 +265,24 @@ class ConversationRepository:
         summaries: list[ActionRequestSummary] = []
         invocation_results = await self._session.scalars(
             select(ToolInvocation.result_json)
-            .where(ToolInvocation.agent_run_id == run.id)
+            .where(
+                ToolInvocation.agent_run_id == run.id,
+                ToolInvocation.status == "succeeded",
+                ToolInvocation.risk_level == "proposal",
+            )
             .order_by(ToolInvocation.sequence)
         )
         for result_json in invocation_results:
             if not isinstance(result_json, dict):
-                continue
+                raise ConversationLifecycleError("proposal result is malformed")
             try:
-                summary = ActionRequestSummary.model_validate(result_json)
-            except ValueError:
-                continue
+                summary = ActionRequestSummary.model_validate_json(
+                    json.dumps(
+                        result_json, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                    )
+                )
+            except (TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ConversationLifecycleError("proposal result is malformed") from error
             summaries.append(summary)
         return VoiceTurnReplay(
             agent_run=_agent_run_record(run),

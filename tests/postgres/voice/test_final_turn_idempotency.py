@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from verbaops.actions.models import ActionRequestSummary, ActionState, ActionType
 from verbaops.conversations.domain import ConversationScope, VoiceTurnClaim
-from verbaops.conversations.errors import ConversationBusyError
+from verbaops.conversations.errors import ConversationBusyError, ConversationLifecycleError
 from verbaops.conversations.service import ConversationService
 from verbaops.voice.domain import VoiceSessionState
 from verbaops.voice.repository import VoiceSessionRepository
@@ -171,6 +171,121 @@ async def test_final_voice_turn_replays_completed_and_failed_durable_state(
             )
         ).one()
     assert counts == (3, 2)
+
+
+@pytest.mark.asyncio
+async def test_completed_voice_replay_ignores_read_only_tool_results(
+    postgres_engine: AsyncEngine,
+) -> None:
+    service, scope, customer_id, conversation_id, voice_session_id = await _seed(postgres_engine)
+    turn_id = uuid4()
+    started = await service.start_voice_turn(
+        scope,
+        conversation_id,
+        "cancel my order",
+        graph_version="graph-v1",
+        prompt_version="prompt-v1",
+        tool_schema_version="tools-v1",
+        voice_session_id=voice_session_id,
+        voice_turn_id=turn_id,
+        customer_id=customer_id,
+    )
+    assert started.turn_start is not None
+    summary = _summary()
+    json_result = summary.model_dump(mode="json")
+    await service.append_tool_invocation(
+        scope,
+        conversation_id,
+        started.turn_start.agent_run.id,
+        tool_call_id="read-1",
+        tool_name="get_order_status",
+        risk_level="read",
+        arguments={"order_id": str(uuid4())},
+        status="succeeded",
+        result=json_result,
+        latency_ms=1.0,
+        completed_at=datetime.now(UTC),
+    )
+    await service.append_tool_invocation(
+        scope,
+        conversation_id,
+        started.turn_start.agent_run.id,
+        tool_call_id="proposal-1",
+        tool_name="propose_cancel_order",
+        risk_level="proposal",
+        arguments={"order_id": str(uuid4())},
+        status="succeeded",
+        result=json_result,
+        latency_ms=1.0,
+        completed_at=datetime.now(UTC),
+    )
+    await service.complete_turn(
+        scope, conversation_id, started.turn_start.agent_run.id, "Please confirm."
+    )
+
+    replay = await service.start_voice_turn(
+        scope,
+        conversation_id,
+        "cancel my order",
+        graph_version="graph-v1",
+        prompt_version="prompt-v1",
+        tool_schema_version="tools-v1",
+        voice_session_id=voice_session_id,
+        voice_turn_id=turn_id,
+        customer_id=customer_id,
+    )
+
+    assert replay.replay is not None
+    assert replay.replay.action_requests == (summary,)
+
+
+@pytest.mark.asyncio
+async def test_completed_voice_replay_fails_closed_on_malformed_proposal_result(
+    postgres_engine: AsyncEngine,
+) -> None:
+    service, scope, customer_id, conversation_id, voice_session_id = await _seed(postgres_engine)
+    turn_id = uuid4()
+    started = await service.start_voice_turn(
+        scope,
+        conversation_id,
+        "cancel my order",
+        graph_version="graph-v1",
+        prompt_version="prompt-v1",
+        tool_schema_version="tools-v1",
+        voice_session_id=voice_session_id,
+        voice_turn_id=turn_id,
+        customer_id=customer_id,
+    )
+    assert started.turn_start is not None
+    await service.append_tool_invocation(
+        scope,
+        conversation_id,
+        started.turn_start.agent_run.id,
+        tool_call_id="proposal-1",
+        tool_name="propose_cancel_order",
+        risk_level="proposal",
+        arguments={"order_id": str(uuid4())},
+        status="succeeded",
+        result={"not": "an action summary"},
+        latency_ms=1.0,
+        completed_at=datetime.now(UTC),
+    )
+    await service.complete_turn(
+        scope, conversation_id, started.turn_start.agent_run.id, "Please confirm."
+    )
+
+    with pytest.raises(ConversationLifecycleError, match="proposal result is malformed"):
+        await service.start_voice_turn(
+            scope,
+            conversation_id,
+            "cancel my order",
+            graph_version="graph-v1",
+            prompt_version="prompt-v1",
+            tool_schema_version="tools-v1",
+            voice_session_id=voice_session_id,
+            voice_turn_id=turn_id,
+            customer_id=customer_id,
+        )
 
 
 @pytest.mark.asyncio

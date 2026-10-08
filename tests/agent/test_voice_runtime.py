@@ -27,7 +27,7 @@ from verbaops.conversations.domain import (
     TurnStart,
     VoiceTurnClaim,
 )
-from verbaops.conversations.errors import ConversationInputError
+from verbaops.conversations.errors import ConversationInputError, ConversationLifecycleError
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
 
@@ -137,6 +137,11 @@ class MissingTurnStartService(RecordingVoiceConversationService):
 class InvalidVoiceTurnService(RecordingVoiceConversationService):
     async def start_voice_turn(self, *_args: Any, **_kwargs: Any) -> VoiceTurnClaim:
         raise ConversationInputError("invalid voice provenance")
+
+
+class CorruptReplayService(RecordingVoiceConversationService):
+    async def start_voice_turn(self, *_args: Any, **_kwargs: Any) -> VoiceTurnClaim:
+        raise ConversationLifecycleError("proposal result is malformed")
 
 
 class InvalidResponseGraph:
@@ -260,6 +265,19 @@ async def test_voice_turn_without_claimed_start_is_protocol_error() -> None:
 async def test_voice_turn_maps_repository_input_errors() -> None:
     with pytest.raises(AgentInputError):
         await _runtime(InvalidVoiceTurnService([], []), CapturingGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_maps_corrupt_replay_state_to_unavailable() -> None:
+    with pytest.raises(AgentUnavailableError):
+        await _runtime(CorruptReplayService([], []), CapturingGraph()).run_turn(
             _trusted_context(),
             uuid4(),
             "hello",

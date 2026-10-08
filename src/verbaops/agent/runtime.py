@@ -41,7 +41,11 @@ from verbaops.conversations.domain import (
     MessageRecord,
     VoiceTurnReplay,
 )
-from verbaops.conversations.errors import ConversationBusyError, ConversationInputError
+from verbaops.conversations.errors import (
+    ConversationBusyError,
+    ConversationInputError,
+    ConversationLifecycleError,
+)
 from verbaops.conversations.service import ConversationService
 from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.evaluation.p5_trace import P5TraceStore
@@ -213,6 +217,8 @@ class AgentRuntime:
             raise AgentBusyError() from None
         except ConversationInputError:
             raise AgentInputError() from None
+        except ConversationLifecycleError:
+            raise AgentUnavailableError() from None
 
         try:
             history = await self._conversation_service.list_messages(scope, conversation_id)
