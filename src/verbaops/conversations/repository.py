@@ -1,5 +1,6 @@
 """Transaction-scoped repository operations for conversation persistence."""
 
+import json
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -9,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.conversations.domain import (
     AgentRunRecord,
     CitationRecord,
@@ -19,10 +21,14 @@ from verbaops.conversations.domain import (
     MessageRecord,
     ModelCallRecord,
     ToolInvocationRecord,
+    TurnStart,
+    VoiceTurnClaim,
+    VoiceTurnReplay,
     model_call_fields,
 )
 from verbaops.conversations.errors import (
     ConversationBusyError,
+    ConversationInputError,
     ConversationLifecycleError,
     ConversationNotFoundError,
 )
@@ -36,6 +42,7 @@ from verbaops.conversations.persistence import (
 from verbaops.knowledge.repository_tables import message_citations
 from verbaops.llm.models import ResponseMetadata
 from verbaops.retrieval.models import RetrievalEvidence
+from verbaops.voice.persistence import VoiceSession
 
 
 def utc_now() -> datetime:
@@ -115,8 +122,20 @@ class ConversationRepository:
         prompt_version: str,
         tool_schema_version: str,
         stale_after: timedelta,
+        interaction_mode: InteractionMode = InteractionMode.TEXT,
+        voice_session_id: UUID | None = None,
+        voice_turn_id: UUID | None = None,
+        customer_id: UUID | None = None,
     ) -> tuple[ConversationRecord, MessageRecord, AgentRunRecord]:
         conversation = await self._conversation(scope, conversation_id, for_update=True)
+        await self._validate_provenance(
+            conversation_id,
+            scope,
+            interaction_mode=interaction_mode,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
+            customer_id=customer_id,
+        )
         await self._recover_or_reject_running(conversation_id, stale_after)
 
         next_sequence = await self._next_message_sequence(conversation_id)
@@ -137,12 +156,171 @@ class ConversationRepository:
             graph_version=graph_version,
             prompt_version=prompt_version,
             tool_schema_version=tool_schema_version,
+            interaction_mode=interaction_mode.value,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
             started_at=utc_now(),
         )
         self._session.add(run)
         conversation.updated_at = utc_now()
         await self._session.flush()
         return _conversation_record(conversation), _message_record(message), _agent_run_record(run)
+
+    async def start_voice_turn(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        content: str,
+        *,
+        graph_version: str,
+        prompt_version: str,
+        tool_schema_version: str,
+        voice_session_id: UUID,
+        voice_turn_id: UUID,
+        customer_id: UUID,
+        stale_after: timedelta,
+    ) -> VoiceTurnClaim:
+        conversation = await self._conversation(scope, conversation_id, for_update=True)
+        await self._validate_provenance(
+            conversation_id,
+            scope,
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
+            customer_id=customer_id,
+        )
+        if conversation.customer_id != customer_id:
+            raise ConversationInputError("voice session customer does not match conversation")
+        existing = await self.get_voice_turn(
+            scope,
+            conversation_id,
+            voice_session_id,
+            voice_turn_id,
+        )
+        if existing is not None:
+            return VoiceTurnClaim(replay=existing)
+        await self._recover_or_reject_running(conversation_id, stale_after)
+        next_sequence = await self._next_message_sequence(conversation_id)
+        message = Message(
+            conversation_id=conversation_id,
+            sequence=next_sequence,
+            role="user",
+            content=content,
+            created_at=utc_now(),
+        )
+        self._session.add(message)
+        await self._session.flush()
+        run = AgentRun(
+            conversation_id=conversation_id,
+            user_message_id=message.id,
+            status="running",
+            graph_version=graph_version,
+            prompt_version=prompt_version,
+            tool_schema_version=tool_schema_version,
+            interaction_mode=InteractionMode.VOICE.value,
+            voice_session_id=voice_session_id,
+            voice_turn_id=voice_turn_id,
+            started_at=utc_now(),
+        )
+        self._session.add(run)
+        conversation.updated_at = utc_now()
+        await self._session.flush()
+        return VoiceTurnClaim(
+            turn_start=TurnStart(
+                _conversation_record(conversation),
+                _message_record(message),
+                _agent_run_record(run),
+            )
+        )
+
+    async def get_voice_turn(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        voice_session_id: UUID,
+        voice_turn_id: UUID,
+    ) -> VoiceTurnReplay | None:
+        run = await self._session.scalar(
+            select(AgentRun)
+            .join(Conversation, Conversation.id == AgentRun.conversation_id)
+            .where(
+                AgentRun.conversation_id == conversation_id,
+                AgentRun.interaction_mode == InteractionMode.VOICE.value,
+                AgentRun.voice_session_id == voice_session_id,
+                AgentRun.voice_turn_id == voice_turn_id,
+                Conversation.tenant_id == scope.tenant_id,
+                Conversation.principal_id == scope.principal_id,
+            )
+        )
+        if run is None:
+            return None
+        user_message = await self._session.get(Message, run.user_message_id)
+        if user_message is None:
+            raise ConversationLifecycleError("voice turn user message is missing")
+        assistant_message = (
+            await self._session.get(Message, run.assistant_message_id)
+            if run.assistant_message_id is not None
+            else None
+        )
+        summaries: list[ActionRequestSummary] = []
+        invocation_results = await self._session.scalars(
+            select(ToolInvocation.result_json)
+            .where(
+                ToolInvocation.agent_run_id == run.id,
+                ToolInvocation.status == "succeeded",
+                ToolInvocation.risk_level == "proposal",
+            )
+            .order_by(ToolInvocation.sequence)
+        )
+        for result_json in invocation_results:
+            if not isinstance(result_json, dict):
+                raise ConversationLifecycleError("proposal result is malformed")
+            try:
+                summary = ActionRequestSummary.model_validate_json(
+                    json.dumps(
+                        result_json, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+                    )
+                )
+            except (TypeError, ValueError, json.JSONDecodeError) as error:
+                raise ConversationLifecycleError("proposal result is malformed") from error
+            summaries.append(summary)
+        return VoiceTurnReplay(
+            agent_run=_agent_run_record(run),
+            user_message=_message_record(user_message),
+            assistant_message=(
+                _message_record(assistant_message) if assistant_message is not None else None
+            ),
+            action_requests=tuple(summaries),
+        )
+
+    async def _validate_provenance(
+        self,
+        conversation_id: UUID,
+        scope: ConversationScope,
+        *,
+        interaction_mode: InteractionMode,
+        voice_session_id: UUID | None,
+        voice_turn_id: UUID | None,
+        customer_id: UUID | None,
+    ) -> None:
+        if interaction_mode is InteractionMode.TEXT:
+            if voice_session_id is not None or voice_turn_id is not None:
+                raise ConversationInputError("text turns cannot contain voice provenance")
+            return
+        if voice_session_id is None or voice_turn_id is None or customer_id is None:
+            raise ConversationInputError("voice turns require complete provenance")
+        voice_session = await self._session.scalar(
+            select(VoiceSession).where(
+                VoiceSession.id == voice_session_id,
+                VoiceSession.tenant_id == scope.tenant_id,
+                VoiceSession.principal_id == scope.principal_id,
+                VoiceSession.customer_id == customer_id,
+                VoiceSession.conversation_id == conversation_id,
+                VoiceSession.status != "ended",
+            )
+        )
+        if voice_session is None:
+            raise ConversationInputError("voice provenance is outside the trusted session scope")
 
     async def append_model_call(
         self,

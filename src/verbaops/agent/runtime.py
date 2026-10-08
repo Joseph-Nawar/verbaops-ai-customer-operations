@@ -14,6 +14,8 @@ from verbaops.agent.errors import (
     AgentInputError,
     AgentProtocolError,
     AgentUnavailableError,
+    AgentVoiceTurnFailedError,
+    AgentVoiceTurnInProgressError,
 )
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
@@ -35,9 +37,15 @@ from verbaops.commerce.client import CommerceClient
 from verbaops.conversations.domain import (
     AgentRunRecord,
     ConversationScope,
+    InteractionMode,
     MessageRecord,
+    VoiceTurnReplay,
 )
-from verbaops.conversations.errors import ConversationBusyError
+from verbaops.conversations.errors import (
+    ConversationBusyError,
+    ConversationInputError,
+    ConversationLifecycleError,
+)
 from verbaops.conversations.service import ConversationService
 from verbaops.evaluation.p4_trace import P4TraceStore
 from verbaops.evaluation.p5_trace import P5TraceStore
@@ -138,33 +146,79 @@ class AgentRuntime:
         trusted_context: TrustedContext,
         conversation_id: UUID,
         content: str,
+        *,
+        interaction_mode: InteractionMode = InteractionMode.TEXT,
+        voice_session_id: UUID | None = None,
+        voice_turn_id: UUID | None = None,
     ) -> AgentTurnResult:
         """Run one validated turn without holding a transaction over external work."""
 
         self._validate_content(content)
+        try:
+            interaction_mode = InteractionMode(interaction_mode)
+        except ValueError:
+            raise AgentInputError() from None
+        _validate_provenance(interaction_mode, voice_session_id, voice_turn_id)
         scope = ConversationScope(
             tenant_id=trusted_context.tenant_id,
             principal_id=trusted_context.principal_id,
         )
         try:
-            turn_start = await self._conversation_service.start_turn(
-                scope,
-                conversation_id,
-                content,
-                graph_version=(
-                    self._evaluation_profile.graph_version
-                    if self._evaluation_profile is not None
-                    else GRAPH_VERSION
-                ),
-                prompt_version=(
-                    f"text-agent-system-{self._evaluation_profile.prompt_version}"
-                    if self._evaluation_profile is not None
-                    else self._prompt_version
-                ),
-                tool_schema_version=self._tool_schema_version,
-            )
+            if interaction_mode is InteractionMode.VOICE:
+                assert voice_session_id is not None and voice_turn_id is not None
+                if trusted_context.customer_id is None:
+                    raise AgentInputError()
+                claim = await self._conversation_service.start_voice_turn(
+                    scope,
+                    conversation_id,
+                    content,
+                    graph_version=(
+                        self._evaluation_profile.graph_version
+                        if self._evaluation_profile is not None
+                        else GRAPH_VERSION
+                    ),
+                    prompt_version=(
+                        f"text-agent-system-{self._evaluation_profile.prompt_version}"
+                        if self._evaluation_profile is not None
+                        else self._prompt_version
+                    ),
+                    tool_schema_version=self._tool_schema_version,
+                    voice_session_id=voice_session_id,
+                    voice_turn_id=voice_turn_id,
+                    customer_id=trusted_context.customer_id,
+                )
+                if claim.replay is not None:
+                    return _replay_voice_turn(claim.replay)
+                if claim.turn_start is None:
+                    raise AgentProtocolError()
+                turn_start = claim.turn_start
+            else:
+                turn_start = await self._conversation_service.start_turn(
+                    scope,
+                    conversation_id,
+                    content,
+                    graph_version=(
+                        self._evaluation_profile.graph_version
+                        if self._evaluation_profile is not None
+                        else GRAPH_VERSION
+                    ),
+                    prompt_version=(
+                        f"text-agent-system-{self._evaluation_profile.prompt_version}"
+                        if self._evaluation_profile is not None
+                        else self._prompt_version
+                    ),
+                    tool_schema_version=self._tool_schema_version,
+                    interaction_mode=interaction_mode,
+                    voice_session_id=None,
+                    voice_turn_id=None,
+                    customer_id=trusted_context.customer_id,
+                )
         except ConversationBusyError:
             raise AgentBusyError() from None
+        except ConversationInputError:
+            raise AgentInputError() from None
+        except ConversationLifecycleError:
+            raise AgentUnavailableError() from None
 
         try:
             history = await self._conversation_service.list_messages(scope, conversation_id)
@@ -179,6 +233,9 @@ class AgentRuntime:
                 retrieval_service=self._retrieval_service,
                 citation_finalizer=self._citation_finalizer,
                 evaluation_profile=self._evaluation_profile,
+                interaction_mode=interaction_mode,
+                voice_session_id=voice_session_id,
+                voice_turn_id=voice_turn_id,
             )
             final_state = await asyncio.wait_for(
                 self._graph.ainvoke(
@@ -295,6 +352,38 @@ def _initial_state(history: list[MessageRecord]) -> AgentState:
         "grounded_citations": [],
         "action_requests": [],
     }
+
+
+def _validate_provenance(
+    interaction_mode: InteractionMode,
+    voice_session_id: UUID | None,
+    voice_turn_id: UUID | None,
+) -> None:
+    if interaction_mode is InteractionMode.TEXT:
+        if voice_session_id is not None or voice_turn_id is not None:
+            raise AgentInputError()
+        return
+    if voice_session_id is None or voice_turn_id is None:
+        raise AgentInputError()
+
+
+def _replay_voice_turn(replay: VoiceTurnReplay) -> AgentTurnResult:
+    if replay.agent_run.status == "running":
+        raise AgentVoiceTurnInProgressError()
+    if replay.agent_run.status == "failed":
+        raise AgentVoiceTurnFailedError(replay.agent_run.error_code)
+    if replay.agent_run.status != "completed" or replay.assistant_message is None:
+        raise AgentProtocolError()
+    return AgentTurnResult(
+        conversation_id=replay.agent_run.conversation_id,
+        agent_run_id=replay.agent_run.id,
+        assistant_message_id=replay.assistant_message.id,
+        content=replay.assistant_message.content,
+        agent_run=replay.agent_run,
+        user_message=replay.user_message,
+        assistant_message=replay.assistant_message,
+        action_requests=replay.action_requests,
+    )
 
 
 __all__ = ["AgentRuntime", "AgentTurnResult"]

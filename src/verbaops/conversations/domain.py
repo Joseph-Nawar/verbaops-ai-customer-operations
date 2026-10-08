@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
+from verbaops.actions.models import ActionRequestSummary
 from verbaops.llm.models import ResponseMetadata
 
 
@@ -134,6 +135,24 @@ class TurnStart:
     conversation: ConversationRecord
     user_message: MessageRecord
     agent_run: AgentRunRecord
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceTurnReplay:
+    """Durable state needed to replay one final voice turn without execution."""
+
+    agent_run: AgentRunRecord
+    user_message: MessageRecord
+    assistant_message: MessageRecord | None
+    action_requests: tuple[ActionRequestSummary, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class VoiceTurnClaim:
+    """The transactionally claimed new turn or its durable existing winner."""
+
+    turn_start: TurnStart | None = None
+    replay: VoiceTurnReplay | None = None
 
 
 @dataclass(frozen=True, slots=True)
