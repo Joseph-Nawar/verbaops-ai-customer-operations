@@ -2,10 +2,12 @@
 
 from dataclasses import fields
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import Table
 
 from verbaops.agent.context import InteractionMode
 from verbaops.conversations.persistence import AgentRun
@@ -79,13 +81,15 @@ def test_bootstrap_request_accepts_only_optional_conversation_id() -> None:
 
 
 def test_bootstrap_response_has_exact_bounded_browser_contract() -> None:
-    VoiceSessionBootstrap(
-        voice_session_id=uuid4(),
-        conversation_id=uuid4(),
-        livekit_url="https://voice.example.test",
-        room_token="test-only-token",
-        token_expires_at=datetime.now(UTC),
-        status=VoiceSessionState.CREATED,
+    VoiceSessionBootstrap.model_validate(
+        {
+            "voice_session_id": uuid4(),
+            "conversation_id": uuid4(),
+            "livekit_url": "https://voice.example.test",
+            "room_token": "test-only-token",
+            "token_expires_at": datetime.now(UTC),
+            "status": VoiceSessionState.CREATED,
+        }
     )
     assert set(VoiceSessionBootstrap.model_fields) == {
         "voice_session_id",
@@ -100,15 +104,15 @@ def test_bootstrap_response_has_exact_bounded_browser_contract() -> None:
 
 
 def test_agent_run_model_freezes_text_and_voice_provenance_rules() -> None:
-    assert AgentRun.__table__.c.interaction_mode.default.arg == InteractionMode.TEXT.value
-    checks = {constraint.name for constraint in AgentRun.__table__.constraints}
+    table = cast(Table, AgentRun.__table__)
+    default = cast(Any, table.c.interaction_mode.default)
+    assert default.arg == InteractionMode.TEXT.value
+    checks = {constraint.name for constraint in table.constraints}
     assert "agent_run_provenance_consistent" in checks
-    assert "uq_agent_runs_one_running_per_conversation" in {
-        index.name for index in AgentRun.__table__.indexes
-    }
+    assert "uq_agent_runs_one_running_per_conversation" in {index.name for index in table.indexes}
     voice_indexes = {
         index.name: str(index.dialect_options["postgresql"].get("where"))
-        for index in AgentRun.__table__.indexes
+        for index in table.indexes
         if index.name == "uq_agent_runs_voice_session_turn"
     }
     assert voice_indexes == {

@@ -34,6 +34,7 @@ def _record(
     context: TrustedContext, status: VoiceSessionState = VoiceSessionState.CREATED
 ) -> VoiceSessionRecord:
     now = datetime.now(UTC)
+    assert context.customer_id is not None
     return VoiceSessionRecord(
         id=SESSION_ID,
         tenant_id=context.tenant_id,
@@ -65,13 +66,15 @@ class FakeVoiceSessionService:
     ) -> VoiceSessionBootstrap:
         assert trusted_context == self.context
         assert conversation_id in (None, CONVERSATION_ID)
-        return VoiceSessionBootstrap(
-            voice_session_id=SESSION_ID,
-            conversation_id=CONVERSATION_ID,
-            livekit_url="https://livekit.example.test",
-            room_token="short-lived-test-token",
-            token_expires_at=datetime.now(UTC),
-            status=VoiceSessionState.CREATED,
+        return VoiceSessionBootstrap.model_validate(
+            {
+                "voice_session_id": SESSION_ID,
+                "conversation_id": CONVERSATION_ID,
+                "livekit_url": "https://livekit.example.test",
+                "room_token": "short-lived-test-token",
+                "token_expires_at": datetime.now(UTC),
+                "status": VoiceSessionState.CREATED,
+            }
         )
 
     async def end_customer_session(
@@ -162,7 +165,7 @@ async def test_non_customer_context_is_rejected_by_service_boundary(roles: froze
     ) -> VoiceSessionBootstrap:
         raise PublicAPIError(403, "customer_context_required", "customer context is required")
 
-    _service.create_customer_session = deny  # type: ignore[method-assign]
+    _service.create_customer_session = deny  # type: ignore[assignment]
     response = await request(
         app,
         "POST",

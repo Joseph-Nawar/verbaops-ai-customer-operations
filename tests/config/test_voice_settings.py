@@ -89,7 +89,7 @@ def test_voice_url_rejects_credentials_and_non_http_values_without_echoing_secre
 
 def test_voice_settings_reject_extra_fields_and_ttl_inversion() -> None:
     with pytest.raises(ValidationError):
-        VoiceSettings(unexpected="value")
+        VoiceSettings.model_validate({"unexpected": "value"})
     with pytest.raises(ValidationError):
         VoiceSettings(session_ttl_seconds=60, token_ttl_seconds=61)
 

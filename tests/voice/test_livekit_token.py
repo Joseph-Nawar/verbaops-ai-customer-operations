@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
+from pydantic import SecretStr
 
 from verbaops.config import VoiceSettings
 from verbaops.voice.livekit import LiveKitTokenIssuer
@@ -14,9 +15,9 @@ from verbaops.voice.livekit import LiveKitTokenIssuer
 def _settings() -> VoiceSettings:
     return VoiceSettings(
         livekit_url="https://livekit.example.test",
-        livekit_api_key="test-livekit-key",
-        livekit_api_secret="test-livekit-secret-0123456789012345",
-        worker_token="test-worker-token",
+        livekit_api_key=SecretStr("test-livekit-key"),
+        livekit_api_secret=SecretStr("test-livekit-secret-0123456789012345"),
+        worker_token=SecretStr("test-worker-token"),
         token_ttl_seconds=300,
     )
 
