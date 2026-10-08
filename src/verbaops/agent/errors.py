@@ -27,6 +27,24 @@ class AgentBusyError(AgentError):
     message = "conversation is busy"
 
 
+class AgentVoiceTurnInProgressError(AgentError):
+    """Raised when the exact final voice turn already owns a running AgentRun."""
+
+    error_code = "voice_turn_in_progress"
+    message = "voice turn is already in progress"
+
+
+class AgentVoiceTurnFailedError(AgentError):
+    """Raised when a duplicate final voice turn replays a recorded failure."""
+
+    error_code = "voice_turn_failed"
+    message = "voice turn previously failed"
+
+    def __init__(self, recorded_error_code: str | None = None) -> None:
+        self.recorded_error_code = recorded_error_code
+        super().__init__()
+
+
 class AgentUnavailableError(AgentError):
     """Raised when a required LLM or Commerce dependency is unavailable."""
 

@@ -2,12 +2,13 @@
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, cast
 from uuid import UUID, uuid4
 
 import pytest
 
-from verbaops.agent.errors import AgentInputError
+from verbaops.agent.errors import AgentInputError, AgentVoiceTurnFailedError
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
@@ -19,6 +20,7 @@ from verbaops.conversations.domain import (
     MessageRecord,
     TurnCompletion,
     TurnStart,
+    VoiceTurnClaim,
 )
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
@@ -69,6 +71,10 @@ class RecordingVoiceConversationService:
     ) -> list[MessageRecord]:
         return list(self.messages)
 
+    async def start_voice_turn(self, *args: Any, **kwargs: Any) -> VoiceTurnClaim:
+        kwargs.setdefault("interaction_mode", InteractionMode.VOICE)
+        return VoiceTurnClaim(turn_start=await self.start_turn(*args, **kwargs))
+
     async def complete_turn(
         self, _scope: ConversationScope, conversation_id: UUID, _run_id: UUID, content: str
     ) -> TurnCompletion:
@@ -107,6 +113,14 @@ class CapturingGraph:
         del config
         self.context = context
         return {"final_response": "voice response"}
+
+
+@dataclass
+class ReplayConversationService(RecordingVoiceConversationService):
+    replay: Any | None = None
+
+    async def start_voice_turn(self, *_args: Any, **_kwargs: Any) -> Any:
+        return SimpleNamespace(turn_start=None, replay=self.replay)
 
 
 def _trusted_context() -> TrustedContext:
@@ -201,3 +215,97 @@ async def test_text_turn_keeps_safe_default_provenance() -> None:
     assert result.agent_run.voice_session_id is None
     assert result.agent_run.voice_turn_id is None
     assert graph.context.interaction_mode is InteractionMode.TEXT
+
+
+@pytest.mark.asyncio
+async def test_completed_voice_turn_replays_durable_result_without_graph_invocation() -> None:
+    conversation_id = uuid4()
+    run_id = uuid4()
+    user_message = MessageRecord(uuid4(), conversation_id, 1, "user", "hello", NOW)
+    assistant_message = MessageRecord(uuid4(), conversation_id, 2, "assistant", "durable", NOW)
+    run = AgentRunRecord(
+        run_id,
+        conversation_id,
+        user_message.id,
+        assistant_message.id,
+        "completed",
+        "graph-v1",
+        "prompt-v1",
+        "tools-v1",
+        NOW,
+        NOW,
+        None,
+        InteractionMode.VOICE,
+        uuid4(),
+        uuid4(),
+    )
+    service = ReplayConversationService(
+        [],
+        [],
+        replay=SimpleNamespace(
+            agent_run=run,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            action_requests=(),
+        ),
+    )
+    graph = CapturingGraph()
+
+    result = await _runtime(service, graph).run_turn(
+        _trusted_context(),
+        conversation_id,
+        "hello",
+        interaction_mode=InteractionMode.VOICE,
+        voice_session_id=run.voice_session_id,
+        voice_turn_id=run.voice_turn_id,
+    )
+
+    assert result.agent_run_id == run_id
+    assert result.assistant_message_id == assistant_message.id
+    assert result.content == "durable"
+    assert graph.context is None
+    assert service.start_calls == []
+
+
+@pytest.mark.asyncio
+async def test_failed_voice_turn_replay_exposes_only_recorded_bounded_error() -> None:
+    conversation_id = uuid4()
+    user_message = MessageRecord(uuid4(), conversation_id, 1, "user", "hello", NOW)
+    run = AgentRunRecord(
+        uuid4(),
+        conversation_id,
+        user_message.id,
+        None,
+        "failed",
+        "graph-v1",
+        "prompt-v1",
+        "tools-v1",
+        NOW,
+        NOW,
+        "agent_unavailable",
+        InteractionMode.VOICE,
+        uuid4(),
+        uuid4(),
+    )
+    service = ReplayConversationService(
+        [],
+        [],
+        replay=SimpleNamespace(
+            agent_run=run,
+            user_message=user_message,
+            assistant_message=None,
+            action_requests=(),
+        ),
+    )
+
+    with pytest.raises(AgentVoiceTurnFailedError) as error:
+        await _runtime(service, CapturingGraph()).run_turn(
+            _trusted_context(),
+            conversation_id,
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=run.voice_session_id,
+            voice_turn_id=run.voice_turn_id,
+        )
+
+    assert error.value.recorded_error_code == "agent_unavailable"

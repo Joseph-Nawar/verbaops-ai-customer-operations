@@ -14,6 +14,8 @@ from verbaops.agent.errors import (
     AgentInputError,
     AgentProtocolError,
     AgentUnavailableError,
+    AgentVoiceTurnFailedError,
+    AgentVoiceTurnInProgressError,
 )
 from verbaops.agent.evaluation import AgentEvaluationProfile, GroundingCandidate
 from verbaops.agent.graph import build_agent_graph
@@ -37,6 +39,7 @@ from verbaops.conversations.domain import (
     ConversationScope,
     InteractionMode,
     MessageRecord,
+    VoiceTurnReplay,
 )
 from verbaops.conversations.errors import ConversationBusyError, ConversationInputError
 from verbaops.conversations.service import ConversationService
@@ -157,26 +160,53 @@ class AgentRuntime:
             principal_id=trusted_context.principal_id,
         )
         try:
-            turn_start = await self._conversation_service.start_turn(
-                scope,
-                conversation_id,
-                content,
-                graph_version=(
-                    self._evaluation_profile.graph_version
-                    if self._evaluation_profile is not None
-                    else GRAPH_VERSION
-                ),
-                prompt_version=(
-                    f"text-agent-system-{self._evaluation_profile.prompt_version}"
-                    if self._evaluation_profile is not None
-                    else self._prompt_version
-                ),
-                tool_schema_version=self._tool_schema_version,
-                interaction_mode=interaction_mode,
-                voice_session_id=voice_session_id,
-                voice_turn_id=voice_turn_id,
-                customer_id=trusted_context.customer_id,
-            )
+            if interaction_mode is InteractionMode.VOICE:
+                assert voice_session_id is not None and voice_turn_id is not None
+                claim = await self._conversation_service.start_voice_turn(
+                    scope,
+                    conversation_id,
+                    content,
+                    graph_version=(
+                        self._evaluation_profile.graph_version
+                        if self._evaluation_profile is not None
+                        else GRAPH_VERSION
+                    ),
+                    prompt_version=(
+                        f"text-agent-system-{self._evaluation_profile.prompt_version}"
+                        if self._evaluation_profile is not None
+                        else self._prompt_version
+                    ),
+                    tool_schema_version=self._tool_schema_version,
+                    voice_session_id=voice_session_id,
+                    voice_turn_id=voice_turn_id,
+                    customer_id=trusted_context.customer_id,
+                )
+                if claim.replay is not None:
+                    return _replay_voice_turn(claim.replay)
+                if claim.turn_start is None:
+                    raise AgentProtocolError()
+                turn_start = claim.turn_start
+            else:
+                turn_start = await self._conversation_service.start_turn(
+                    scope,
+                    conversation_id,
+                    content,
+                    graph_version=(
+                        self._evaluation_profile.graph_version
+                        if self._evaluation_profile is not None
+                        else GRAPH_VERSION
+                    ),
+                    prompt_version=(
+                        f"text-agent-system-{self._evaluation_profile.prompt_version}"
+                        if self._evaluation_profile is not None
+                        else self._prompt_version
+                    ),
+                    tool_schema_version=self._tool_schema_version,
+                    interaction_mode=interaction_mode,
+                    voice_session_id=None,
+                    voice_turn_id=None,
+                    customer_id=trusted_context.customer_id,
+                )
         except ConversationBusyError:
             raise AgentBusyError() from None
         except ConversationInputError:
@@ -327,6 +357,25 @@ def _validate_provenance(
         return
     if voice_session_id is None or voice_turn_id is None:
         raise AgentInputError()
+
+
+def _replay_voice_turn(replay: VoiceTurnReplay) -> AgentTurnResult:
+    if replay.agent_run.status == "running":
+        raise AgentVoiceTurnInProgressError()
+    if replay.agent_run.status == "failed":
+        raise AgentVoiceTurnFailedError(replay.agent_run.error_code)
+    if replay.agent_run.status != "completed" or replay.assistant_message is None:
+        raise AgentProtocolError()
+    return AgentTurnResult(
+        conversation_id=replay.agent_run.conversation_id,
+        agent_run_id=replay.agent_run.id,
+        assistant_message_id=replay.assistant_message.id,
+        content=replay.assistant_message.content,
+        agent_run=replay.agent_run,
+        user_message=replay.user_message,
+        assistant_message=replay.assistant_message,
+        action_requests=replay.action_requests,
+    )
 
 
 __all__ = ["AgentRuntime", "AgentTurnResult"]

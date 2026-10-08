@@ -22,8 +22,10 @@ from verbaops.conversations.domain import (
     ToolInvocationRecord,
     TurnCompletion,
     TurnStart,
+    VoiceTurnClaim,
+    VoiceTurnReplay,
 )
-from verbaops.conversations.errors import ConversationBusyError
+from verbaops.conversations.errors import ConversationBusyError, ConversationInputError
 from verbaops.conversations.repository import ConversationRepository
 from verbaops.llm.models import ResponseMetadata
 from verbaops.retrieval.models import RetrievalEvidence
@@ -140,6 +142,62 @@ class ConversationService:
                     raise ConversationBusyError() from None
                 raise
         return TurnStart(conversation, user_message, agent_run)
+
+    async def start_voice_turn(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        content: str,
+        *,
+        graph_version: str,
+        prompt_version: str,
+        tool_schema_version: str,
+        voice_session_id: UUID,
+        voice_turn_id: UUID,
+        customer_id: UUID,
+    ) -> VoiceTurnClaim:
+        async with self._session_factory() as session:
+            try:
+                async with session.begin():
+                    return await ConversationRepository(session).start_voice_turn(
+                        scope,
+                        conversation_id,
+                        content,
+                        graph_version=graph_version,
+                        prompt_version=prompt_version,
+                        tool_schema_version=tool_schema_version,
+                        voice_session_id=voice_session_id,
+                        voice_turn_id=voice_turn_id,
+                        customer_id=customer_id,
+                        stale_after=self._stale_after,
+                    )
+            except IntegrityError as error:
+                if "uq_agent_runs_voice_session_turn" not in str(error):
+                    raise
+        replay = await self.get_voice_turn(
+            scope,
+            conversation_id,
+            voice_session_id,
+            voice_turn_id,
+        )
+        if replay is None:
+            raise ConversationInputError("voice turn claim could not be recovered")
+        return VoiceTurnClaim(replay=replay)
+
+    async def get_voice_turn(
+        self,
+        scope: ConversationScope,
+        conversation_id: UUID,
+        voice_session_id: UUID,
+        voice_turn_id: UUID,
+    ) -> VoiceTurnReplay | None:
+        async with self._session_factory() as session, session.begin():
+            return await ConversationRepository(session).get_voice_turn(
+                scope,
+                conversation_id,
+                voice_session_id,
+                voice_turn_id,
+            )
 
     async def append_model_call(
         self,
