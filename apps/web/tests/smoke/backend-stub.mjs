@@ -7,9 +7,13 @@ const proposalActionId = "11111111-1111-5111-8111-111111111111";
 const approvalActionId = "22222222-2222-5222-8222-222222222222";
 const unresolvedActionId = "33333333-3333-5333-8333-333333333333";
 const succeededActionId = "44444444-4444-5444-8444-444444444444";
+const voiceSessionId = "55555555-5555-5555-8555-555555555555";
+const voiceRoomToken = "smoke-transient-room-token";
 const proposalFingerprint = "a".repeat(64);
 let conversationCreates = 0;
 let messages = [];
+let voiceStarts = 0;
+let voiceEnds = 0;
 let proposalCreated = false;
 let proposalState = "awaiting_confirmation";
 let supervisorMode = false;
@@ -28,13 +32,32 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/health") return send(response, 200, { ok: true });
   if (url.pathname === "/__state") {
-    return send(response, 200, { conversationCreates, messages, confirmationBodies });
+    return send(response, 200, { conversationCreates, messages, confirmationBodies, voiceStarts, voiceEnds });
   }
   if (request.method === "POST" && url.pathname === "/__mode/supervisor") {
     supervisorMode = true;
     return send(response, 204, null);
   }
   if (!authorized(request)) return send(response, 401, { error: { code: "authentication_failed" } });
+
+  if (request.method === "POST" && url.pathname === "/v1/voice/sessions") {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    const parsed = body ? JSON.parse(body) : {};
+    voiceStarts += 1;
+    return send(response, 201, {
+      voice_session_id: voiceSessionId,
+      conversation_id: parsed.conversation_id ?? conversationId,
+      livekit_url: "ws://livekit.invalid",
+      room_token: voiceRoomToken,
+      token_expires_at: "2026-10-08T12:00:00.000Z",
+      status: "created",
+    });
+  }
+  if (request.method === "POST" && url.pathname === `/v1/voice/sessions/${voiceSessionId}/end`) {
+    voiceEnds += 1;
+    return send(response, 200, { status: "ended" });
+  }
 
   function actionView(actionRequestId) {
     if (actionRequestId === proposalActionId) {

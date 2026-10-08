@@ -22,6 +22,7 @@ export default defineConfig({
       env: {
         VERBAOPS_API_BASE_URL: "http://127.0.0.1:4100",
         VERBAOPS_API_TOKEN: "smoke-backend-token",
+        NEXT_PUBLIC_VERBAOPS_STAGE7_FAKE_VOICE: "1",
         PORT: "3100",
       },
     },

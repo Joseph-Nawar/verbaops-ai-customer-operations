@@ -74,6 +74,7 @@ export const VoicePanel = forwardRef<VoicePanelHandle, VoicePanelProps>(function
   invalidatedCallbackRef.current = onAuthoritativeStateInvalidated;
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       void terminateRef.current();
@@ -93,7 +94,7 @@ export const VoicePanel = forwardRef<VoicePanelHandle, VoicePanelProps>(function
       invalidatedCallbackRef.current?.();
       return;
     }
-    if (mountedRef.current) {
+    if (event.type === "error" && mountedRef.current) {
       setError(true);
       setState("error");
     }
@@ -176,7 +177,7 @@ export const VoicePanel = forwardRef<VoicePanelHandle, VoicePanelProps>(function
       <div className="voice-panel-header">
         <div>
           <p className="eyebrow">Browser voice</p>
-          <p className="voice-status" aria-live="polite">
+          <p className="voice-status" aria-live="polite" data-voice-state={state}>
             {stateLabel(state)}
           </p>
         </div>

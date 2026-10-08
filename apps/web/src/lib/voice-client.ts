@@ -41,9 +41,19 @@ export class FakeVoiceTransport implements VoiceTransport {
   private readonly options: FakeVoiceTransportOptions;
   private connected = false;
   private bootstrap: VoiceSessionBootstrap | null = null;
+  private readonly windowEventHandler: ((event: Event) => void) | null;
 
   constructor(options: FakeVoiceTransportOptions = {}) {
     this.options = options;
+    if (options.autoEvents && typeof window !== "undefined") {
+      this.windowEventHandler = (event) => {
+        const detail = (event as CustomEvent<unknown>).detail;
+        if (detail && typeof detail === "object") this.emit(detail as VoicePresentationEvent);
+      };
+      window.addEventListener("__verbaops_stage7_fake_voice_event", this.windowEventHandler);
+    } else {
+      this.windowEventHandler = null;
+    }
   }
 
   async connect(bootstrap: VoiceSessionBootstrap): Promise<void> {
@@ -57,25 +67,28 @@ export class FakeVoiceTransport implements VoiceTransport {
         if (!this.connected) return;
         this.emit({ type: "partial_transcript", text: "Fake partial transcript" });
         this.emit({ type: "state", state: "user_speaking" });
-      }, 20);
+      }, 100);
       setTimeout(() => {
         if (!this.connected) return;
         this.emit({ type: "state", state: "thinking" });
-      }, 40);
+      }, 250);
       setTimeout(() => {
         if (!this.connected) return;
         this.emit({ type: "state", state: "assistant_speaking" });
-      }, 60);
+      }, 400);
       setTimeout(() => {
         if (!this.connected) return;
         this.emit({ type: "state", state: "interrupted" });
-      }, 80);
+      }, 550);
     }
   }
 
   async disconnect(): Promise<void> {
     this.connected = false;
     this.bootstrap = null;
+    if (this.windowEventHandler && typeof window !== "undefined") {
+      window.removeEventListener("__verbaops_stage7_fake_voice_event", this.windowEventHandler);
+    }
     this.emit({ type: "state", state: "disconnected" });
   }
 
@@ -103,4 +116,3 @@ export function createVoiceTransport(): VoiceTransport {
   }
   return createLiveKitVoiceTransport();
 }
-
