@@ -110,7 +110,9 @@ def test_stage6_historical_migrations_remain_the_approved_heads() -> None:
 
     assert 'revision = "0006_action_lifecycle_v1"' in verbaops
     assert 'revision = "0002_stage6_ticket_category"' in commerce
-    assert not list(Path("migrations/versions").glob("0007_*.py"))
+    assert [path.name for path in Path("migrations/versions").glob("0007_*.py")] == [
+        "0007_voice_sessions_v1.py"
+    ]
     assert not list(Path("commerce_migrations/versions").glob("0003_*.py"))
 
 
