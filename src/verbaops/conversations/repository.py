@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from verbaops.agent.context import InteractionMode
 from verbaops.conversations.domain import (
     AgentRunRecord,
     CitationRecord,
@@ -500,6 +501,9 @@ def _agent_run_record(row: AgentRun) -> AgentRunRecord:
         started_at=row.started_at,
         completed_at=row.completed_at,
         error_code=row.error_code,
+        interaction_mode=InteractionMode(row.interaction_mode),
+        voice_session_id=row.voice_session_id,
+        voice_turn_id=row.voice_turn_id,
     )
 
 

@@ -14,6 +14,7 @@ from verbaops.actions import persistence as _action_persistence  # noqa: F401
 from verbaops.config.settings import Settings
 from verbaops.conversations import persistence as _conversation_persistence  # noqa: F401
 from verbaops.db.base import Base
+from verbaops.voice import persistence as _voice_persistence  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

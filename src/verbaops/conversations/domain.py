@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
+from verbaops.agent.context import InteractionMode
 from verbaops.llm.models import ResponseMetadata
 
 
@@ -78,6 +79,9 @@ class AgentRunRecord:
     started_at: datetime
     completed_at: datetime | None
     error_code: str | None
+    interaction_mode: InteractionMode = InteractionMode.TEXT
+    voice_session_id: UUID | None = None
+    voice_turn_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
