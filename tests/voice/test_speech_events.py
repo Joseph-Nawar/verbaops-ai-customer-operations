@@ -62,3 +62,17 @@ def test_invalid_final_event_is_rejected_without_submission(event: SpeechEvent) 
         normalizer.normalize(event)
 
     assert normalizer.submitted_turn_ids == frozenset()
+
+
+def test_invalid_partial_payload_is_rejected() -> None:
+    normalizer = SpeechEventNormalizer()
+
+    with pytest.raises(SpeechEventValidationError):
+        normalizer.normalize(SpeechEvent(SpeechEventKind.PARTIAL, None, None))  # type: ignore[arg-type]
+
+
+def test_unknown_speech_event_kind_is_rejected() -> None:
+    normalizer = SpeechEventNormalizer()
+
+    with pytest.raises(SpeechEventValidationError):
+        normalizer.normalize(SpeechEvent("unknown", "hello", None))  # type: ignore[arg-type]

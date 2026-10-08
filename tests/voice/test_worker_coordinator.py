@@ -1,12 +1,12 @@
 """RED-first tests for the fakeable provider-neutral Voice Worker coordinator."""
 
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from verbaops.voice.models import VoiceFinalTranscriptRequest, VoiceTurnOutcome, VoiceTurnResult
-from verbaops.voice.speech import SpeechEvent, SpeechEventKind
+from verbaops.voice.speech import SpeechEvent, SpeechEventKind, SpeechEventNormalizer
 from verbaops.voice.worker import VoiceWorkerCoordinator
 
 
@@ -38,16 +38,29 @@ class FakeTTS:
 class FakeTranscriptClient:
     def __init__(self, result: VoiceTurnResult) -> None:
         self.result = result
-        self.requests: list[tuple[object, VoiceFinalTranscriptRequest]] = []
+        self.requests: list[tuple[UUID, VoiceFinalTranscriptRequest]] = []
 
     async def submit_final(
-        self, voice_session_id: object, request: VoiceFinalTranscriptRequest
+        self, voice_session_id: UUID, request: VoiceFinalTranscriptRequest
     ) -> VoiceTurnResult:
         self.requests.append((voice_session_id, request))
         return self.result
 
 
-def _result(session_id: object, turn_id: object) -> VoiceTurnResult:
+class FailingTranscriptClient(FakeTranscriptClient):
+    async def submit_final(
+        self, voice_session_id: UUID, request: VoiceFinalTranscriptRequest
+    ) -> VoiceTurnResult:
+        del voice_session_id, request
+        raise RuntimeError("transcript transport failed")
+
+
+class FailingTTS:
+    async def speak(self, _text: str) -> FakePlayout:
+        raise RuntimeError("tts provider failed")
+
+
+def _result(session_id: UUID, turn_id: UUID) -> VoiceTurnResult:
     return VoiceTurnResult(
         voice_session_id=session_id,
         conversation_id=uuid4(),
@@ -110,6 +123,42 @@ async def test_repeated_final_event_has_one_worker_submission() -> None:
 
 
 @pytest.mark.asyncio
+async def test_transcript_failure_releases_local_final_deduplication() -> None:
+    session_id = uuid4()
+    turn_id = uuid4()
+    normalizer = SpeechEventNormalizer()
+    worker = VoiceWorkerCoordinator(
+        voice_session_id=session_id,
+        transcript_client=FailingTranscriptClient(_result(session_id, turn_id)),
+        tts_adapter=FakeTTS(),
+        normalizer=normalizer,
+    )
+
+    with pytest.raises(RuntimeError, match="transcript transport failed"):
+        await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "hello", turn_id))
+
+    assert normalizer.submitted_turn_ids == frozenset()
+
+
+@pytest.mark.asyncio
+async def test_tts_failure_releases_local_final_deduplication() -> None:
+    session_id = uuid4()
+    turn_id = uuid4()
+    normalizer = SpeechEventNormalizer()
+    worker = VoiceWorkerCoordinator(
+        voice_session_id=session_id,
+        transcript_client=FakeTranscriptClient(_result(session_id, turn_id)),
+        tts_adapter=FailingTTS(),
+        normalizer=normalizer,
+    )
+
+    with pytest.raises(RuntimeError, match="tts provider failed"):
+        await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "hello", turn_id))
+
+    assert normalizer.submitted_turn_ids == frozenset()
+
+
+@pytest.mark.asyncio
 async def test_playout_completion_and_interruption_have_no_confirmation_authority() -> None:
     session_id = uuid4()
     turn_id = uuid4()
@@ -120,12 +169,61 @@ async def test_playout_completion_and_interruption_have_no_confirmation_authorit
         tts_adapter=tts,
     )
 
+    await worker.handle_playout_completed()
     await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "hello", turn_id))
     await worker.handle_playout_completed()
     assert tts.playouts[0].wait_count == 1
     await worker.handle_interruption()
     assert tts.playouts[0].cancel_count == 0
     assert not hasattr(worker, "arm_confirmation")
+
+
+@pytest.mark.asyncio
+async def test_playout_completion_does_not_clear_replacement_playout() -> None:
+    session_id = uuid4()
+    turn_id = uuid4()
+
+    class ReplacingPlayout(FakePlayout):
+        async def wait_complete(self) -> None:
+            await super().wait_complete()
+            worker._playout = FakePlayout()
+
+    class ReplacingTTS:
+        async def speak(self, _text: str) -> ReplacingPlayout:
+            return ReplacingPlayout()
+
+    worker = VoiceWorkerCoordinator(
+        voice_session_id=session_id,
+        transcript_client=FakeTranscriptClient(_result(session_id, turn_id)),
+        tts_adapter=ReplacingTTS(),
+    )
+
+    await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "hello", turn_id))
+    await worker.handle_playout_completed()
+
+    assert worker._playout is not None
+
+
+@pytest.mark.asyncio
+async def test_disconnect_and_session_end_cancel_active_playout() -> None:
+    session_id = uuid4()
+    turn_id = uuid4()
+    tts = FakeTTS()
+    worker = VoiceWorkerCoordinator(
+        voice_session_id=session_id,
+        transcript_client=FakeTranscriptClient(_result(session_id, turn_id)),
+        tts_adapter=tts,
+    )
+
+    await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "hello", turn_id))
+    await worker.handle_disconnect()
+    assert tts.playouts[0].cancel_count == 1
+
+    next_turn_id = uuid4()
+    await worker.handle_speech_event(SpeechEvent(SpeechEventKind.FINAL, "goodbye", next_turn_id))
+    await worker.handle_session_ended()
+    assert tts.playouts[1].cancel_count == 1
+    await worker.handle_provider_error()
 
 
 @pytest.mark.asyncio

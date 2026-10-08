@@ -8,7 +8,13 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 
-from verbaops.agent.errors import AgentVoiceTurnFailedError, AgentVoiceTurnInProgressError
+from verbaops.agent.errors import (
+    AgentBusyError,
+    AgentInputError,
+    AgentUnavailableError,
+    AgentVoiceTurnFailedError,
+    AgentVoiceTurnInProgressError,
+)
 from verbaops.api.dependencies import (
     get_agent_runtime,
     get_voice_session_service,
@@ -17,7 +23,11 @@ from verbaops.api.dependencies import (
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.voice.auth import VoiceWorkerContext
 from verbaops.voice.domain import VoiceSessionRecord, VoiceSessionState
-from verbaops.voice.errors import VoiceSessionLifecycleError
+from verbaops.voice.errors import (
+    VoiceSessionExpiredError,
+    VoiceSessionLifecycleError,
+    VoiceSessionNotFoundError,
+)
 
 from .conftest import build_provider, build_settings, request
 
@@ -242,8 +252,46 @@ async def test_customer_bearer_cannot_authenticate_worker_transcript_route() -> 
 @pytest.mark.parametrize(
     ("error", "status_code", "code"),
     [
+        (VoiceSessionNotFoundError(), 404, "voice_session_not_found"),
+        (VoiceSessionExpiredError(), 404, "voice_session_not_found"),
+        (VoiceSessionLifecycleError(), 409, "voice_session_unavailable"),
+    ],
+)
+async def test_session_lookup_errors_are_bounded_at_http_boundary(
+    error: Exception,
+    status_code: int,
+    code: str,
+) -> None:
+    class ErrorSessionService(FakeVoiceSessionService):
+        async def get_connected_worker_session(
+            self, _session_id: UUID, _worker_context: VoiceWorkerContext
+        ) -> VoiceSessionRecord:
+            raise error
+
+    app, _service, runtime = _app()
+    app.dependency_overrides[get_voice_session_service] = lambda: ErrorSessionService(_record())
+
+    response = await request(
+        app,
+        "POST",
+        f"/internal/voice/sessions/{SESSION_ID}/final-transcripts",
+        json={"voice_turn_id": str(VOICE_TURN_ID), "transcript": "hello"},
+    )
+
+    assert response.status_code == status_code
+    assert response.json()["error"]["code"] == code
+    assert runtime.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "status_code", "code"),
+    [
         (AgentVoiceTurnInProgressError(), 409, "voice_turn_in_progress"),
         (AgentVoiceTurnFailedError("agent_unavailable"), 502, "voice_turn_failed"),
+        (AgentBusyError(), 409, "voice_turn_busy"),
+        (AgentInputError(), 422, "voice_turn_invalid"),
+        (AgentUnavailableError(), 503, "voice_turn_unavailable"),
     ],
 )
 async def test_duplicate_voice_turn_errors_are_bounded_at_http_boundary(

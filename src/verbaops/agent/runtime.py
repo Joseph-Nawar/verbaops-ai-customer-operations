@@ -162,6 +162,8 @@ class AgentRuntime:
         try:
             if interaction_mode is InteractionMode.VOICE:
                 assert voice_session_id is not None and voice_turn_id is not None
+                if trusted_context.customer_id is None:
+                    raise AgentInputError()
                 claim = await self._conversation_service.start_voice_turn(
                     scope,
                     conversation_id,

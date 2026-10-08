@@ -8,7 +8,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from verbaops.agent.errors import AgentInputError, AgentVoiceTurnFailedError
+from verbaops.agent.errors import (
+    AgentInputError,
+    AgentProtocolError,
+    AgentUnavailableError,
+    AgentVoiceTurnFailedError,
+)
 from verbaops.agent.runtime import AgentRuntime
 from verbaops.auth.context import Role, TrustedContext
 from verbaops.commerce.client import CommerceClient
@@ -22,6 +27,7 @@ from verbaops.conversations.domain import (
     TurnStart,
     VoiceTurnClaim,
 )
+from verbaops.conversations.errors import ConversationInputError
 from verbaops.conversations.service import ConversationService
 from verbaops.llm.client import LLMClient
 
@@ -123,6 +129,43 @@ class ReplayConversationService(RecordingVoiceConversationService):
         return SimpleNamespace(turn_start=None, replay=self.replay)
 
 
+class MissingTurnStartService(RecordingVoiceConversationService):
+    async def start_voice_turn(self, *_args: Any, **_kwargs: Any) -> VoiceTurnClaim:
+        return VoiceTurnClaim()
+
+
+class InvalidVoiceTurnService(RecordingVoiceConversationService):
+    async def start_voice_turn(self, *_args: Any, **_kwargs: Any) -> VoiceTurnClaim:
+        raise ConversationInputError("invalid voice provenance")
+
+
+class InvalidResponseGraph:
+    def __init__(self, response: object) -> None:
+        self.response = response
+
+    async def ainvoke(
+        self, _state: dict[str, Any], *, context: Any, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        del context, config
+        return {"final_response": self.response}
+
+
+class MalformedActionGraph:
+    async def ainvoke(
+        self, _state: dict[str, Any], *, context: Any, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        del context, config
+        return {"final_response": "answer", "action_requests": ["not a summary"]}
+
+
+class FailingGraph:
+    async def ainvoke(
+        self, _state: dict[str, Any], *, context: Any, config: dict[str, Any]
+    ) -> dict[str, Any]:
+        del context, config
+        raise RuntimeError("graph failed")
+
+
 def _trusted_context() -> TrustedContext:
     return TrustedContext(
         tenant_id=uuid4(),
@@ -132,7 +175,7 @@ def _trusted_context() -> TrustedContext:
     )
 
 
-def _runtime(service: RecordingVoiceConversationService, graph: CapturingGraph) -> AgentRuntime:
+def _runtime(service: RecordingVoiceConversationService, graph: Any) -> AgentRuntime:
     return AgentRuntime(
         conversation_service=cast(ConversationService, service),
         llm_client=cast(LLMClient, object()),
@@ -164,11 +207,107 @@ async def test_voice_turn_persists_provenance_and_preserves_trusted_authority() 
     assert result.agent_run.interaction_mode is InteractionMode.VOICE
     assert result.agent_run.voice_session_id == voice_session_id
     assert result.agent_run.voice_turn_id == voice_turn_id
+    assert graph.context is not None
     assert graph.context.interaction_mode is InteractionMode.VOICE
     assert graph.context.voice_session_id == voice_session_id
     assert graph.context.voice_turn_id == voice_turn_id
     assert graph.context.trusted_context == context
     assert graph.context.trusted_context.roles == context.roles
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_requires_customer_identity() -> None:
+    context = TrustedContext(
+        tenant_id=uuid4(), principal_id=uuid4(), customer_id=None, roles=frozenset()
+    )
+
+    with pytest.raises(AgentInputError):
+        await _runtime(RecordingVoiceConversationService([], []), CapturingGraph()).run_turn(
+            context,
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejects_unknown_interaction_mode() -> None:
+    with pytest.raises(AgentInputError):
+        await _runtime(RecordingVoiceConversationService([], []), CapturingGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=cast(Any, "unknown"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_without_claimed_start_is_protocol_error() -> None:
+    with pytest.raises(AgentProtocolError):
+        await _runtime(MissingTurnStartService([], []), CapturingGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_maps_repository_input_errors() -> None:
+    with pytest.raises(AgentInputError):
+        await _runtime(InvalidVoiceTurnService([], []), CapturingGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_rejects_invalid_graph_response() -> None:
+    with pytest.raises(AgentProtocolError):
+        await _runtime(
+            RecordingVoiceConversationService([], []), InvalidResponseGraph("   ")
+        ).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_rejects_malformed_action_summaries() -> None:
+    with pytest.raises(AgentProtocolError):
+        await _runtime(RecordingVoiceConversationService([], []), MalformedActionGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_voice_turn_maps_unexpected_graph_failure() -> None:
+    with pytest.raises(AgentUnavailableError):
+        await _runtime(RecordingVoiceConversationService([], []), FailingGraph()).run_turn(
+            _trusted_context(),
+            uuid4(),
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=uuid4(),
+            voice_turn_id=uuid4(),
+        )
 
 
 @pytest.mark.asyncio
@@ -214,6 +353,7 @@ async def test_text_turn_keeps_safe_default_provenance() -> None:
     assert result.agent_run.interaction_mode is InteractionMode.TEXT
     assert result.agent_run.voice_session_id is None
     assert result.agent_run.voice_turn_id is None
+    assert graph.context is not None
     assert graph.context.interaction_mode is InteractionMode.TEXT
 
 
@@ -309,3 +449,46 @@ async def test_failed_voice_turn_replay_exposes_only_recorded_bounded_error() ->
         )
 
     assert error.value.recorded_error_code == "agent_unavailable"
+
+
+@pytest.mark.asyncio
+async def test_unknown_voice_turn_replay_status_is_protocol_error() -> None:
+    conversation_id = uuid4()
+    user_message = MessageRecord(uuid4(), conversation_id, 1, "user", "hello", NOW)
+    assistant_message = MessageRecord(uuid4(), conversation_id, 2, "assistant", "answer", NOW)
+    run = AgentRunRecord(
+        uuid4(),
+        conversation_id,
+        user_message.id,
+        assistant_message.id,
+        "unknown",
+        "graph-v1",
+        "prompt-v1",
+        "tools-v1",
+        NOW,
+        NOW,
+        None,
+        InteractionMode.VOICE,
+        uuid4(),
+        uuid4(),
+    )
+    service = ReplayConversationService(
+        [],
+        [],
+        replay=SimpleNamespace(
+            agent_run=run,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            action_requests=(),
+        ),
+    )
+
+    with pytest.raises(AgentProtocolError):
+        await _runtime(service, CapturingGraph()).run_turn(
+            _trusted_context(),
+            conversation_id,
+            "hello",
+            interaction_mode=InteractionMode.VOICE,
+            voice_session_id=run.voice_session_id,
+            voice_turn_id=run.voice_turn_id,
+        )

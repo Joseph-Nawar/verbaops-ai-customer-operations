@@ -1,6 +1,9 @@
 """Provider-free tests for structured voice result classification."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -9,7 +12,7 @@ from verbaops.actions.models import ActionRequestSummary, ActionState, ActionTyp
 from verbaops.agent.runtime import AgentTurnResult
 from verbaops.conversations.domain import AgentRunRecord, InteractionMode, MessageRecord
 from verbaops.voice.models import VoiceTurnOutcome
-from verbaops.voice.results import to_voice_turn_result
+from verbaops.voice.results import _outcome, to_voice_turn_result
 
 
 def _result(*actors: str) -> AgentTurnResult:
@@ -73,6 +76,8 @@ def test_voice_result_classification_is_structured_and_server_owned(
     actors: tuple[str, ...], outcome: VoiceTurnOutcome
 ) -> None:
     result = _result(*actors)
+    assert result.agent_run.voice_session_id is not None
+    assert result.agent_run.voice_turn_id is not None
 
     projected = to_voice_turn_result(
         result,
@@ -83,3 +88,11 @@ def test_voice_result_classification_is_structured_and_server_owned(
     assert projected.outcome is outcome
     assert projected.assistant_text == "answer"
     assert projected.action_prompt is None
+
+
+def test_unrecognized_action_actor_falls_back_to_normal_answer() -> None:
+    result = _result()
+    unknown_action = cast(Any, SimpleNamespace(required_next_actor="unknown"))
+    result = replace(result, action_requests=(unknown_action,))
+
+    assert _outcome(result) is VoiceTurnOutcome.NORMAL_ANSWER

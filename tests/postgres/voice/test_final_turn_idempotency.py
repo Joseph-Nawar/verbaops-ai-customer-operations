@@ -9,7 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from verbaops.actions.models import ActionRequestSummary, ActionState, ActionType
-from verbaops.conversations.domain import ConversationScope
+from verbaops.conversations.domain import ConversationScope, VoiceTurnClaim
 from verbaops.conversations.errors import ConversationBusyError
 from verbaops.conversations.service import ConversationService
 from verbaops.voice.domain import VoiceSessionState
@@ -180,7 +180,7 @@ async def test_same_final_voice_turn_concurrency_has_one_durable_winner(
     service, scope, customer_id, conversation_id, voice_session_id = await _seed(postgres_engine)
     turn_id = uuid4()
 
-    async def submit() -> object:
+    async def submit() -> VoiceTurnClaim:
         return await service.start_voice_turn(
             scope,
             conversation_id,

@@ -40,7 +40,11 @@ class VoiceWorkerCoordinator:
         except Exception:
             self._normalizer.forget_final(normalized.voice_turn_id)
             raise
-        self._playout = await self._tts_adapter.speak(result.assistant_text)
+        try:
+            self._playout = await self._tts_adapter.speak(result.assistant_text)
+        except Exception:
+            self._normalizer.forget_final(normalized.voice_turn_id)
+            raise
         return result
 
     async def handle_playout_completed(self) -> None:
@@ -56,6 +60,24 @@ class VoiceWorkerCoordinator:
     async def handle_interruption(self) -> None:
         """Cancel current audio without creating a durable business decision."""
 
+        await self._cancel_active_playout()
+
+    async def handle_disconnect(self) -> None:
+        """Clean up ephemeral audio state when transport disconnects."""
+
+        await self._cancel_active_playout()
+
+    async def handle_session_ended(self) -> None:
+        """Clean up ephemeral audio state after the durable session ends."""
+
+        await self._cancel_active_playout()
+
+    async def handle_provider_error(self) -> None:
+        """Clean up ephemeral audio state after a provider-side failure."""
+
+        await self._cancel_active_playout()
+
+    async def _cancel_active_playout(self) -> None:
         if self._playout is None:
             return
         playout = self._playout
