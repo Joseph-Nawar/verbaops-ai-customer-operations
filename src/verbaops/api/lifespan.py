@@ -41,6 +41,7 @@ from verbaops.retrieval.grounding import CitationFinalizer
 from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.reranker import RerankerClient
 from verbaops.retrieval.service import EvidenceGateScorer, RetrievalService
+from verbaops.voice.service import VoiceSessionService
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +65,7 @@ class RuntimeResources:
     knowledge_service: KnowledgeService | None = field(default=None, repr=False)
     reranker_client: RerankerClient | None = field(default=None, repr=False)
     retrieval_service: RetrievalService | None = field(default=None, repr=False)
+    voice_session_service: VoiceSessionService | None = field(default=None, repr=False)
 
 
 @asynccontextmanager
@@ -91,6 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     knowledge_service: KnowledgeService | None = None
     reranker_client: RerankerClient | None = None
     retrieval_service: RetrievalService | None = None
+    voice_session_service: VoiceSessionService | None = None
     try:
         if (
             dependencies.settings.database.url is not None
@@ -123,6 +126,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             action_repository = ActionRepository(database.session_factory)
             conversation_service = ConversationService(
                 database.session_factory, action_repository=action_repository
+            )
+            voice_session_service = VoiceSessionService(
+                database.session_factory,
+                conversation_service=conversation_service,
             )
             action_transition_service = ActionTransitionService(database.session_factory)
             action_proposal_service = ActionProposalService(
@@ -230,6 +237,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             knowledge_service=knowledge_service,
             reranker_client=reranker_client,
             retrieval_service=retrieval_service,
+            voice_session_service=voice_session_service,
         )
         yield
     finally:

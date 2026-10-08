@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from verbaops.agent.runtime import AgentRuntime
     from verbaops.conversations.service import ConversationService
     from verbaops.knowledge.service import KnowledgeService
+    from verbaops.voice.service import VoiceSessionService
 
 if TYPE_CHECKING:
     from verbaops.api.lifespan import RuntimeResources
@@ -129,6 +130,15 @@ def get_knowledge_service(request: Request) -> "KnowledgeService":
     if resources.knowledge_service is None:
         raise RuntimeResourceUnavailableError("knowledge service is unavailable")
     return resources.knowledge_service
+
+
+def get_voice_session_service(request: Request) -> "VoiceSessionService":
+    """Retrieve the lifespan-owned voice session lifecycle service."""
+
+    resources = get_runtime_resources(request)
+    if resources.voice_session_service is None:
+        raise RuntimeResourceUnavailableError("voice session service is unavailable")
+    return resources.voice_session_service
 
 
 def get_application_dependencies(request: Request) -> ApplicationDependencies:

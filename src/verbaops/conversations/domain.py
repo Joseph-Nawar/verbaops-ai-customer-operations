@@ -2,11 +2,18 @@
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from verbaops.agent.context import InteractionMode
 from verbaops.llm.models import ResponseMetadata
+
+
+class InteractionMode(StrEnum):
+    """Durable provenance for a user interaction entering AgentRuntime."""
+
+    TEXT = "text"
+    VOICE = "voice"
 
 
 @dataclass(frozen=True, slots=True)

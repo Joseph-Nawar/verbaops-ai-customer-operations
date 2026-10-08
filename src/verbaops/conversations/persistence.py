@@ -20,7 +20,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from verbaops.agent.context import InteractionMode
+from verbaops.conversations.domain import InteractionMode
 from verbaops.db.base import Base
 
 

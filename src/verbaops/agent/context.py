@@ -3,28 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from verbaops.auth.context import TrustedContext
+from verbaops.conversations.domain import ConversationScope, InteractionMode
+
+__all__ = ["AgentContext", "InteractionMode"]
 
 if TYPE_CHECKING:
     from verbaops.agent.evaluation import AgentEvaluationProfile
     from verbaops.commerce.client import CommerceClient
-    from verbaops.conversations.domain import ConversationScope
     from verbaops.conversations.service import ConversationService
     from verbaops.llm.client import LLMClient
     from verbaops.retrieval.grounding import CitationFinalizer
     from verbaops.retrieval.service import RetrievalService
     from verbaops.tools.registry import ToolRegistry
-
-
-class InteractionMode(StrEnum):
-    """Durable provenance for a user interaction entering AgentRuntime."""
-
-    TEXT = "text"
-    VOICE = "voice"
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,8 +39,6 @@ class AgentContext:
     @property
     def scope(self) -> ConversationScope:
         """Derive persistence scope from the single authenticated identity value."""
-
-        from verbaops.conversations.domain import ConversationScope
 
         return ConversationScope(
             tenant_id=self.trusted_context.tenant_id,
