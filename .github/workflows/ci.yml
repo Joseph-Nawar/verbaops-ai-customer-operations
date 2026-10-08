@@ -418,8 +418,8 @@ jobs:
       - name: Sync locked environment
         run: uv sync --locked
 
-      - name: Apply VerbaOps migrations through M5B
-        run: uv run alembic upgrade 0005_retrieval_grounding_v1
+      - name: Apply VerbaOps migrations
+        run: uv run alembic upgrade head
 
       - name: Run PostgreSQL RAG contract suite
         run: make rag-contract
