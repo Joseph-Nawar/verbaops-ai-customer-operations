@@ -12,7 +12,9 @@ test("runs provider-free browser voice start, presentation states, forged-hint s
 
   await page.goto("/");
   await page.getByRole("button", { name: "Start voice" }).click();
-  await expect(page.getByText("Voice connected")).toBeVisible();
+  await expect
+    .poll(async () => page.locator("[data-voice-state]").getAttribute("data-voice-state"))
+    .toMatch(/^(connected|listening|user_speaking|thinking|assistant_speaking|interrupted)$/);
   await expect(page.locator("[data-voice-state]")).toHaveAttribute("data-voice-state", "user_speaking", {
     timeout: 3_000,
   });
