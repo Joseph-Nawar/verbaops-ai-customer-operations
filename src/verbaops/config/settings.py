@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import (
     AnyHttpUrl,
+    AnyWebsocketUrl,
     BaseModel,
     ConfigDict,
     Field,
@@ -330,7 +331,7 @@ class VoiceSettings(BaseModel):
         hide_input_in_errors=True,
     )
 
-    livekit_url: str = "https://livekit.invalid"
+    livekit_url: str = "wss://livekit.invalid"
     livekit_api_key: SecretStr = SecretStr("local-livekit-api-key")
     livekit_api_secret: SecretStr = SecretStr("local-livekit-api-secret")
     worker_token: SecretStr = SecretStr("local-voice-worker-token")
@@ -394,17 +395,17 @@ class VoiceSettings(BaseModel):
     @field_validator("livekit_url")
     @classmethod
     def validate_livekit_url(cls, value: str) -> str:
-        """Require a credential-free absolute HTTP(S) URL."""
+        """Require a credential-free absolute WebSocket URL."""
 
         try:
             parsed = urlsplit(value)
         except ValueError:
-            raise ValueError("livekit_url must be an absolute HTTP(S) URL") from None
+            raise ValueError("livekit_url must be an absolute WebSocket / ws(s) URL") from None
         if parsed.username is not None or parsed.password is not None:
             raise ValueError("livekit_url must not contain credentials")
         if parsed.query or parsed.fragment:
             raise ValueError("livekit_url must not contain query or fragment data")
-        return str(AnyHttpUrl(value))
+        return str(AnyWebsocketUrl(value))
 
     @field_validator("livekit_api_key", "livekit_api_secret", "worker_token")
     @classmethod

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import ClassVar
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict
+from pydantic import AnyWebsocketUrl, BaseModel, ConfigDict
 
 from verbaops.voice.domain import VoiceSessionState
 
@@ -24,7 +24,7 @@ class VoiceSessionBootstrap(BaseModel):
 
     voice_session_id: UUID
     conversation_id: UUID
-    livekit_url: AnyHttpUrl
+    livekit_url: AnyWebsocketUrl
     room_token: str
     token_expires_at: datetime
     status: VoiceSessionState

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from pydantic import AnyHttpUrl
+from pydantic import AnyWebsocketUrl
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from verbaops.auth.context import Role, TrustedContext, has_customer_authority
@@ -41,7 +41,7 @@ class VoiceSessionService:
         *,
         conversation_service: ConversationService | None = None,
         token_issuer: LiveKitTokenIssuer | None = None,
-        livekit_url: str = "https://livekit.invalid",
+        livekit_url: str = "wss://livekit.invalid",
         session_ttl: timedelta = _DEFAULT_SESSION_TTL,
         token_ttl: timedelta = _DEFAULT_TOKEN_TTL,
         transport_provider: str = "livekit",
@@ -55,7 +55,7 @@ class VoiceSessionService:
         self._session_factory = session_factory
         self._conversation_service = conversation_service
         self._token_issuer = token_issuer
-        self._livekit_url = AnyHttpUrl(livekit_url)
+        self._livekit_url = AnyWebsocketUrl(livekit_url)
         self._session_ttl = session_ttl
         self._token_ttl = token_ttl
         self._transport_provider = transport_provider

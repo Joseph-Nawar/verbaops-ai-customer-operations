@@ -14,7 +14,7 @@ from verbaops.voice.livekit import LiveKitTokenIssuer
 
 def _settings() -> VoiceSettings:
     return VoiceSettings(
-        livekit_url="https://livekit.example.test",
+        livekit_url="wss://livekit.example.test",
         livekit_api_key=SecretStr("test-livekit-key"),
         livekit_api_secret=SecretStr("test-livekit-secret-0123456789012345"),
         worker_token=SecretStr("test-worker-token"),

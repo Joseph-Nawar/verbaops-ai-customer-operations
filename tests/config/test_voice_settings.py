@@ -25,7 +25,7 @@ def test_voice_settings_load_nested_values_and_keep_secrets_masked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     clear_verbaops_environment(monkeypatch)
-    monkeypatch.setenv("VERBAOPS_VOICE__LIVEKIT_URL", "https://livekit.example.test/")
+    monkeypatch.setenv("VERBAOPS_VOICE__LIVEKIT_URL", "wss://livekit.example.test/")
     monkeypatch.setenv("VERBAOPS_VOICE__LIVEKIT_API_KEY", "livekit-key-sentinel")
     monkeypatch.setenv("VERBAOPS_VOICE__LIVEKIT_API_SECRET", "livekit-secret-sentinel")
     monkeypatch.setenv("VERBAOPS_VOICE__WORKER_TOKEN", "worker-token-sentinel")
@@ -34,7 +34,7 @@ def test_voice_settings_load_nested_values_and_keep_secrets_masked(
 
     settings = make_settings()
 
-    assert settings.voice.livekit_url == "https://livekit.example.test/"
+    assert settings.voice.livekit_url == "wss://livekit.example.test/"
     assert settings.voice.livekit_api_key == SecretStr("livekit-key-sentinel")
     assert settings.voice.livekit_api_secret == SecretStr("livekit-secret-sentinel")
     assert settings.voice.worker_token == SecretStr("worker-token-sentinel")
@@ -70,21 +70,28 @@ def test_voice_settings_reject_invalid_or_unbounded_values(field: str, value: ob
 @pytest.mark.parametrize(
     "url",
     [
+        "http://livekit.internal",
+        "https://livekit.internal",
         "livekit.internal",
         "ftp://livekit.internal",
-        "https://user:secret@livekit.internal",
-        "https://livekit.internal?secret=sentinel",
-        "https://livekit.internal/#secret",
+        "wss://user:secret@livekit.internal",
+        "wss://livekit.internal?secret=sentinel",
+        "wss://livekit.internal/#secret",
     ],
 )
-def test_voice_url_rejects_credentials_and_non_http_values_without_echoing_secrets(
-    url: str,
-) -> None:
+def test_voice_url_rejects_non_websocket_values_without_echoing_secrets(url: str) -> None:
     with pytest.raises(ValidationError) as error:
         VoiceSettings(livekit_url=url)
 
     rendered = (str(error.value), repr(error.value), str(error.value.errors()), error.value.json())
     assert all("secret" not in value and "sentinel" not in value for value in rendered)
+
+
+@pytest.mark.parametrize("url", ["ws://localhost:7880", "wss://livekit.example.test"])
+def test_voice_url_accepts_websocket_values(url: str) -> None:
+    settings = VoiceSettings(livekit_url=url)
+
+    assert settings.livekit_url == f"{url}/"
 
 
 def test_voice_settings_reject_extra_fields_and_ttl_inversion() -> None:
@@ -100,6 +107,6 @@ def test_voice_secret_validation_cannot_be_bypassed(operation: str) -> None:
 
     with pytest.raises(ValidationError):
         if operation == "model_copy":
-            settings.model_copy(update={"livekit_url": "https://user:secret@livekit.test"})
+            settings.model_copy(update={"livekit_url": "wss://user:secret@livekit.test"})
         else:
-            VoiceSettings.model_construct(livekit_url="https://user:secret@livekit.test")
+            VoiceSettings.model_construct(livekit_url="wss://user:secret@livekit.test")

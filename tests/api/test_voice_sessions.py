@@ -70,7 +70,7 @@ class FakeVoiceSessionService:
             {
                 "voice_session_id": SESSION_ID,
                 "conversation_id": CONVERSATION_ID,
-                "livekit_url": "https://livekit.example.test",
+                "livekit_url": "wss://livekit.example.test",
                 "room_token": "short-lived-test-token",
                 "token_expires_at": datetime.now(UTC),
                 "status": VoiceSessionState.CREATED,

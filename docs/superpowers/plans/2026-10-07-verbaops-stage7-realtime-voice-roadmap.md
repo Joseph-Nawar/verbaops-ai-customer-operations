@@ -116,7 +116,7 @@ class VoiceSessionRecord:
 class VoiceSessionBootstrap(BaseModel):
     voice_session_id: UUID
     conversation_id: UUID
-    livekit_url: AnyHttpUrl
+    livekit_url: AnyWebsocketUrl
     room_token: str
     token_expires_at: datetime
     status: VoiceSessionState

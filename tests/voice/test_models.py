@@ -85,7 +85,7 @@ def test_bootstrap_response_has_exact_bounded_browser_contract() -> None:
         {
             "voice_session_id": uuid4(),
             "conversation_id": uuid4(),
-            "livekit_url": "https://voice.example.test",
+            "livekit_url": "wss://voice.example.test",
             "room_token": "test-only-token",
             "token_expires_at": datetime.now(UTC),
             "status": VoiceSessionState.CREATED,

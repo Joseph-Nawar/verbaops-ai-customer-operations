@@ -203,10 +203,11 @@ async def test_bootstrap_creates_conversation_and_mints_short_lived_token() -> N
         result = await _service(
             conversation_service=conversation_service,
             token_issuer=token_issuer,
-            livekit_url="https://livekit.example.test",
+            livekit_url="wss://livekit.example.test",
         ).create_customer_session(context, None)
 
     assert result.voice_session_id == record.id
+    assert str(result.livekit_url) == "wss://livekit.example.test/"
     assert result.room_token == "local-test-token"
     assert result.status is VoiceSessionState.CREATED
     conversation_service.create_conversation.assert_awaited_once()
