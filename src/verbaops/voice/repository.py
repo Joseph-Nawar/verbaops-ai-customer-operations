@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import Select
 
 from verbaops.voice.domain import VoiceSessionRecord, VoiceSessionState
 from verbaops.voice.errors import VoiceSessionNotFoundError
@@ -94,11 +95,13 @@ class VoiceSessionRepository:
         await self._session.flush()
         return _record(row)
 
-    async def _get(self, statement: object, *, for_update: bool) -> VoiceSessionRecord:
+    async def _get(
+        self, statement: Select[tuple[VoiceSession]], *, for_update: bool
+    ) -> VoiceSessionRecord:
         typed_statement = statement
         if for_update:
-            typed_statement = typed_statement.with_for_update()  # type: ignore[union-attr]
-        row = await self._session.scalar(typed_statement)  # type: ignore[arg-type]
+            typed_statement = typed_statement.with_for_update()
+        row = await self._session.scalar(typed_statement)
         if row is None:
             raise VoiceSessionNotFoundError()
         return _record(row)

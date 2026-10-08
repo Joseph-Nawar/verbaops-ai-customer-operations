@@ -12,7 +12,7 @@ from verbaops.voice.domain import VoiceSessionState
 class VoiceSessionCreateRequest(BaseModel):
     """The only optional browser bootstrap input."""
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     conversation_id: UUID | None = None
 

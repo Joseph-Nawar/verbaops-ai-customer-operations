@@ -55,7 +55,7 @@ class VoiceSessionService:
         self._session_factory = session_factory
         self._conversation_service = conversation_service
         self._token_issuer = token_issuer
-        self._livekit_url = str(AnyHttpUrl(livekit_url))
+        self._livekit_url = AnyHttpUrl(livekit_url)
         self._session_ttl = session_ttl
         self._token_ttl = token_ttl
         self._transport_provider = transport_provider
@@ -85,6 +85,9 @@ class VoiceSessionService:
     ) -> VoiceSessionBootstrap:
         if not has_customer_authority(trusted_context):
             raise VoiceSessionAuthorizationError()
+        customer_id = trusted_context.customer_id
+        if customer_id is None:
+            raise VoiceSessionAuthorizationError()
         if self._conversation_service is None or self._token_issuer is None:
             raise RuntimeError("voice bootstrap dependencies are not configured")
 
@@ -93,9 +96,7 @@ class VoiceSessionService:
             principal_id=trusted_context.principal_id,
         )
         if conversation_id is None:
-            conversation = await self._conversation_service.create_conversation(
-                scope, trusted_context.customer_id
-            )
+            conversation = await self._conversation_service.create_conversation(scope, customer_id)
         else:
             try:
                 conversation = await self._conversation_service.get_conversation(
@@ -103,7 +104,7 @@ class VoiceSessionService:
                 )
             except ConversationNotFoundError:
                 raise VoiceSessionNotFoundError() from None
-            if conversation.customer_id != trusted_context.customer_id:
+            if conversation.customer_id != customer_id:
                 raise VoiceSessionNotFoundError()
 
         now = _utc_now()
@@ -113,7 +114,7 @@ class VoiceSessionService:
             record = await VoiceSessionRepository(session).create_session(
                 tenant_id=trusted_context.tenant_id,
                 principal_id=trusted_context.principal_id,
-                customer_id=trusted_context.customer_id,
+                customer_id=customer_id,
                 conversation_id=conversation.id,
                 transport_provider=self._transport_provider,
                 stt_provider=self._stt_provider,
@@ -148,13 +149,16 @@ class VoiceSessionService:
     ) -> VoiceSessionRecord:
         if not has_customer_authority(trusted_context):
             raise VoiceSessionAuthorizationError()
+        customer_id = trusted_context.customer_id
+        if customer_id is None:
+            raise VoiceSessionAuthorizationError()
         async with self._session_factory() as session, session.begin():
             try:
                 record = await VoiceSessionRepository(session).get_customer_session(
                     session_id,
                     trusted_context.tenant_id,
                     trusted_context.principal_id,
-                    trusted_context.customer_id,
+                    customer_id,
                 )
             except VoiceSessionNotFoundError:
                 raise VoiceSessionNotFoundError() from None
@@ -208,13 +212,16 @@ class VoiceSessionService:
     ) -> VoiceSessionRecord:
         if not has_customer_authority(trusted_context):
             raise VoiceSessionAuthorizationError()
+        customer_id = trusted_context.customer_id
+        if customer_id is None:
+            raise VoiceSessionAuthorizationError()
         async with self._session_factory() as session, session.begin():
             repository = VoiceSessionRepository(session)
             record = await repository.get_customer_session(
                 session_id,
                 trusted_context.tenant_id,
                 trusted_context.principal_id,
-                trusted_context.customer_id,
+                customer_id,
                 for_update=True,
             )
             if record.status is VoiceSessionState.ENDED:

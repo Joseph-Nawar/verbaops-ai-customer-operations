@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from verbaops.agent.runtime import AgentRuntime
     from verbaops.conversations.service import ConversationService
     from verbaops.knowledge.service import KnowledgeService
+    from verbaops.voice.livekit import LiveKitTokenIssuer
     from verbaops.voice.service import VoiceSessionService
 
 if TYPE_CHECKING:
@@ -139,6 +140,15 @@ def get_voice_session_service(request: Request) -> "VoiceSessionService":
     if resources.voice_session_service is None:
         raise RuntimeResourceUnavailableError("voice session service is unavailable")
     return resources.voice_session_service
+
+
+def get_livekit_token_issuer(request: Request) -> "LiveKitTokenIssuer":
+    """Retrieve the server-only local LiveKit token issuer."""
+
+    resources = get_runtime_resources(request)
+    if resources.voice_token_issuer is None:
+        raise RuntimeResourceUnavailableError("LiveKit token issuer is unavailable")
+    return resources.voice_token_issuer
 
 
 def get_application_dependencies(request: Request) -> ApplicationDependencies:
