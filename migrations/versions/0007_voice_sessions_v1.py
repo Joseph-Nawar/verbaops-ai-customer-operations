@@ -99,7 +99,6 @@ def upgrade() -> None:
     )
     op.add_column("agent_runs", sa.Column("voice_session_id", _UUID, nullable=True))
     op.add_column("agent_runs", sa.Column("voice_turn_id", _UUID, nullable=True))
-    op.alter_column("agent_runs", "interaction_mode", server_default=None)
     op.create_foreign_key(
         "fk_agent_runs_voice_session_id",
         "agent_runs",
