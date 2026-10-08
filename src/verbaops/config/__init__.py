@@ -10,6 +10,7 @@ from verbaops.config.settings import (
     RAGSettings,
     RedisSettings,
     Settings,
+    VoiceSettings,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "RAGSettings",
     "RedisSettings",
     "Settings",
+    "VoiceSettings",
 ]
