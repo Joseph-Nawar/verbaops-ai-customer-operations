@@ -14,6 +14,7 @@ from verbaops.conversations.domain import (
     CitationRecord,
     ConversationRecord,
     ConversationScope,
+    InteractionMode,
     MessagePage,
     MessageRecord,
     ModelCallRecord,
@@ -500,6 +501,9 @@ def _agent_run_record(row: AgentRun) -> AgentRunRecord:
         started_at=row.started_at,
         completed_at=row.completed_at,
         error_code=row.error_code,
+        interaction_mode=InteractionMode(row.interaction_mode or InteractionMode.TEXT.value),
+        voice_session_id=row.voice_session_id,
+        voice_turn_id=row.voice_turn_id,
     )
 
 

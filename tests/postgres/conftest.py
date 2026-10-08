@@ -8,6 +8,8 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from verbaops.voice import persistence as _voice_persistence  # noqa: F401
+
 
 @pytest_asyncio.fixture
 async def postgres_engine() -> AsyncIterator[AsyncEngine]:

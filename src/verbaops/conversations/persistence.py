@@ -14,11 +14,13 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from verbaops.conversations.domain import InteractionMode
 from verbaops.db.base import Base
 
 
@@ -92,6 +94,23 @@ class AgentRun(Base):
             unique=True,
             postgresql_where="status = 'running'",
         ),
+        Index(
+            "uq_agent_runs_voice_session_turn",
+            "voice_session_id",
+            "voice_turn_id",
+            unique=True,
+            postgresql_where=text("voice_session_id IS NOT NULL AND voice_turn_id IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "interaction_mode IN ('text', 'voice')",
+            name="agent_run_interaction_mode_allowed",
+        ),
+        CheckConstraint(
+            "(interaction_mode = 'text' AND voice_session_id IS NULL AND voice_turn_id IS NULL) "
+            "OR (interaction_mode = 'voice' AND voice_session_id IS NOT NULL "
+            "AND voice_turn_id IS NOT NULL)",
+            name="agent_run_provenance_consistent",
+        ),
     )
 
     id: Mapped[UUID] = _uuid_column()
@@ -117,6 +136,15 @@ class AgentRun(Base):
     started_at: Mapped[datetime] = _timestamp_column()
     completed_at: Mapped[datetime | None] = _timestamp_column(nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    interaction_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default=InteractionMode.TEXT.value, server_default="text"
+    )
+    voice_session_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("voice_sessions.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    voice_turn_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=True)
 
 
 class ModelCall(Base):

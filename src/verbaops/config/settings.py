@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import (
     AnyHttpUrl,
+    AnyWebsocketUrl,
     BaseModel,
     ConfigDict,
     Field,
@@ -321,6 +322,118 @@ class AuthSettings(BaseModel):
         return value
 
 
+class VoiceSettings(BaseModel):
+    """Immutable, bounded configuration for the customer-only voice boundary."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        hide_input_in_errors=True,
+    )
+
+    livekit_url: str = "wss://livekit.invalid"
+    livekit_api_key: SecretStr = SecretStr("local-livekit-api-key")
+    livekit_api_secret: SecretStr = SecretStr("local-livekit-api-secret")
+    worker_token: SecretStr = SecretStr("local-voice-worker-token")
+    stt_provider: str = "elevenlabs_scribe_v2_realtime"
+    tts_provider: str = "elevenlabs_flash_v2_5"
+    session_ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    token_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    connection_timeout_seconds: PositiveFloat = Field(default=15.0, le=60.0)
+    max_transcript_chars: int = Field(default=4000, ge=1, le=4000)
+    max_turn_seconds: PositiveFloat = Field(default=300.0, le=900.0)
+
+    def model_copy(
+        self,
+        *,
+        update: Mapping[str, Any] | None = None,
+        deep: bool = False,
+    ) -> Self:
+        """Validate updates instead of allowing credentials to bypass checks."""
+
+        if update is None:
+            return super().model_copy(update=None, deep=deep)
+        values = self.model_dump()
+        values.update(update)
+        return type(self).model_validate(values)
+
+    @classmethod
+    def model_construct(cls, _fields_set: set[str] | None = None, **values: Any) -> Self:
+        """Keep the unsafe Pydantic constructor behind the same validation boundary."""
+
+        return cls.model_validate(values)
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_url_credentials(cls, data: Any) -> Any:
+        """Redact credential-bearing URL input before validation errors capture it."""
+
+        if not isinstance(data, Mapping) or "livekit_url" not in data:
+            return data
+        data = dict(data)
+        value = data.get("livekit_url")
+        if not isinstance(value, str):
+            sanitized = dict(data)
+            sanitized["livekit_url"] = "[redacted]"
+            return sanitized
+        try:
+            parsed = urlsplit(value)
+            contains_credentials = (
+                parsed.username is not None
+                or parsed.password is not None
+                or bool(parsed.query)
+                or bool(parsed.fragment)
+            )
+        except ValueError:
+            contains_credentials = any(marker in value for marker in ("@", "?", "#"))
+        if not contains_credentials:
+            return data
+        sanitized = dict(data)
+        sanitized["livekit_url"] = "[redacted]"
+        return sanitized
+
+    @field_validator("livekit_url")
+    @classmethod
+    def validate_livekit_url(cls, value: str) -> str:
+        """Require a credential-free absolute WebSocket URL."""
+
+        try:
+            parsed = urlsplit(value)
+        except ValueError:
+            raise ValueError("livekit_url must be an absolute WebSocket / ws(s) URL") from None
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("livekit_url must not contain credentials")
+        if parsed.query or parsed.fragment:
+            raise ValueError("livekit_url must not contain query or fragment data")
+        return str(AnyWebsocketUrl(value))
+
+    @field_validator("livekit_api_key", "livekit_api_secret", "worker_token")
+    @classmethod
+    def validate_voice_secret(cls, value: SecretStr) -> SecretStr:
+        """Reject blank voice credentials while keeping values secret."""
+
+        if not value.get_secret_value().strip():
+            raise ValueError("voice secret must not be blank")
+        return value
+
+    @field_validator("stt_provider", "tts_provider")
+    @classmethod
+    def validate_provider_identifier(cls, value: str) -> str:
+        """Require a bounded provider identifier without accepting whitespace-only names."""
+
+        if not value.strip() or len(value) > 128:
+            raise ValueError("provider identifier is invalid")
+        return value
+
+    @model_validator(mode="after")
+    def validate_ttl_order(self) -> Self:
+        """Keep a room token shorter-lived than its server-owned session."""
+
+        if self.token_ttl_seconds > self.session_ttl_seconds:
+            raise ValueError("token_ttl_seconds cannot exceed session_ttl_seconds")
+        return self
+
+
 class Settings(BaseSettings):
     """Application settings loaded from VERBAOPS_-prefixed environment variables."""
 
@@ -340,6 +453,7 @@ class Settings(BaseSettings):
     rag: RAGSettings = Field(default_factory=RAGSettings)
     commerce: CommerceSettings = Field(default_factory=CommerceSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    voice: VoiceSettings = Field(default_factory=VoiceSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
 
     @classmethod

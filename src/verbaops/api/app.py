@@ -24,6 +24,7 @@ from verbaops.api.routes.action_requests import router as action_requests_router
 from verbaops.api.routes.conversations import router as conversations_router
 from verbaops.api.routes.knowledge_admin import router as knowledge_admin_router
 from verbaops.api.routes.operations import router as operations_router
+from verbaops.api.routes.voice_sessions import router as voice_sessions_router
 from verbaops.auth.provider import AuthenticationError, AuthProvider
 from verbaops.config.settings import Settings
 from verbaops.observability.logging import configure_logging
@@ -101,4 +102,5 @@ def create_app(
     app.include_router(conversations_router)
     app.include_router(action_requests_router)
     app.include_router(knowledge_admin_router)
+    app.include_router(voice_sessions_router)
     return app

@@ -1,17 +1,24 @@
 """Immutable trusted dependencies for one graph invocation."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from verbaops.agent.evaluation import AgentEvaluationProfile
 from verbaops.auth.context import TrustedContext
-from verbaops.commerce.client import CommerceClient
-from verbaops.conversations.domain import ConversationScope
-from verbaops.conversations.service import ConversationService
-from verbaops.llm.client import LLMClient
-from verbaops.retrieval.grounding import CitationFinalizer
-from verbaops.retrieval.service import RetrievalService
-from verbaops.tools.registry import ToolRegistry
+from verbaops.conversations.domain import ConversationScope, InteractionMode
+
+__all__ = ["AgentContext", "InteractionMode"]
+
+if TYPE_CHECKING:
+    from verbaops.agent.evaluation import AgentEvaluationProfile
+    from verbaops.commerce.client import CommerceClient
+    from verbaops.conversations.service import ConversationService
+    from verbaops.llm.client import LLMClient
+    from verbaops.retrieval.grounding import CitationFinalizer
+    from verbaops.retrieval.service import RetrievalService
+    from verbaops.tools.registry import ToolRegistry
 
 
 @dataclass(frozen=True, slots=True)

@@ -62,7 +62,7 @@ rag-unit-contract:
 
 rag-contract:
 	$(UV) run python scripts/require_test_database.py
-	$(UV) run alembic upgrade 0005_retrieval_grounding_v1
+	$(UV) run alembic upgrade head
 	$(UV) run pytest tests/postgres/m5b -m "postgres and contract" -q
 	$(UV) run pytest tests/retrieval tests/agent/test_retrieval_graph.py tests/agent/test_grounding_security.py tests/api/test_conversations_m5b.py -m "not postgres and not llm_gateway_contract and not agent_acceptance" -q
 

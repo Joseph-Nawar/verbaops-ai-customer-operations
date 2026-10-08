@@ -3,6 +3,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from datetime import timedelta
 
 import httpx
 from fastapi import FastAPI
@@ -41,6 +42,8 @@ from verbaops.retrieval.grounding import CitationFinalizer
 from verbaops.retrieval.profile import PRODUCTION_RETRIEVAL_PROFILE
 from verbaops.retrieval.reranker import RerankerClient
 from verbaops.retrieval.service import EvidenceGateScorer, RetrievalService
+from verbaops.voice.livekit import LiveKitTokenIssuer
+from verbaops.voice.service import VoiceSessionService
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +67,8 @@ class RuntimeResources:
     knowledge_service: KnowledgeService | None = field(default=None, repr=False)
     reranker_client: RerankerClient | None = field(default=None, repr=False)
     retrieval_service: RetrievalService | None = field(default=None, repr=False)
+    voice_session_service: VoiceSessionService | None = field(default=None, repr=False)
+    voice_token_issuer: LiveKitTokenIssuer | None = field(default=None, repr=False)
 
 
 @asynccontextmanager
@@ -91,6 +96,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     knowledge_service: KnowledgeService | None = None
     reranker_client: RerankerClient | None = None
     retrieval_service: RetrievalService | None = None
+    voice_session_service: VoiceSessionService | None = None
+    voice_token_issuer = LiveKitTokenIssuer(dependencies.settings.voice)
     try:
         if (
             dependencies.settings.database.url is not None
@@ -123,6 +130,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             action_repository = ActionRepository(database.session_factory)
             conversation_service = ConversationService(
                 database.session_factory, action_repository=action_repository
+            )
+            voice_session_service = VoiceSessionService(
+                database.session_factory,
+                conversation_service=conversation_service,
+                token_issuer=voice_token_issuer,
+                livekit_url=dependencies.settings.voice.livekit_url,
+                session_ttl=timedelta(seconds=dependencies.settings.voice.session_ttl_seconds),
+                token_ttl=timedelta(seconds=dependencies.settings.voice.token_ttl_seconds),
+                stt_provider=dependencies.settings.voice.stt_provider,
+                tts_provider=dependencies.settings.voice.tts_provider,
             )
             action_transition_service = ActionTransitionService(database.session_factory)
             action_proposal_service = ActionProposalService(
@@ -230,6 +247,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             knowledge_service=knowledge_service,
             reranker_client=reranker_client,
             retrieval_service=retrieval_service,
+            voice_session_service=voice_session_service,
+            voice_token_issuer=voice_token_issuer,
         )
         yield
     finally:

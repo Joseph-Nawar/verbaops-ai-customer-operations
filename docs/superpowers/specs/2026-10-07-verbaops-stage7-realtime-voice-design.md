@@ -830,7 +830,7 @@ returns a bounded response conceptually containing:
 {
   "voice_session_id": "<UUID>",
   "conversation_id": "<UUID>",
-  "livekit_url": "<server-configured URL>",
+  "livekit_url": "<server-configured LiveKit WebSocket transport URL (ws:// / wss://)>",
   "room_token": "<short-lived token>",
   "token_expires_at": "<timestamp>",
   "status": "created"

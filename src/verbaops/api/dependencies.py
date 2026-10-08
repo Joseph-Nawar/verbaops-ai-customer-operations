@@ -16,6 +16,7 @@ from verbaops.auth.provider import AuthenticationError, AuthProvider, OpaqueCred
 from verbaops.config.settings import Settings
 from verbaops.db.resources import DatabaseResources
 from verbaops.observability.context import bind_tenant_id
+from verbaops.voice.auth import VoiceWorkerContext, authenticate_worker
 
 if TYPE_CHECKING:
     from verbaops.actions.decisions import ActionDecisionService
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from verbaops.agent.runtime import AgentRuntime
     from verbaops.conversations.service import ConversationService
     from verbaops.knowledge.service import KnowledgeService
+    from verbaops.voice.livekit import LiveKitTokenIssuer
+    from verbaops.voice.service import VoiceSessionService
 
 if TYPE_CHECKING:
     from verbaops.api.lifespan import RuntimeResources
@@ -131,6 +134,24 @@ def get_knowledge_service(request: Request) -> "KnowledgeService":
     return resources.knowledge_service
 
 
+def get_voice_session_service(request: Request) -> "VoiceSessionService":
+    """Retrieve the lifespan-owned voice session lifecycle service."""
+
+    resources = get_runtime_resources(request)
+    if resources.voice_session_service is None:
+        raise RuntimeResourceUnavailableError("voice session service is unavailable")
+    return resources.voice_session_service
+
+
+def get_livekit_token_issuer(request: Request) -> "LiveKitTokenIssuer":
+    """Retrieve the server-only local LiveKit token issuer."""
+
+    resources = get_runtime_resources(request)
+    if resources.voice_token_issuer is None:
+        raise RuntimeResourceUnavailableError("LiveKit token issuer is unavailable")
+    return resources.voice_token_issuer
+
+
 def get_application_dependencies(request: Request) -> ApplicationDependencies:
     """Retrieve the immutable dependency container from application state."""
 
@@ -157,6 +178,7 @@ def get_auth_provider(
 
 
 bearer_scheme = HTTPBearer(auto_error=False)
+worker_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_trusted_context(
@@ -174,3 +196,20 @@ async def get_trusted_context(
     context = auth_provider.authenticate(OpaqueCredential(credentials.credentials))
     bind_tenant_id(context.tenant_id)
     return context
+
+
+async def get_voice_worker_context(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(worker_bearer_scheme),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> VoiceWorkerContext:
+    """Authenticate the internal worker without creating a customer context."""
+
+    if credentials is None or credentials.scheme.lower() != "bearer":
+        raise AuthenticationError("authentication failed")
+    return authenticate_worker(
+        OpaqueCredential(credentials.credentials),
+        expected_token=settings.voice.worker_token,
+    )
