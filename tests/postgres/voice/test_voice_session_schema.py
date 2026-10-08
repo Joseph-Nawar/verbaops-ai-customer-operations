@@ -168,4 +168,3 @@ async def test_voice_provenance_is_unique_and_text_defaults_remain_valid(
             ),
             {**values, "id": uuid4()},
         )
-
