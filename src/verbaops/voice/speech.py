@@ -74,3 +74,8 @@ class SpeechEventNormalizer:
         self._submitted_turn_ids.add(event.voice_turn_id)
         self._partial_transcript = ""
         return SpeechEvent(SpeechEventKind.FINAL, transcript, event.voice_turn_id)
+
+    def forget_final(self, voice_turn_id: UUID) -> None:
+        """Release a local key after transport failure; durable idempotency remains authoritative."""
+
+        self._submitted_turn_ids.discard(voice_turn_id)
