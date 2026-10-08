@@ -177,6 +177,18 @@ class VoiceSessionService:
         self._require_valid(record)
         return record
 
+    async def get_connected_worker_session(
+        self,
+        session_id: UUID,
+        worker_context: VoiceWorkerContext,
+    ) -> VoiceSessionRecord:
+        """Load a valid worker session that is connected for final transcripts."""
+
+        record = await self.get_worker_session(session_id, worker_context)
+        if record.status is not VoiceSessionState.CONNECTED:
+            raise VoiceSessionLifecycleError()
+        return record
+
     async def mark_connecting(self, session_id: UUID) -> VoiceSessionRecord:
         async with self._session_factory() as session, session.begin():
             repository = VoiceSessionRepository(session)
