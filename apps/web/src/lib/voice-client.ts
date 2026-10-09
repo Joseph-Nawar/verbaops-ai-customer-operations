@@ -111,7 +111,7 @@ export class FakeVoiceTransport implements VoiceTransport {
 }
 
 export function createVoiceTransport(): VoiceTransport {
-  if (process.env.NEXT_PUBLIC_VERBAOPS_STAGE7_FAKE_VOICE === "1") {
+  if (process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_VERBAOPS_STAGE7_FAKE_VOICE === "1") {
     return new FakeVoiceTransport({ autoEvents: true });
   }
   return createLiveKitVoiceTransport();

@@ -8,7 +8,11 @@ import {
   loadActionView,
   type ActionRequestView,
 } from "./action-request-card";
-import { VoicePanel, type VoicePanelHandle } from "./voice-panel";
+import {
+  VoicePanel,
+  type InitialConversationReservation,
+  type VoicePanelHandle,
+} from "./voice-panel";
 import { isConversationId } from "@/lib/server/request-validation";
 
 type Message = {
@@ -27,6 +31,12 @@ type MessageResponse = {
 type ConversationResponse = {
   messages: Message[];
   active_action_requests: ActionRequestView[];
+};
+
+type InitialConversationGate = {
+  promise: Promise<string | null>;
+  resolve: (conversationId: string) => void;
+  cancel: () => void;
 };
 
 async function readApiResponse(response: Response): Promise<Record<string, unknown>> {
@@ -149,6 +159,51 @@ export function Chat(): React.JSX.Element {
   const [lastFailedContent, setLastFailedContent] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const voicePanelRef = useRef<VoicePanelHandle | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const conversationEpochRef = useRef(0);
+  const initialConversationGateRef = useRef<InitialConversationGate | null>(null);
+
+  function adoptConversationId(id: string): void {
+    conversationIdRef.current = id;
+    setConversationId(id);
+  }
+
+  function reserveInitialConversation(): InitialConversationReservation {
+    const existing = initialConversationGateRef.current;
+    if (existing) {
+      return {
+        promise: existing.promise,
+        owner: false,
+        resolve: () => undefined,
+        cancel: () => undefined,
+      };
+    }
+
+    let resolvePromise!: (conversationId: string | null) => void;
+    const promise = new Promise<string | null>((resolve) => {
+      resolvePromise = resolve;
+    });
+    const gate: InitialConversationGate = {
+      promise,
+      resolve: (id) => {
+        if (initialConversationGateRef.current !== gate) return;
+        initialConversationGateRef.current = null;
+        resolvePromise(id);
+      },
+      cancel: () => {
+        if (initialConversationGateRef.current !== gate) return;
+        initialConversationGateRef.current = null;
+        resolvePromise(null);
+      },
+    };
+    initialConversationGateRef.current = gate;
+    return {
+      promise,
+      owner: true,
+      resolve: gate.resolve,
+      cancel: gate.cancel,
+    };
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -169,19 +224,21 @@ export function Chat(): React.JSX.Element {
     }
     void loadConversation(storedConversationId)
       .then((result) => {
-        if (cancelled) return;
+        if (cancelled || conversationEpochRef.current !== 0) return;
+        conversationIdRef.current = storedConversationId;
         setConversationId(storedConversationId);
         setMessages(result.messages);
         setActionRequests(result.active_action_requests);
       })
       .catch((error: unknown) => {
-        if (cancelled) return;
+        if (cancelled || conversationEpochRef.current !== 0) return;
         if (error instanceof Error && "status" in error && error.status === 404) {
           try {
             sessionStorage.removeItem("verbaops.conversationId");
           } catch {
             // Storage is optional.
           }
+          conversationIdRef.current = null;
           setConversationId(null);
           return;
         }
@@ -195,31 +252,51 @@ export function Chat(): React.JSX.Element {
   async function submitContent(content: string): Promise<void> {
     const cleanContent = content.trim();
     if (!cleanContent || pending) return;
+    const operationEpoch = conversationEpochRef.current;
+    let reservation: InitialConversationReservation | null = null;
     setPending(true);
     setError(false);
     setLastFailedContent(cleanContent);
     try {
-      const id = conversationId ?? (await createConversation());
-      if (!conversationId) {
-        setConversationId(id);
-        try {
-          sessionStorage.setItem("verbaops.conversationId", id);
-        } catch {
-          // Storage is optional; the server remains authoritative.
+      let id = conversationIdRef.current;
+      if (!id) {
+        reservation = reserveInitialConversation();
+        if (reservation.owner) {
+          id = await createConversation();
+          if (operationEpoch !== conversationEpochRef.current) {
+            reservation.cancel();
+            return;
+          }
+          adoptConversationId(id);
+          try {
+            sessionStorage.setItem("verbaops.conversationId", id);
+          } catch {
+            // Storage is optional; the server remains authoritative.
+          }
+          reservation.resolve(id);
+        } else {
+          id = await reservation.promise;
+          if (!id || operationEpoch !== conversationEpochRef.current) return;
         }
       }
       const result = await sendMessage(id, cleanContent);
+      if (operationEpoch !== conversationEpochRef.current) return;
       setMessages((current) => [...current, result.user_message, result.assistant_message]);
       if (result.action_requests && result.action_requests.length > 0) {
         const views = await loadTurnActionViews(result.action_requests);
+        if (operationEpoch !== conversationEpochRef.current) return;
         setActionRequests((current) => mergeActionViews(current, views));
       }
       setDraft("");
       setLastFailedContent(null);
     } catch {
-      setError(true);
+      if (reservation?.owner) reservation.cancel();
+      if (operationEpoch === conversationEpochRef.current) setError(true);
     } finally {
-      setPending(false);
+      if (operationEpoch === conversationEpochRef.current) setPending(false);
+      if (reservation && reservation.owner && operationEpoch !== conversationEpochRef.current) {
+        reservation.cancel();
+      }
     }
   }
 
@@ -236,21 +313,29 @@ export function Chat(): React.JSX.Element {
   }
 
   async function refreshConversation(): Promise<void> {
-    if (!conversationId) return;
+    const id = conversationIdRef.current;
+    const refreshEpoch = conversationEpochRef.current;
+    if (!id) return;
     try {
-      const result = await loadConversation(conversationId);
+      const result = await loadConversation(id);
+      if (refreshEpoch !== conversationEpochRef.current || conversationIdRef.current !== id) return;
       setMessages(result.messages);
       setActionRequests(result.active_action_requests);
     } catch {
-      setError(true);
+      if (refreshEpoch === conversationEpochRef.current && conversationIdRef.current === id) setError(true);
     }
   }
 
   async function reset(): Promise<void> {
+    conversationEpochRef.current += 1;
+    initialConversationGateRef.current?.cancel();
+    initialConversationGateRef.current = null;
+    conversationIdRef.current = null;
     await voicePanelRef.current?.resetVoiceSession();
     setConversationId(null);
     setMessages([]);
     setDraft("");
+    setPending(false);
     setError(false);
     setLastFailedContent(null);
     setActionRequests([]);
@@ -278,7 +363,8 @@ export function Chat(): React.JSX.Element {
         <VoicePanel
           ref={voicePanelRef}
           conversationId={conversationId}
-          onConversationId={setConversationId}
+          onConversationId={adoptConversationId}
+          reserveInitialConversation={reserveInitialConversation}
           onAuthoritativeStateInvalidated={() => void refreshConversation()}
         />
 

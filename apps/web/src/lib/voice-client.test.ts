@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FakeVoiceTransport } from "./voice-client";
+import { createVoiceTransport, FakeVoiceTransport } from "./voice-client";
 
 describe("provider-neutral voice transport", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("publishes presentation events without an action or identity surface", async () => {
     const transport = new FakeVoiceTransport();
     const events: unknown[] = [];
@@ -46,5 +50,12 @@ describe("provider-neutral voice transport", () => {
 
     expect(transport.isConnected()).toBe(false);
     expect(transport.lastBootstrap()).toBeNull();
+  });
+
+  it("does not select the smoke fake in a production build", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("NEXT_PUBLIC_VERBAOPS_STAGE7_FAKE_VOICE", "1");
+
+    expect(createVoiceTransport()).not.toBeInstanceOf(FakeVoiceTransport);
   });
 });
